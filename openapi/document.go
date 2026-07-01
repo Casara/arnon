@@ -1,0 +1,178 @@
+package openapi
+
+type OpenAPIVersion string
+
+const (
+	OpenAPIVersion3_2 OpenAPIVersion = "3.2.0"
+)
+
+// Document represents an OpenAPI document.
+type Document struct {
+	// REQUIRED. This string MUST be the
+	// [version number](https://spec.openapis.org/oas/latest#versions-and-deprecation)
+	// of the OpenAPI Specification that the OpenAPI document uses. The `openapi` field
+	// SHOULD be used by tooling to interpret the OpenAPI document. This is not related
+	// to the `info.version` string, which describes the OpenAPI document’s version.
+	OpenAPI OpenAPIVersion `json:"openapi"`
+
+	// This string MUST be in the form of a URI reference as defined by [RFC3986] Section 4.1.
+	// The `$self` field provides the self-assigned URI of this document, which also serves as
+	// its base URI in accordance with [RFC3986] Section 5.1.1. Implementations MUST support
+	// identifying the targets of API description URIs using the URI defined by this field when
+	// it is present. See Establishing the Base URI for the base URI behavior when `$self` is
+	// absent or relative, and see Appendix F for examples of using `$self` to resolve references.
+	Self string `json:"$self,omitempty"`
+
+	// REQUIRED. Provides metadata about the API. The metadata MAY be used by tooling as required.
+	Info Info `json:"info"`
+
+	// jsonSchemaDialect string
+	// servers []Server
+
+	// The available paths and operations for the API.
+	Paths map[string]PathItem `json:"paths"`
+
+	// webhooks map[string]PathItem
+
+	// An element to hold various Objects for the OpenAPI Description.
+	Components Components `json:"components,omitzero"`
+
+	// security []map[string][]string
+
+	// A list of tags used by the OpenAPI Description with additional metadata. The order of the
+	// tags can be used to reflect on their order by the parsing tools. Not all tags that are used
+	// by the Operation Object must be declared. The tags that are not declared MAY be organized
+	// randomly or based on the tools’ logic. Each tag name in the list MUST be unique.
+	Tags []Tag `json:"tags,omitempty"`
+
+	// Additional external documentation.
+	ExternalDocs *ExternalDocs `json:"externalDocs,omitempty"`
+}
+
+// Info  provides metadata about the API. The metadata MAY be used by the clients if needed, and
+// MAY be presented in editing or documentation generation tools for convenience.
+//
+// Example:
+//
+//	Info: openapi.Info{
+//		Title:   "Example Pet Store App",
+//		Summary: "A pet store manager.",
+//		Description: "This is an example server for a pet store.",
+//		TermsOfService: "https://example.com/terms/",
+//		Contact: &openapi.Contact{
+//			Name:  "API Support",
+//			URL:   "https://www.example.com/support",
+//			Email: "support@example.com",
+//		},
+//		License: &openapi.License{
+//			Name: "Apache 2.0",
+//			URL:  "https://www.apache.org/licenses/LICENSE-2.0.html",
+//		},
+//		Version: "1.0.1",
+//	}
+type Info struct {
+	// REQUIRED. The title of the API.
+	Title string `json:"title"`
+
+	// A short summary of the API.
+	Summary string `json:"summary,omitempty"`
+
+	// A description of the API. [CommonMark] syntax MAY be used for rich text representation.
+	Description string `json:"description,omitempty"`
+
+	// A URI for the Terms of Service for the API. This MUST be in the form of a URI.
+	TermsOfService string `json:"termsOfService,omitempty"`
+
+	// The contact information for the exposed API.
+	Contact *Contact `json:"contact,omitempty"`
+
+	// The license information for the exposed API.
+	License *License `json:"license,omitempty"`
+
+	// REQUIRED. The version of the OpenAPI document (which is distinct from the OpenAPI
+	// Specification version or the version of the API being described or the version of the
+	// OpenAPI Description).
+	Version string `json:"version"`
+}
+
+// Contact information for the exposed API.
+//
+// Example:
+//
+//	Contact: &openapi.Contact{
+//		Name:  "API Support",
+//		URL:   "https://www.example.com/support",
+//		Email: "support@example.com"
+//	}
+type Contact struct {
+	// The identifying name of the contact person/organization.
+	Name string `json:"name,omitempty"`
+
+	// The URI for the contact information. This MUST be in the form of a URI.
+	URL string `json:"url,omitempty"`
+
+	// The email address of the contact person/organization. This MUST be in the form of
+	// an email address.
+	Email string `json:"email,omitempty"`
+}
+
+// License information for the exposed API.
+//
+// Example:
+//
+//		License: &openapi.License{
+//			Name: "Apache 2.0",
+//	 	Identifier: "Apache-2.0",
+//			URL:  "https://www.apache.org/licenses/LICENSE-2.0.html"
+//		}
+type License struct {
+	// REQUIRED. The license name used for the API.
+	Name string `json:"name"`
+
+	// An [SPDX-Licenses] expression for the API. The `identifier` field is mutually exclusive
+	// of the `url` field.
+	Identifier string `json:"identifier,omitempty"`
+
+	// A URI for the license used for the API. This MUST be in the form of a URI. The `url` field
+	// is mutually exclusive of the `identifier` field.
+	URL string `json:"url,omitempty"`
+}
+
+// PathItem describes the operations available on a single path. A Path Item MAY be empty, due to
+// ACL constraints. The path itself is still exposed to the documentation viewer but they will not
+// know which operations and parameters are available.
+type PathItem struct {
+	// A definition of a GET operation on this path.
+	Get *Operation `json:"get,omitempty"`
+
+	// A definition of a PUT operation on this path.
+	Put *Operation `json:"put,omitempty"`
+
+	// A definition of a POST operation on this path.
+	Post *Operation `json:"post,omitempty"`
+
+	// A definition of a DELETE operation on this path.
+	Delete *Operation `json:"delete,omitempty"`
+
+	// A definition of a OPTIONS operation on this path.
+	Options *Operation `json:"options,omitempty"`
+
+	// A definition of a HEAD operation on this path.
+	Head *Operation `json:"head,omitempty"`
+
+	// A definition of a PATCH operation on this path.
+	Patch *Operation `json:"patch,omitempty"`
+
+	// A definition of a TRACE operation on this path.
+	Trace *Operation `json:"trace,omitempty"`
+
+	// A definition of a QUERY operation, as defined in the most recent IETF draft
+	// (draft-ietf-httpbis-safe-method-w-body-08 as of this writing) or its RFC successor,
+	// on this path.
+	Query *Operation `json:"query,omitempty"`
+}
+
+// Components contains reusable schemas.
+type Components struct {
+	Schemas map[string]Schema `json:"schemas,omitempty"`
+}

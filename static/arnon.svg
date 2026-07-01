@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg viewBox="25 25 395.60511779785156 110" width="350" height="105" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/">
+  <defs>
+    <style>
+      .line-flow { stroke: #007acc; stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+        .box-pattern { stroke: #24292f; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+        .text-main { font-family: -apple-system, BlinkMacSystemFont, &apos;Segoe UI&apos;, Roboto, sans-serif; font-weight: 800; font-size: 52px; fill: #24292f; letter-spacing: 4px; }
+        @media (prefers-color-scheme: dark) {
+          .box-pattern { stroke: #f0f6fc; }
+          .text-main { fill: #4fc3f7; }
+          .line-flow { stroke: #4fc3f7; }
+        }
+    </style>
+  </defs>
+  <polygon points="95,25 145,52 145,108 95,135 45,108 45,52" class="box-pattern" opacity="0.3"/>
+  <path d="M25,80 L65,80 L95,45 L125,115 L165,115" class="line-flow"/>
+  <text x="210" y="92" class="text-main">ARNON</text>
+</svg>

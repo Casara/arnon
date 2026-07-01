@@ -1,0 +1,67 @@
+; This file is for unifying the coding style for different editors and IDEs.
+; More information at http://editorconfig.org
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_size = 2
+indent_style = space
+insert_final_newline = true
+max_line_length = 100
+trim_trailing_whitespace = true
+ij_visual_guides = 80,100,120
+
+# Structured backend / configuration
+[*.{toml,sql}]
+indent_size = 4
+
+# Protocol buffers
+[*.proto]
+indent_size = 2
+
+# JSON / YAML
+[*.{json,yaml,yml}]
+indent_size = 2
+
+# Frontend
+[*.{js,ts,tsx,css,html,sass}]
+indent_size = 2
+
+# Markdown
+[*.md]
+# Because:
+# - most formatters (like Prettier) use 2 spaces
+# - lists can become inconsistent depending on the editor
+indent_size = 2
+max_line_length = 120
+# double whitespace at end of line
+# denotes a line break in Markdown
+trim_trailing_whitespace = false
+
+# Shell
+[*.sh]
+indent_size = 2
+
+# Docker
+[Dockerfile*]
+indent_size = 2
+
+# Makefiles and Go files always use tabs for indentation
+[{Makefile,*.go,.gitmodules}]
+indent_style = tab
+indent_size = 4
+
+[go.{mod,work,work.sum,sum}]
+charset = unset
+end_of_line = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset
+indent_style = unset
+indent_size = unset
+
+# Windows batch
+[*.bat]
+end_of_line = crlf
+indent_style = tab
