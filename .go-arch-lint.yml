@@ -1,0 +1,107 @@
+version: 3
+workdir: .
+
+excludeFiles:
+  - "^.*_test\\.go$"
+
+vendors:
+  go-uuid: { in: github.com/google/uuid }
+  validator: { in: github.com/go-playground/validator/v10(/**)? }
+  otel: { in: go.opentelemetry.io/otel(/**)? }
+  otel-contrib: { in: go.opentelemetry.io/contrib(/**)? }
+
+components:
+  problem: { in: problem }
+  validation: { in: validation }
+  openapi: { in: openapi }
+  httpx: { in: httpx }
+  httpx-binding: { in: httpx/binding }
+  httpx-routing: { in: httpx/routing }
+  httpx-middleware: { in: httpx/middleware }
+  observability: { in: observability }
+  observability-otel: { in: observability/otel }
+  # Runnable examples are consumers of the library, not part of its
+  # internal architecture, so they may freely use any component.
+  examples: { in: "examples/**" }
+
+commonComponents: []
+
+deps:
+  # Leaf package: RFC 9457 Problem Details types. Everything else may
+  # depend on it, it depends on nothing internal or external (no entry
+  # below means no allowed dependencies at all).
+
+  # Wraps go-playground/validator/v10 behind the Validator interface
+  # and the custom rule registry.
+  validation:
+    mayDependOn:
+      - problem
+    canUse:
+      - validator
+
+  # Reads validation's custom rule registry so OpenAPI schema
+  # generation and runtime validation agree on what a tag means.
+  openapi:
+    mayDependOn:
+      - validation
+
+  # Request binding (path/query/header/JSON) only needs Problem Details
+  # to report binding failures.
+  httpx-binding:
+    mayDependOn:
+      - problem
+
+  # The typed Endpoint helper: binds, validates, calls the handler, and
+  # maps errors to Problem Details/OpenAPI operations.
+  httpx:
+    mayDependOn:
+      - httpx-binding
+      - openapi
+      - problem
+      - validation
+
+  # The router registers OpenAPI operations contributed by handlers
+  # that implement httpx.OpenAPIProvider (see
+  # httpx/routing/register_openapi.go) - the one bottom-up edge in this
+  # graph.
+  httpx-routing:
+    mayDependOn:
+      - httpx
+      - openapi
+
+  # Standard middleware (CORS, recovery, request ID, logging, ...).
+  httpx-middleware:
+    mayDependOn:
+      - httpx
+      - httpx-routing
+      - observability
+      - problem
+    canUse:
+      - go-uuid
+
+  # Thin OpenTelemetry API wrappers (counters, histograms, attributes).
+  observability:
+    canUse:
+      - otel
+
+  # OpenTelemetry SDK wiring (exporters, providers, HTTP instrumentation).
+  observability-otel:
+    mayDependOn:
+      - observability
+    canUse:
+      - otel
+      - otel-contrib
+
+  examples:
+    mayDependOn:
+      - httpx
+      - httpx-binding
+      - httpx-routing
+      - httpx-middleware
+      - openapi
+      - problem
+      - validation
+      - observability
+      - observability-otel
+    canUse:
+      - validator

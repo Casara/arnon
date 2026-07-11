@@ -5,11 +5,17 @@ import (
 	"net/http"
 )
 
+// Errors returned by Problem.With when an extension key is invalid.
 var (
+	// ErrEmptyExtensionKey indicates that With was called with a blank
+	// or whitespace-only key.
 	ErrEmptyExtensionKey = errors.New(
 		"problem extension key cannot be empty",
 	)
 
+	// ErrReservedExtensionKey indicates that With was called with a key
+	// that collides with one of the standard RFC 9457 fields (type,
+	// title, status, detail, instance, errors).
 	ErrReservedExtensionKey = errors.New(
 		"problem extension key is reserved",
 	)

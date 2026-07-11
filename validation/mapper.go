@@ -67,6 +67,8 @@ func mapValidationErrors(
 // Validation rules are intentionally mapped through a single switch
 // statement to keep all validator-to-problem translations visible in
 // one place.
+//
+//nolint:cyclop,funlen // one switch arm per validator tag, see comment above
 func mapFieldError(
 	fieldErr validatorv10.FieldError,
 	source problem.ValidationSource,
@@ -218,6 +220,14 @@ func mapFieldError(
 		)
 
 	default:
+		if rule, ok := LookupCustomRule(fieldErr.Tag()); ok {
+			return buildCustomRuleError(
+				fieldErr,
+				source,
+				rule,
+			)
+		}
+
 		return buildValidationError(
 			source,
 			"validation failed",
@@ -228,6 +238,37 @@ func mapFieldError(
 			},
 		)
 	}
+}
+
+// buildCustomRuleError translates a validation failure for a
+// framework-registered custom rule into a framework validation error,
+// using the rule's own message and code when provided.
+func buildCustomRuleError(
+	fieldErr validatorv10.FieldError,
+	source problem.ValidationSource,
+	rule CustomRule,
+) problem.ValidationError {
+	detail := "validation failed"
+	if rule.Message != nil {
+		detail = rule.Message(
+			fieldErr.Param(),
+		)
+	}
+
+	code := rule.Code
+	if code == "" {
+		code = problem.ValidationCodeValidationFailed
+	}
+
+	return buildValidationError(
+		source,
+		detail,
+		code,
+		map[string]any{
+			"rule":  rule.Tag,
+			"param": fieldErr.Param(),
+		},
+	)
 }
 
 // buildValidationError creates a validation error for the given location.

@@ -59,7 +59,14 @@ func (generator *SchemaGenerator) parseField(
 	}
 
 	schema.Description = field.Tag.Get("description")
-	schema.Format = field.Tag.Get("format")
+
+	// An explicit `format` tag always wins. Otherwise, keep whatever
+	// applyValidationTags already inferred from the `validate` tag
+	// (including custom rules) before falling back to the additional
+	// formats inferFormatFromValidator knows about.
+	if explicitFormat := field.Tag.Get("format"); explicitFormat != "" {
+		schema.Format = explicitFormat
+	}
 
 	if schema.Format == "" {
 		schema.Format = inferFormatFromValidator(

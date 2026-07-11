@@ -17,6 +17,8 @@ func NewRegistry(
 	}
 }
 
+// Register registers an endpoint's operation and request/response
+// types with the underlying Generator.
 func (registry *Registry) Register(
 	method string,
 	path string,

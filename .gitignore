@@ -16,6 +16,10 @@
 coverage.*
 *.coverprofile
 profile.cov
+mutation.json
+
+# make build output
+/bin/
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
@@ -26,6 +30,9 @@ go.work.sum
 
 # env file
 .env
+
+# Local working notes, not meant to be committed.
+NOTES.md
 
 # Editor/IDE
 # .idea/

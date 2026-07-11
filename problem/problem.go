@@ -40,6 +40,7 @@ type Problem struct {
 	extensions map[string]any
 }
 
+// New creates a Problem with the given status, title and detail.
 func New(
 	status int,
 	title string,
@@ -112,6 +113,8 @@ func (problemInstance *Problem) WithError(err error) *Problem {
 	return problemInstance
 }
 
+// AddError appends a field-level validation error to the problem's
+// Errors slice.
 func (problemInstance *Problem) AddError(validationError ValidationError) *Problem {
 	problemInstance.Errors = append(
 		problemInstance.Errors,
@@ -121,6 +124,13 @@ func (problemInstance *Problem) AddError(validationError ValidationError) *Probl
 	return problemInstance
 }
 
+// With attaches an RFC 9457 extension member to the problem, serialized
+// at the top level of the JSON response alongside type/title/status/etc.
+//
+// It panics if key is empty or collides with one of the standard
+// fields (type, title, status, detail, instance, errors): both are
+// programming errors that should be caught during development rather
+// than silently producing a malformed problem response.
 func (problemInstance *Problem) With(key string, value any) *Problem {
 	trimmedKey := strings.TrimSpace(key)
 
@@ -147,6 +157,9 @@ func (problemInstance *Problem) With(key string, value any) *Problem {
 	return problemInstance
 }
 
+// MarshalJSON renders the problem as RFC 9457 JSON, omitting any of
+// the standard fields left at their zero value and interleaving
+// extension members (added via With) at the top level of the object.
 func (problemInstance *Problem) MarshalJSON() ([]byte, error) {
 	type property struct {
 		key   string

@@ -4,12 +4,17 @@ import (
 	"reflect"
 )
 
+// SchemaGenerator derives an OpenAPI Schema from a Go value's type via
+// reflection, reading `validate`, `description`, `format`, `example`
+// and `default` struct tags along the way.
 type SchemaGenerator struct{}
 
+// NewSchemaGenerator creates a SchemaGenerator.
 func NewSchemaGenerator() *SchemaGenerator {
 	return &SchemaGenerator{}
 }
 
+// GenerateSchema builds the OpenAPI Schema for value's type.
 func (generator *SchemaGenerator) GenerateSchema(
 	value any,
 ) *Schema {

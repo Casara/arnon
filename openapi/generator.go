@@ -6,6 +6,11 @@ import (
 	"strconv"
 )
 
+// Generator accumulates registered endpoints into an OpenAPI Document.
+//
+// Each call to Register or RegisterTypes adds one path/operation and
+// generates its request/response schemas; Generate returns the final
+// Document once every route has been registered.
 type Generator struct {
 	document Document
 
@@ -14,6 +19,8 @@ type Generator struct {
 	tags map[string]Tag
 }
 
+// NewGenerator creates a Generator that will produce a Document
+// carrying the given API metadata.
 func NewGenerator(info Info) *Generator {
 	return &Generator{
 		document: Document{
@@ -77,6 +84,10 @@ func (generator *Generator) Register(
 	generator.document.Paths[path] = pathItem
 }
 
+// RegisterTypes registers an endpoint from its request/response
+// reflect.Type instead of live values, so callers that only have type
+// information at route-registration time (e.g. the router) do not
+// need to construct zero values themselves.
 func (generator *Generator) RegisterTypes(
 	method string,
 	path string,

@@ -18,6 +18,7 @@ type ProblemMapperFunc func(
 	error,
 ) *problem.Problem
 
+// Map calls mapper with err.
 func (mapper ProblemMapperFunc) Map(
 	err error,
 ) *problem.Problem {

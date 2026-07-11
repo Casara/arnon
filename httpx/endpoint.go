@@ -56,6 +56,8 @@ func Endpoint[
 	],
 	config EndpointConfig,
 ) http.Handler {
+	config = config.WithDefaults()
+
 	handlerFunc := func(
 		writer http.ResponseWriter,
 		request *http.Request,
@@ -73,20 +75,17 @@ func Endpoint[
 			return
 		}
 
-		if config.Validator != nil {
-			validationErrors := config.Validator.
-				Validate(dto)
+		validationErrors := config.Validator.Validate(dto)
 
-			if len(validationErrors) > 0 {
-				writeValidationProblem(
-					writer,
-					requestValidationFailed,
-					requestValidationFailed,
-					validationErrors,
-				)
+		if len(validationErrors) > 0 {
+			writeValidationProblem(
+				writer,
+				requestValidationFailed,
+				requestValidationFailed,
+				validationErrors,
+			)
 
-				return
-			}
+			return
 		}
 
 		response, err := handler(
@@ -94,35 +93,15 @@ func Endpoint[
 			dto,
 		)
 		if err != nil {
-			if config.ProblemMapper != nil {
-				WriteProblem(
-					writer,
-					config.ProblemMapper.Map(err),
-				)
-
-				return
-			}
-
 			WriteProblem(
 				writer,
-				problem.New(
-					http.StatusInternalServerError,
-					http.StatusText(
-						http.StatusInternalServerError,
-					),
-					"Unexpected error",
-				),
+				config.ProblemMapper.Map(err),
 			)
 
 			return
 		}
 
-		statusCode := config.SuccessStatus
-		if statusCode == 0 {
-			statusCode = http.StatusOK
-		}
-
-		err = WriteJSON(writer, statusCode, response)
+		err = WriteJSON(writer, config.SuccessStatus, response)
 		if err != nil {
 			WriteProblem(
 				writer,

@@ -11,6 +11,8 @@ type ValidationError struct {
 	Meta map[string]any `json:"meta,omitempty"`
 }
 
+// NewBodyError creates a ValidationError sourced from the request body,
+// with field as a JSON pointer (e.g. "/name").
 func NewBodyError(
 	detail string,
 	field string,
@@ -26,6 +28,7 @@ func NewBodyError(
 	)
 }
 
+// NewPathError creates a ValidationError sourced from a path parameter.
 func NewPathError(
 	detail string,
 	field string,
@@ -41,6 +44,8 @@ func NewPathError(
 	)
 }
 
+// NewQueryError creates a ValidationError sourced from a query
+// parameter.
 func NewQueryError(
 	detail string,
 	field string,
@@ -56,6 +61,8 @@ func NewQueryError(
 	)
 }
 
+// NewHeaderError creates a ValidationError sourced from a request
+// header.
 func NewHeaderError(
 	detail string,
 	field string,

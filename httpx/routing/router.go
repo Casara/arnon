@@ -42,11 +42,21 @@ func NewRouter(
 }
 
 // ServeHTTP implements http.Handler.
+//
+// Global middleware (registered via Use) wraps the mux itself here, so
+// it runs before route matching. That is required for middleware that
+// needs to influence which route matches - e.g. StripSlashes rewriting
+// the path before net/http.ServeMux tries to match it - and it is also
+// why unmatched routes (404s) still go through RequestID/Logging/CORS/
+// etc. instead of skipping global middleware entirely.
 func (router *Router) ServeHTTP(
 	writer http.ResponseWriter,
 	request *http.Request,
 ) {
-	router.mux.ServeHTTP(
+	Chain(
+		router.mux,
+		router.middlewares...,
+	).ServeHTTP(
 		writer,
 		request,
 	)
@@ -257,17 +267,12 @@ func (router *Router) register(
 		handler,
 	)
 
-	allMiddlewares := append(
-		append(
-			[]Middleware{},
-			router.middlewares...,
-		),
-		extraMiddlewares...,
-	)
-
+	// router.middlewares wrap the mux itself in ServeHTTP, not here -
+	// only group-scoped middlewares are applied per-route, since
+	// net/http.ServeMux has no notion of prefix-scoped middleware.
 	wrapped := Chain(
 		handler,
-		allMiddlewares...,
+		extraMiddlewares...,
 	)
 
 	if router.instrumentHandler != nil {

@@ -3,8 +3,15 @@ package openapi
 import (
 	"strconv"
 	"strings"
+
+	"github.com/Casara/arnon/validation"
 )
 
+// applyValidationTags translates a `validate` struct tag into OpenAPI
+// schema constraints, one switch arm per validator tag, mirroring the
+// mapping in validation.mapFieldError so both stay easy to compare.
+//
+//nolint:cyclop // one switch arm per validator tag, see comment above
 func applyValidationTags(
 	schema *Schema,
 	tagValue string,
@@ -88,7 +95,29 @@ func applyValidationTags(
 
 		case "url":
 			applyURL(schema)
+
+		default:
+			applyCustomRule(schema, name)
 		}
+	}
+}
+
+// applyCustomRule enriches schema using the OpenAPI effect declared by
+// a framework-registered custom validation rule, if any. Tags that
+// have no custom rule registered are left untouched, preserving
+// whatever the schema generator inferred on its own.
+func applyCustomRule(schema *Schema, tag string) {
+	rule, ok := validation.LookupCustomRule(tag)
+	if !ok || rule.Schema == nil {
+		return
+	}
+
+	if rule.Schema.Format != "" {
+		schema.Format = rule.Schema.Format
+	}
+
+	if rule.Schema.Pattern != "" {
+		schema.Pattern = rule.Schema.Pattern
 	}
 }
 

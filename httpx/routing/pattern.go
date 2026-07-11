@@ -7,10 +7,19 @@ import (
 	"strings"
 )
 
+// Errors returned by splitPattern while parsing a "METHOD /path" route
+// pattern, as used by Router.Handle and Group.Handle.
 var (
+	// ErrInvalidPattern indicates the pattern is not exactly two
+	// whitespace-separated fields.
 	ErrInvalidPattern = errors.New("routing: invalid route pattern, expected 'METHOD /path'")
-	ErrInvalidMethod  = errors.New("routing: invalid HTTP method in route pattern")
-	ErrInvalidPath    = errors.New(
+
+	// ErrInvalidMethod indicates the method field is not a supported
+	// HTTP method.
+	ErrInvalidMethod = errors.New("routing: invalid HTTP method in route pattern")
+
+	// ErrInvalidPath indicates the path field does not start with "/".
+	ErrInvalidPath = errors.New(
 		"routing: invalid path in route pattern, path must start with '/'",
 	)
 )
