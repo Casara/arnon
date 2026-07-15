@@ -98,11 +98,24 @@ Esse handler, sem nenhum código adicional, ganha automaticamente:
 * respostas padrão `400`/`500` documentadas automaticamente;
 * UI de documentação (Stoplight Elements) em `/docs`.
 
-Um exemplo completo e executável está em
-[examples/basic](examples/basic/main.go):
+Exemplos completos e executáveis estão em `examples/cmd`:
+
+* [examples/cmd/basic](examples/cmd/basic/main.go) — exatamente o
+  handler acima, sem nenhum middleware.
+* [examples/cmd/middleware](examples/cmd/middleware/main.go) — o
+  mesmo handler com o stack completo de middlewares do arnon (CORS,
+  rate limiting, compressão, security headers, etc).
+* [examples/cmd/observability](examples/cmd/observability/main.go) —
+  o mesmo handler com tracing e métricas via OpenTelemetry, exportando
+  de verdade para um OTel Collector local (subido com
+  `docker compose`).
 
 ```sh
-go run ./examples/basic
+go run ./examples/cmd/basic
+# ou
+go run ./examples/cmd/middleware
+# ou (requer docker compose -f examples/cmd/observability/docker-compose.yml up)
+go run ./examples/cmd/observability
 ```
 
 ## Visão geral

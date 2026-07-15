@@ -25,7 +25,7 @@ make lint          # golangci-lint v2, versão fixa no Makefile
 make arch-lint     # go-arch-lint check
 make test-mutation # gremlins, grava mutation.json
 make check         # lint + arch-lint + test-race (mínimo antes de commit)
-make run           # go run ./examples/basic
+make run           # go run ./examples/cmd/basic (outro: make run EXAMPLE=nome)
 ```
 
 `golangci-lint` precisa da v2 (`.golangci.yml` usa `version: "2"`); a v1
@@ -88,7 +88,42 @@ permitida em `.go-arch-lint.yml`.
   com `&openapi.Operation{}` vazio).
 * **`EndpointConfig.SuccessStatus` e `openapi.Operation.SuccessStatus`
   são campos independentes.** Nada sincroniza os dois hoje; ao mudar um,
-  cheque o outro (ver `examples/basic/main.go`).
+  cheque o outro (ver `examples/cmd/basic/main.go`).
+* **`examples/` segue o padrão `cmd/`+`internal/`.** Cada exemplo
+  executável mora em `examples/cmd/<nome>` (`basic`: endpoint tipado +
+  validação + OpenAPI, zero middleware; `middleware`: o mesmo endpoint
+  com o stack completo de middlewares; `observability`: o mesmo
+  endpoint com tracing/métricas via OpenTelemetry). Código
+  compartilhado entre eles (logger, registro de custom validators, o
+  handler de exemplo) mora em `examples/internal/*` — não importável
+  de fora de `examples/` pela regra do Go, e por isso também precisou
+  de `examples` na própria `mayDependOn` em `.go-arch-lint.yml` (senão
+  o cross-import `cmd/* -> internal/*` é barrado mesmo os dois lados
+  sendo o mesmo componente). Novo exemplo: crie `examples/cmd/<nome>`,
+  reaproveite o que já existe em `examples/internal`, só duplique o
+  que for específico daquele exemplo.
+* **`examples/cmd/observability` precisa de shutdown gracioso pra
+  fazer sentido.** É o único dos três exemplos que trata
+  `SIGINT`/`SIGTERM` explicitamente (`signal.NotifyContext` +
+  `server.Shutdown` + a função de shutdown que `otel.Initialize`
+  devolve) — sem isso, spans e métricas ainda no buffer do SDK (o
+  batch processor de trace, o periodic reader de métrica) se perdem
+  quando o processo morre. `otel.Initialize` só devolve OTLP/gRPC como
+  exporter (sem opção stdout), então o exemplo sobe um OTel Collector
+  local via `docker compose` com exporter `debug` (imprime cada
+  trace/métrica recebido no próprio log do collector) — validado de
+  verdade rodando o collector, batendo o trace_id/span_id exportado
+  contra o que a aplicação logou, e conferindo os exemplars das
+  métricas customizadas apontando pro trace exato.
+* **`middleware.Logging` só correlaciona trace_id/span_id se registrado
+  depois do `routing.WithInstrumentation`.** `router.register` aplica
+  `instrumentHandler` (que cria o span) por cima das middlewares de
+  grupo/rota, mas só *dentro* do dispatch do mux — uma middleware
+  *global* (`router.Use`) roda antes desse dispatch. `Logging`
+  monta seus atributos (incluindo `observability.TraceID`/`SpanID`)
+  antes de chamar `next`, então se ele for global, o contexto ainda não
+  tem span nenhum. Por isso `examples/cmd/observability` registra
+  `Logging` via `api.Use(...)` (grupo), não `router.Use(...)`.
 * **Custom validators passam por um registry único
   (`validation.RegisterCustomRule`)**, não por configuração direta do
   `*validatorv10.Validate`. Um registro alimenta runtime, mapeamento de

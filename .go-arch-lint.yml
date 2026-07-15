@@ -94,6 +94,12 @@ deps:
 
   examples:
     mayDependOn:
+      # examples/cmd/* import shared scaffolding from examples/internal/*
+      # (logger, custom validator registration, the sample domain
+      # handler) - both live under the same "examples" component, but
+      # go-arch-lint still requires a component to list itself to allow
+      # cross-package imports within it.
+      - examples
       - httpx
       - httpx-binding
       - httpx-routing

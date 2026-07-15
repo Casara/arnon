@@ -1,8 +1,8 @@
-# Requests for examples/basic.
+# Requests for examples/cmd/middleware.
 #
-# Run with the example server up (`go run ./examples/basic`):
+# Run with the example server up (`go run ./examples/cmd/middleware`):
 #
-#   hurl --test examples/basic/requests.hurl
+#   hurl --test examples/cmd/middleware/requests.hurl
 
 # --- POST /api/users --------------------------------------------------
 

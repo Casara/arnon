@@ -1,4 +1,6 @@
-package main
+// Package customvalidators registers the custom validation rules
+// shared by every runnable example under examples/cmd.
+package customvalidators
 
 import (
 	"strings"
@@ -8,14 +10,14 @@ import (
 	"github.com/Casara/arnon/validation"
 )
 
-// registerCustomValidators registers the framework-wide custom
-// validation rules used by this example.
+// RegisterCustomValidators registers the framework-wide custom
+// validation rules used by the examples.
 //
 // It must run before the first validator is built (i.e. before the
 // first httpx.Endpoint call), since validation.Default() is a
 // lazily-initialized singleton that only picks up custom rules
 // registered before its first use.
-func registerCustomValidators() {
+func RegisterCustomValidators() {
 	err := validation.RegisterCustomRule(validation.CustomRule{
 		// validator/v10 has no built-in tag for "not just whitespace":
 		// required only rejects the Go zero value (""), so a name of

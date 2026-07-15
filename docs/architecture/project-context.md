@@ -135,8 +135,8 @@ explicitamente quais rotas são públicas na documentação.
 retorna) e `openapi.Operation.SuccessStatus` (o status que o documento
 OpenAPI gerado descreve como resposta de sucesso) são campos
 independentes. Hoje é responsabilidade do desenvolvedor mantê-los
-sincronizados manualmente; ver `examples/basic/main.go`. Uma unificação
-futura desses dois campos é candidata a melhoria.
+sincronizados manualmente; ver `examples/cmd/basic/main.go`. Uma
+unificação futura desses dois campos é candidata a melhoria.
 
 ---
 
@@ -542,9 +542,6 @@ Todos em `httpx/middleware`, construídos como `routing.Middleware`
 
 ## Planejado / adiado
 
-* **Heartbeat** — pendente de decisão: relação com os endpoints de
-  saúde (`/health`, `/ready`, `/live`, ver "Health Endpoints" abaixo)
-  ainda não resolvida.
 * **Autenticação (Bearer/Basic)** — adiado, ver "Segurança" abaixo.
 
 ---
@@ -655,6 +652,21 @@ Contexto:
 * Span ID
 * Request ID
 
+**Nota**: apesar do título da seção, tudo acima já está implementado
+(`observability`/`observability/otel`), não é mais "planejado" —
+`routing.WithInstrumentation(otel.NewHandler)` dá tracing HTTP
+automático (via `otelhttp`, com atribuição de rota e propagação de
+contexto), `otel.Initialize` com `MetricsEnabled: true` habilita
+métricas HTTP automáticas mais métricas de runtime do Go, e
+`observability.TraceID`/`SpanID` correlacionam trace_id/span_id nos
+logs estruturados (`httpx/middleware/logging.go`). Demonstrado e
+validado fim a fim (trace exportado batendo com o log da aplicação,
+métricas customizadas com exemplars apontando pro trace exato) em
+`examples/cmd/observability`, incluindo um OTel Collector local via
+Docker Compose. O que falta de verdade é cobertura de teste
+automatizado de `observability`/`observability/otel` (0% hoje, ver
+NOTES.md), não a funcionalidade em si.
+
 ---
 
 ## Health Endpoints
@@ -727,9 +739,32 @@ Implementado:
 * `.go-arch-lint.yml`: modela o grafo de dependências real entre os
   pacotes do `arnon` e falha o build se uma dependência não permitida
   for introduzida.
-* `examples/basic`: exemplo mínimo e executável (`go run
-  ./examples/basic`), compilado e exercitado como parte da validação do
-  projeto.
+* `examples/`: exemplos executáveis organizados como `cmd`+`internal`.
+  `examples/cmd/basic` (`go run ./examples/cmd/basic`) é o mínimo
+  possível — endpoint tipado, validação, OpenAPI, zero middleware.
+  `examples/cmd/middleware` (`go run ./examples/cmd/middleware`) é o
+  mesmo endpoint com o stack completo de middlewares (CORS, rate
+  limit, compressão, security headers, etc).
+  `examples/cmd/observability` (`go run ./examples/cmd/observability`)
+  é o mesmo endpoint com `routing.WithInstrumentation(otel.NewHandler)`,
+  métricas customizadas (`observability.Counter`/`Histogram`) e logs
+  correlacionados por trace_id/span_id, exportando de verdade via
+  OTLP/gRPC pra um OTel Collector local subido por
+  `docker compose -f examples/cmd/observability/docker-compose.yml up`
+  (config em `otel-collector-config.yaml`, exporter `debug` — imprime
+  cada trace/métrica recebido no próprio log do collector, sem precisar
+  de Jaeger/Prometheus pra validar a integração). Também trata
+  shutdown gracioso (`SIGINT`/`SIGTERM`) explicitamente, ao contrário
+  dos outros dois exemplos: é o que garante o flush de spans/métricas
+  pendentes no SDK antes do processo sair. Código comum aos três
+  exemplos (logger, registro de custom validators, o handler de
+  exemplo) mora em `examples/internal/*`, não importável de fora de
+  `examples/` pela regra do Go. Todos compilados e exercitados via
+  `hurl --test` como parte da validação do projeto; o
+  `examples/cmd/observability` foi validado também com o collector de
+  verdade rodando (trace exportado batendo bit a bit com o trace_id/
+  span_id logado pela aplicação, métricas customizadas com exemplars
+  apontando pro trace exato).
 
 ---
 

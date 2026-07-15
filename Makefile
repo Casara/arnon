@@ -7,7 +7,9 @@ GOLANGCI_LINT := github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
 GO_ARCH_LINT  := github.com/fe3dback/go-arch-lint@v1.16.0
 GREMLINS      := github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0
 
-# Pacote do exemplo executado por `make run`/`make build`.
+# Pacote do exemplo executado por `make run`/`make build`, dentro de
+# examples/cmd (ver examples/internal para o código compartilhado
+# entre eles).
 EXAMPLE ?= basic
 
 .PHONY: help build run fmt lint lint-fix arch-lint test test-race coverage \
@@ -16,11 +18,11 @@ EXAMPLE ?= basic
 help: ## Exibe esta ajuda
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-24s\033[0m %s\n", $$1, $$2}'
 
-build: ## Compila o exemplo em examples/basic (outro: make build EXAMPLE=nome)
-	@go build -o bin/$(EXAMPLE) ./examples/$(EXAMPLE)
+build: ## Compila o exemplo em examples/cmd/basic (outro: make build EXAMPLE=nome)
+	@go build -o bin/$(EXAMPLE) ./examples/cmd/$(EXAMPLE)
 
-run: ## Executa o exemplo em examples/basic (outro: make run EXAMPLE=nome)
-	@go run ./examples/$(EXAMPLE)
+run: ## Executa o exemplo em examples/cmd/basic (outro: make run EXAMPLE=nome)
+	@go run ./examples/cmd/$(EXAMPLE)
 
 fmt: ## Formata o código (gofmt/gofumpt/goimports/gci/golines, via golangci-lint)
 	@go run $(GOLANGCI_LINT) fmt

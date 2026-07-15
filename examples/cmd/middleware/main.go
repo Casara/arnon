@@ -1,15 +1,20 @@
-// Command basic is a minimal, runnable example of a typed endpoint,
-// request validation and generated OpenAPI documentation.
+// Command middleware demonstrates arnon's full middleware stack
+// wrapping the same typed endpoint used by examples/cmd/basic:
+// security headers, rate limiting, compression, CORS, request
+// logging, a JSON-only content-type allow-list, a request body size
+// limit and no-cache response headers.
 package main
 
 import (
 	"compress/gzip"
-	"context"
 	"log/slog"
 	"net/http"
 	"os"
 	"time"
 
+	"github.com/Casara/arnon/examples/internal/customvalidators"
+	"github.com/Casara/arnon/examples/internal/logging"
+	"github.com/Casara/arnon/examples/internal/users"
 	"github.com/Casara/arnon/httpx"
 	"github.com/Casara/arnon/httpx/middleware"
 	"github.com/Casara/arnon/httpx/routing"
@@ -25,28 +30,10 @@ const (
 	rateLimitWindow   = time.Minute
 )
 
-type CreateUserRequest struct {
-	Name  string `json:"name"  validate:"required,notblank"`
-	Email string `json:"email" validate:"required,email"`
-}
-
-type CreateUserResponse struct {
-	ID string `json:"id"`
-}
-
-func createUser(
-	_ context.Context,
-	request CreateUserRequest,
-) (CreateUserResponse, error) {
-	slog.Debug("creating user", "name", request.Name, "email", request.Email)
-
-	return CreateUserResponse{ID: "usr_123"}, nil
-}
-
 func main() {
-	logger := NewLogger()
+	logger := logging.NewLogger()
 
-	registerCustomValidators()
+	customvalidators.RegisterCustomValidators()
 
 	generator := openapi.NewGenerator(openapi.Info{
 		Title:   "Example API",
@@ -95,7 +82,7 @@ func main() {
 	)
 
 	api.POST("/users", httpx.Endpoint(
-		createUser,
+		users.CreateUser,
 		httpx.EndpointConfig{
 			SuccessStatus: http.StatusCreated,
 			// OpenAPI must be set (even to an empty *Operation) for the
