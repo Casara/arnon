@@ -3,6 +3,7 @@
 package main
 
 import (
+	"compress/gzip"
 	"context"
 	"log/slog"
 	"net/http"
@@ -15,7 +16,14 @@ import (
 	"github.com/Casara/arnon/openapi"
 )
 
-const readHeaderTimeout = 5 * time.Second
+const (
+	readHeaderTimeout = 5 * time.Second
+
+	maxRequestBodyBytes = 1024
+
+	rateLimitRequests = 100
+	rateLimitWindow   = time.Minute
+)
 
 type CreateUserRequest struct {
 	Name  string `json:"name"  validate:"required,notblank"`
@@ -51,13 +59,23 @@ func main() {
 
 	// Order matters: Chain wraps outermost-first, so StripSlashes runs
 	// before anything else reads the path, RealIP/RequestID populate
-	// the context before CORS/Logging need it, and Logging runs
-	// innermost among these so it captures the full chain's duration
-	// and the real handler's status code.
+	// the context before CORS/Logging/RateLimit need it, SecureHeaders
+	// sits early so its headers land on every response (including a
+	// 429 from RateLimit or a 404 from the mux), RateLimit rejects
+	// abusive clients before anything downstream does real work, and
+	// Compress stays close to CORS/Logging so it wraps the actual
+	// response body. Logging runs innermost among these so it captures
+	// the full chain's duration and the real handler's status code.
 	router.Use(
 		middleware.StripSlashes(),
 		middleware.RealIP(),
 		middleware.RequestID(),
+		middleware.SecureHeaders(middleware.SecureHeadersConfig{}),
+		middleware.RateLimit(middleware.RateLimitConfig{
+			RequestLimit: rateLimitRequests,
+			WindowLength: rateLimitWindow,
+		}),
+		middleware.Compress(gzip.DefaultCompression),
 		middleware.CORS(middleware.CORSConfig{
 			AllowedOrigins: []string{"*"},
 		}),
@@ -65,6 +83,16 @@ func main() {
 	)
 
 	api := router.Group("/api")
+
+	// Scoped to /api, not global: AllowContentType/MaxBodyBytes only
+	// make sense for endpoints that read a JSON body, and NoCache only
+	// matters for responses reflecting per-request state - /openapi.json
+	// and /docs are static enough to benefit from normal caching.
+	api.Use(
+		middleware.AllowContentType("application/json"),
+		middleware.MaxBodyBytes(maxRequestBodyBytes),
+		middleware.NoCache(),
+	)
 
 	api.POST("/users", httpx.Endpoint(
 		createUser,

@@ -1,5 +1,7 @@
 package problem
 
+import "net/http"
+
 // ValidationErrorCode represents a stable validation error code.
 type ValidationErrorCode string
 
@@ -24,6 +26,25 @@ const (
 	ValidationCodeInvalidURL       ValidationErrorCode = "invalid_url"
 	ValidationCodeValidationFailed ValidationErrorCode = "validation_failed"
 
-	ValidationCodeInvalidType   ValidationErrorCode = "invalid_type"
-	ValidationCodeMalformedJSON ValidationErrorCode = "malformed_json"
+	ValidationCodeInvalidType     ValidationErrorCode = "invalid_type"
+	ValidationCodeMalformedJSON   ValidationErrorCode = "malformed_json"
+	ValidationCodePayloadTooLarge ValidationErrorCode = "payload_too_large"
 )
+
+// StatusOverride returns the HTTP status a validation error with this
+// code should produce instead of the default 400 Bad Request used for
+// binding/validation failures, or 0 when the default applies.
+//
+// This exists because binding errors (see httpx/binding) don't carry
+// their own HTTP status - httpx.Endpoint maps every one of them to
+// 400 by default - so a handful of codes that genuinely mean
+// something else (e.g. a request body that's simply too large) need
+// an explicit escape hatch.
+func (code ValidationErrorCode) StatusOverride() int {
+	switch code {
+	case ValidationCodePayloadTooLarge:
+		return http.StatusRequestEntityTooLarge
+	default:
+		return 0
+	}
+}

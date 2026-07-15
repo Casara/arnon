@@ -9,6 +9,18 @@ import (
 	"github.com/Casara/arnon/problem"
 )
 
+func TestValidationErrorCode_StatusOverride(t *testing.T) {
+	t.Parallel()
+
+	if got := problem.ValidationCodePayloadTooLarge.StatusOverride(); got != http.StatusRequestEntityTooLarge {
+		t.Errorf("expected %d, got %d", http.StatusRequestEntityTooLarge, got)
+	}
+
+	if got := problem.ValidationCodeRequired.StatusOverride(); got != 0 {
+		t.Errorf("expected 0 (no override) for a plain validation code, got %d", got)
+	}
+}
+
 func TestProblem_StatusCodeDefaultsToInternalServerError(t *testing.T) {
 	t.Parallel()
 

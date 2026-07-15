@@ -155,6 +155,8 @@ linters:
         # pkg
         - '.*/httpx\.EndpointConfig$'
         - '.*/middleware\.CORSConfig$'
+        - '.*/middleware\.SecureHeadersConfig$'
+        - '.*/middleware\.RateLimitConfig$'
         - '.*/problem\.Problem$'
         - '.*/openapi\.DocsConfig$'
         - '.*/openapi\.Document$'
@@ -171,6 +173,8 @@ linters:
         - '.*/routing\.(Group|Router)$'
         - '.*/validation\.CustomRule$'
         - '.*/validation\.SchemaEffect$'
+        - '.*/middleware\.compressResponseWriter$'
+        - '.*/middleware\.localLimitCounter$'
     funlen:
       # Checks the number of lines in a function.
       # If lower than 0, disable the check.
@@ -213,6 +217,7 @@ linters:
         - trace\.SpanExporter$
         - metric\.(Exporter|Meter)$
         - validation\.Validator$
+        - middleware\.LimitCounter$
     mnd:
       # List of function patterns to exclude from analysis.
       # Following functions are always ignored: `time.Date`,

@@ -1,6 +1,6 @@
 module github.com/Casara/arnon
 
-go 1.26.4
+go 1.26.5
 
 require (
 	github.com/go-playground/validator/v10 v10.30.3

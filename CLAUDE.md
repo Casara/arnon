@@ -105,3 +105,35 @@ permitida em `.go-arch-lint.yml`.
   (`validation.Default()`, o registry de custom rules). Prefira
   injeção de dependência explícita para tudo o mais, conforme
   `docs/coding-style.md`.
+* **Erros de binding não carregam status HTTP por padrão — mas podem
+  ter override.** `httpx.Endpoint` (`writeValidationProblem`) fixa 400
+  pra qualquer erro de `binding.Decode`, *exceto* quando algum
+  `problem.ValidationError.Code` tem
+  `StatusOverride() != 0` (`problem/validation_code.go`) — hoje só
+  `ValidationCodePayloadTooLarge` → 413. É assim que `MaxBodyBytes`
+  consegue devolver 413 mesmo quando o corpo estoura durante a leitura
+  (chunked, tamanho desconhecido), sem mudar a assinatura de
+  `binding.Decode`. Novo código que deveria implicar status diferente
+  de 400: adicione o caso em `StatusOverride()`, não invente outro
+  mecanismo paralelo.
+* **`RateLimit` usa um sliding-window-counter (2 janelas), não um
+  limiter por chave sem eviction.** Adaptado do `go-chi/httprate`,
+  implementado do zero em `httpx/middleware/rate_limit.go` sem
+  dependência externa (só `sync`/`time`). Janelas antigas são
+  descartadas em bloco quando o tempo avança, então chaves inativas são
+  removidas automaticamente em até duas janelas — não reintroduza a
+  versão com `golang.org/x/time/rate` + `sync.Map` sem eviction que
+  existiu brevemente aqui, tinha crescimento de memória sem limite.
+* **`RateLimit` separa o algoritmo (janela deslizante) do storage via a
+  interface `LimitCounter`.** Espelha de propósito a interface
+  `LimitCounter` de `go-chi/httprate`, para que um backend já escrito
+  pra httprate (ex. `go-chi/httprate-redis`) precise de mudanças
+  triviais pra servir o arnon, e vice-versa. `RateLimitConfig.Counter`
+  nil usa o default em memória (`NewLocalLimitCounter`, exportada —
+  correto só pra instância única). Backends externos (Redis, Valkey,
+  Memcached, ...) devem ser módulos Go separados, nunca dependência do
+  módulo `arnon` em si — é por isso que só a interface + doc entraram
+  aqui, sem nenhuma implementação de backend externo incluída. Erro do
+  `Counter` vira `problem.Problem` via `RateLimitConfig.OnCounterError`
+  (default: 503 Service Unavailable, configurável). Não reintroduza um
+  segundo mecanismo de storage paralelo a `LimitCounter`.

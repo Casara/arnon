@@ -95,6 +95,35 @@ func TestEndpoint_BindingErrorReturnsBadRequestProblem(t *testing.T) {
 	assertProblemContentType(t, recorder)
 }
 
+func TestEndpoint_OversizedBodyReturnsRequestEntityTooLarge(t *testing.T) {
+	t.Parallel()
+
+	handler := httpx.Endpoint(
+		func(_ context.Context, req greetRequest) (greetResponse, error) {
+			return greetResponse{Greeting: req.Name}, nil
+		},
+		httpx.EndpointConfig{},
+	)
+
+	// Simulates what httpx/middleware.MaxBodyBytes does when a
+	// request's Content-Length is unknown ahead of time: the body is
+	// only discovered to be oversized while binding reads it, and that
+	// still has to surface as 413, not the 400 every other binding
+	// error gets.
+	request := newJSONRequest(`{"name":"a value longer than the limit"}`)
+	request.Body = http.MaxBytesReader(nil, request.Body, 4)
+
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("expected status %d, got %d", http.StatusRequestEntityTooLarge, recorder.Code)
+	}
+
+	assertProblemContentType(t, recorder)
+}
+
 func TestEndpoint_ValidationErrorReturnsBadRequestProblem(t *testing.T) {
 	t.Parallel()
 

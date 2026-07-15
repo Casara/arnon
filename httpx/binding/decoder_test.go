@@ -12,11 +12,11 @@ import (
 
 type decodeRequest struct {
 	ID     int    `path:"id"`
-	Limit  int    `query:"limit"`
-	Active bool   `query:"active"`
-	Filter string `query:"filter"`
-	Token  string `header:"X-Token"`
-	Name   string `json:"name"`
+	Limit  int    `          query:"limit"`
+	Active bool   `          query:"active"`
+	Filter string `          query:"filter"`
+	Token  string `                         header:"X-Token"`
+	Name   string `                                          json:"name"`
 }
 
 func newDecodeRequest(t *testing.T, body string) *http.Request {
@@ -153,6 +153,20 @@ func TestDecode_TruncatedJSONProducesInvalidTypeError(t *testing.T) {
 
 	if len(validationErrors) != 1 || validationErrors[0].Code != problem.ValidationCodeInvalidType {
 		t.Errorf("expected an invalid-type fallback error, got %+v", validationErrors)
+	}
+}
+
+func TestDecode_OversizedBodyProducesPayloadTooLargeError(t *testing.T) {
+	t.Parallel()
+
+	request := newDecodeRequest(t, `{"name":"a much longer value than allowed"}`)
+	request.Body = http.MaxBytesReader(nil, request.Body, 4)
+
+	_, validationErrors := binding.Decode[decodeRequest](request)
+
+	if len(validationErrors) != 1 ||
+		validationErrors[0].Code != problem.ValidationCodePayloadTooLarge {
+		t.Errorf("expected a payload-too-large error, got %+v", validationErrors)
 	}
 }
 

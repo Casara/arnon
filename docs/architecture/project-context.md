@@ -450,25 +450,133 @@ Exemplo:
 
 # Middleware
 
+Todos em `httpx/middleware`, construídos como `routing.Middleware`
+(`func(http.Handler) http.Handler`), aplicados via `Router.Use`
+(global, roda antes do roteamento) ou `Group.Use` (por-grupo).
+
 ## Implementado
 
-### CORS
+* **CORS** — configurável (`CORSConfig.AllowedOrigins`, etc).
+* **Logging** — logger estruturado (`slog`), enriquecido com
+  `request_id`/`real_ip`/`trace_id`/`span_id` quando os middlewares
+  correspondentes estão instalados.
+* **RealIP** — extrai IP do cliente (`X-Forwarded-For`, `X-Real-IP`,
+  `RemoteAddr`), disponível via `RealIPFromContext`.
+* **RequestID** — gera/propaga `X-Request-Id`, disponível via
+  `RequestIDFromContext`.
+* **Recover** — recupera de panics, converte em Problem Details 500.
+* **Timeout** — timeout de requisição via `http.TimeoutHandler`.
+* **StripSlashes** / **RedirectSlashes** — duas formas de lidar com
+  barra final no path: `StripSlashes` normaliza em silêncio (sem round
+  trip), `RedirectSlashes` redireciona (308, preserva método e body).
+  Ambos precisam rodar como middleware *global* (pré-roteamento) pra
+  funcionar — ver nota em "Decisões Importantes" sobre
+  `Router.ServeHTTP`. Não instalar os dois ao mesmo tempo.
+* **Compress** — `Compress(level int, types ...string)`, portado do
+  `middleware.Compress` do chi. Só comprime quando o `Content-Type` da
+  *resposta* (não da request) bate com `types` (ou a lista padrão de
+  tipos textuais/JSON quando `types` é vazio; sufixo `/*` casa
+  subtipos, ex. `text/*`) — evita gastar CPU comprimindo conteúdo que
+  não se beneficia (imagens, etc). `level` inválido gera panic na
+  criação do middleware (erro de configuração, não de runtime). Remove
+  `Content-Length` da resposta quando compressão é aplicada.
+* **NoCache** — portado do `middleware.NoCache` do chi: além dos
+  headers de resposta (`Cache-Control` completo, `Pragma`,
+  `X-Accel-Expires`, `Expires` no epoch Unix), também remove da
+  *request* os headers condicionais (`ETag`, `If-Modified-Since`,
+  `If-Match`, `If-None-Match`, `If-Range`, `If-Unmodified-Since`) antes
+  de chamar o handler — evita que qualquer código downstream responda
+  de forma condicional/cacheada, contradizendo a intenção do
+  middleware.
+* **AllowContentType** — allow-list de `Content-Type` aceito na
+  request, 415 caso contrário. Requests sem `Content-Type` passam
+  (binding já tolera corpo ausente).
+* **MaxBodyBytes** — limite de tamanho de request body. Quando
+  `Content-Length` é conhecido e já excede o limite, rejeita
+  imediatamente com 413. Quando não (chunked, ou client mentindo sobre
+  o tamanho), usa `http.MaxBytesReader` como segunda linha de defesa;
+  o estouro só é percebido durante a leitura (dentro do binding JSON),
+  mas ainda assim vira 413 corretamente, via
+  `problem.ValidationErrorCode.StatusOverride()` — ver "Erros de
+  binding não carregam status HTTP" em "Decisões Importantes".
+* **SecureHeaders** — `X-Content-Type-Options`, `X-Frame-Options`,
+  `Referrer-Policy` sempre; `Strict-Transport-Security` só se
+  configurado explicitamente (HSTS quebra desenvolvimento local em
+  HTTP puro se ligado por padrão).
+* **Throttle** — limite de requisições *concorrentes* (semáforo), com
+  backlog opcional (`BacklogLimit`/`BacklogTimeout`) pra enfileirar em
+  vez de rejeitar na hora. Não é rate limiting por tempo — ver
+  `RateLimit` pra isso.
+* **RateLimit** — rate limiting de verdade
+  (`RequestLimit`/`WindowLength` por chave de cliente, `KeyFunc` com
+  default `RealIPFromContext` → `RemoteAddr`, canonicalizada via
+  `CanonicalizeIP`). Algoritmo sliding-window-counter adaptado do
+  `go-chi/httprate`: duas janelas fixas (atual e anterior) por chave,
+  com a contagem da janela anterior ponderada pela sobreposição com a
+  janela deslizante atual. O algoritmo (`checkRateLimit`) é separado do
+  storage pela interface `LimitCounter`
+  (`Config`/`Increment`/`IncrementBy`/`Get`), espelhando de propósito a
+  interface homônima de `go-chi/httprate` — um backend já escrito pra
+  httprate (ex. `go-chi/httprate-redis`) precisa de mudanças triviais
+  pra servir o arnon. `RateLimitConfig.Counter` nil usa o default em
+  memória (`NewLocalLimitCounter`, exportada): memória fica limitada
+  sozinha, janelas antigas são descartadas em bloco (não chave por
+  chave) sempre que o tempo avança pra uma nova janela, então chaves
+  inativas são removidas automaticamente em até duas janelas, sem
+  precisar de eviction/TTL manual — mas só é correto pra uma instância
+  única; deployments com múltiplas instâncias precisam de um
+  `LimitCounter` com storage compartilhado (Redis, Valkey, Memcached,
+  ...), implementado como módulo Go separado (o núcleo do arnon nunca
+  depende de um backend de storage específico). Erro do `Counter`
+  (`Get`/`IncrementBy`) vira `problem.Problem` via
+  `RateLimitConfig.OnCounterError` (default: 503 Service Unavailable,
+  sem vazar a mensagem do erro; configurável). `CanonicalizeIP` reduz
+  endereços IPv6 ao prefixo /64 (um cliente IPv6 controla um /64 inteiro
+  via SLAAC; sem isso ele rotacionaria endereço dentro do próprio
+  bloco pra escapar do limite). Response inclui
+  `X-RateLimit-Limit`/`X-RateLimit-Remaining`/`X-RateLimit-Reset`
+  sempre, e `Retry-After` (RFC 6585) no 429. Implementação em
+  `httpx/middleware/rate_limit.go`, sem dependência externa (só
+  `sync`/`time`/`net`/`math` da stdlib no core; adaptadores de storage
+  externo ficam fora do módulo).
 
-Configurável.
+## Planejado / adiado
 
----
-
-## Planejado
-
-* Request ID
-* Recovery
-* Logger
-* Compression
-* Rate Limiting
+* **Heartbeat** — pendente de decisão: relação com os endpoints de
+  saúde (`/health`, `/ready`, `/live`, ver "Health Endpoints" abaixo)
+  ainda não resolvida.
+* **Autenticação (Bearer/Basic)** — adiado, ver "Segurança" abaixo.
 
 ---
 
 # Decisões Importantes
+
+## Middleware global envolve o mux inteiro, não cada rota
+
+`Router.Use` (middleware global) é aplicado em `Router.ServeHTTP`,
+envolvendo o `mux` inteiro — não em `router.register`, por rota. Isso é
+o que permite middleware pré-roteamento (`StripSlashes`,
+`RedirectSlashes`) funcionar, e faz com que rotas não encontradas
+(404) também passem por `RequestID`/`Logging`/`RateLimit`/etc.
+Middleware de grupo (`Group.Use`) continua aplicado por-rota em
+`router.register`, já que `net/http.ServeMux` não tem noção de
+prefixo. Não volte a mesclar `router.middlewares` dentro de
+`register()` — duplicaria a execução.
+
+## Erros de binding não carregam status HTTP por padrão
+
+`httpx.Endpoint` mapeia todo erro de `binding.Decode` pra 400
+(`writeValidationProblem`, em `httpx/endpoint.go`), independente do
+código específico do `problem.ValidationError`. A exceção é
+`problem.ValidationErrorCode.StatusOverride()`
+(`problem/validation_code.go`): se qualquer erro tiver um código com
+override (hoje só `ValidationCodePayloadTooLarge` → 413), esse status
+substitui o 400 padrão. É o que faz `MaxBodyBytes` conseguir devolver
+413 mesmo quando o corpo estoura durante a leitura (chunked), sem
+precisar mudar a assinatura de `binding.Decode`. Ao adicionar um novo
+código de validação que deveria implicar um status diferente de 400,
+adicione o caso em `StatusOverride()` em vez de inventar outro
+mecanismo.
 
 ## Ponteiros em Schemas
 

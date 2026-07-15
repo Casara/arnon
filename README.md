@@ -110,17 +110,17 @@ go run ./examples/basic
 O `arnon` é composto por pacotes independentes, cada um com uma
 responsabilidade única:
 
-| Pacote                 | Responsabilidade                                             |
-| ---------------------- | -------------------------------------------------------------|
-| `problem`               | Erros HTTP no formato RFC 9457 (Problem Details).            |
-| `validation`            | Validação de requests, com registro de regras customizadas.  |
-| `openapi`               | Geração de schemas e do documento OpenAPI a partir de tipos Go. |
-| `httpx`                 | Endpoint tipado: binding, validação, serialização e erros.   |
-| `httpx/binding`         | Binding de path, query, header e JSON body.                  |
-| `httpx/routing`         | Router baseado em `net/http.ServeMux`, com grupos e middleware. |
-| `httpx/middleware`      | Middlewares padrão (CORS, recovery, request ID, etc).         |
-| `observability`         | Abstrações finas sobre a API do OpenTelemetry.                |
-| `observability/otel`    | Configuração e inicialização do SDK do OpenTelemetry.         |
+| Pacote                | Responsabilidade                                                                                                       |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `problem`             | Erros HTTP no formato RFC 9457 (Problem Details).                                                                      |
+| `validation`          | Validação de requests, com registro de regras customizadas.                                                            |
+| `openapi`             | Geração de schemas e do documento OpenAPI a partir de tipos Go.                                                        |
+| `httpx`               | Endpoint tipado: binding, validação, serialização e erros.                                                             |
+| `httpx/binding`       | Binding de path, query, header e JSON body.                                                                            |
+| `httpx/routing`       | Router baseado em `net/http.ServeMux`, com grupos e middleware.                                                        |
+| `httpx/middleware`    | Middlewares padrão (CORS, recovery, request ID, logging, rate limiting, throttle, compressão, security headers, etc). |
+| `observability`       | Abstrações finas sobre a API do OpenTelemetry.                                                                         |
+| `observability/otel`  | Configuração e inicialização do SDK do OpenTelemetry.                                                                  |
 
 O grafo de dependências permitido entre esses pacotes está documentado
 em [.go-arch-lint.yml](.go-arch-lint.yml) e é verificado em CI.

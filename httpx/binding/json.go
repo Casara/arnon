@@ -39,6 +39,24 @@ func bindJSON[T any](
 func mapJSONError(
 	err error,
 ) []problem.ValidationError {
+	var maxBytesErr *http.MaxBytesError
+
+	if errors.As(err, &maxBytesErr) {
+		// ValidationCodePayloadTooLarge.StatusOverride() is what makes
+		// this surface as 413 instead of the 400 every other binding
+		// error gets (see httpx.Endpoint's writeValidationProblem).
+		return []problem.ValidationError{
+			problem.NewBodyError(
+				"request body exceeds the maximum allowed size",
+				"/",
+				problem.ValidationCodePayloadTooLarge,
+				map[string]any{
+					"limit": maxBytesErr.Limit,
+				},
+			),
+		}
+	}
+
 	var syntaxErr *json.SyntaxError
 
 	if errors.As(err, &syntaxErr) {

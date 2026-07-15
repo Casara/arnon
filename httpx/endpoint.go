@@ -131,8 +131,18 @@ func writeValidationProblem(
 	detail string,
 	validationErrors []problem.ValidationError,
 ) {
+	statusCode := http.StatusBadRequest
+
+	for _, validationError := range validationErrors {
+		if override := validationError.Code.StatusOverride(); override != 0 {
+			statusCode = override
+
+			break
+		}
+	}
+
 	problemInstance := problem.New(
-		http.StatusBadRequest,
+		statusCode,
 		title,
 		detail,
 	)
