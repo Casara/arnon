@@ -93,6 +93,20 @@ func TestEndpoint_BindingErrorReturnsBadRequestProblem(t *testing.T) {
 	}
 
 	assertProblemContentType(t, recorder)
+
+	var body map[string]any
+
+	err := json.Unmarshal(recorder.Body.Bytes(), &body)
+	if err != nil {
+		t.Fatalf("decode response body: %v", err)
+	}
+
+	if body["instance"] != "/greet" {
+		t.Errorf(
+			"expected Endpoint to auto-populate instance with the request path, got %v",
+			body["instance"],
+		)
+	}
 }
 
 func TestEndpoint_OversizedBodyReturnsRequestEntityTooLarge(t *testing.T) {
@@ -247,6 +261,67 @@ func TestEndpoint_SerializationFailureReturnsCleanProblemResponse(t *testing.T) 
 			http.StatusInternalServerError,
 			decoded.Status,
 		)
+	}
+}
+
+func TestEndpoint_AcceptHeaderNegotiation(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name       string
+		accept     string
+		wantStatus int
+	}{
+		{"absent Accept header accepts anything", "", http.StatusOK},
+		{"exact application/json", "application/json", http.StatusOK},
+		{"wildcard subtype application/*", "application/*", http.StatusOK},
+		{"full wildcard */*", "*/*", http.StatusOK},
+		{"only an unrelated type", "application/xml", http.StatusNotAcceptable},
+		{"unrelated type plus wildcard", "application/xml, */*", http.StatusOK},
+		{
+			"explicit q=0 on application/json is not acceptable",
+			"application/json;q=0",
+			http.StatusNotAcceptable,
+		},
+		{
+			"more specific match with q=0 loses even with a wildcard present",
+			"*/*;q=1, application/json;q=0",
+			http.StatusNotAcceptable,
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			handler := httpx.Endpoint(
+				func(_ context.Context, req greetRequest) (greetResponse, error) {
+					return greetResponse{Greeting: req.Name}, nil
+				},
+				httpx.EndpointConfig{},
+			)
+
+			request := newJSONRequest(`{"name":"world"}`)
+			if testCase.accept != "" {
+				request.Header.Set("Accept", testCase.accept)
+			}
+
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(recorder, request)
+
+			if recorder.Code != testCase.wantStatus {
+				t.Errorf(
+					"Accept %q: expected status %d, got %d",
+					testCase.accept,
+					testCase.wantStatus,
+					recorder.Code,
+				)
+			}
+
+			if testCase.wantStatus == http.StatusNotAcceptable {
+				assertProblemContentType(t, recorder)
+			}
+		})
 	}
 }
 

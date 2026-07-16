@@ -62,11 +62,24 @@ func Endpoint[
 		writer http.ResponseWriter,
 		request *http.Request,
 	) {
+		if !acceptsJSON(request.Header.Get("Accept")) {
+			WriteProblem(
+				writer,
+				request,
+				problem.NewNotAcceptable(
+					"this endpoint only produces application/json",
+				),
+			)
+
+			return
+		}
+
 		dto, bindingErrors := binding.Decode[TRequest](request)
 
 		if len(bindingErrors) > 0 {
 			writeValidationProblem(
 				writer,
+				request,
 				requestValidationFailed,
 				requestValidationFailed,
 				bindingErrors,
@@ -80,6 +93,7 @@ func Endpoint[
 		if len(validationErrors) > 0 {
 			writeValidationProblem(
 				writer,
+				request,
 				requestValidationFailed,
 				requestValidationFailed,
 				validationErrors,
@@ -95,6 +109,7 @@ func Endpoint[
 		if err != nil {
 			WriteProblem(
 				writer,
+				request,
 				config.ProblemMapper.Map(err),
 			)
 
@@ -105,6 +120,7 @@ func Endpoint[
 		if err != nil {
 			WriteProblem(
 				writer,
+				request,
 				problem.New(
 					http.StatusInternalServerError,
 					"Response serialization failure",
@@ -127,6 +143,7 @@ func Endpoint[
 
 func writeValidationProblem(
 	writer http.ResponseWriter,
+	request *http.Request,
 	title string,
 	detail string,
 	validationErrors []problem.ValidationError,
@@ -153,6 +170,7 @@ func writeValidationProblem(
 
 	WriteProblem(
 		writer,
+		request,
 		problemInstance,
 	)
 }

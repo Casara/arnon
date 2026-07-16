@@ -4,6 +4,7 @@ import (
 	"compress/gzip"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/Casara/arnon/httpx/routing"
@@ -65,10 +66,7 @@ func Compress(
 			writer http.ResponseWriter,
 			request *http.Request,
 		) {
-			if !strings.Contains(
-				request.Header.Get("Accept-Encoding"),
-				"gzip",
-			) {
+			if !acceptsGzip(request.Header.Get("Accept-Encoding")) {
 				next.ServeHTTP(
 					writer,
 					request,
@@ -243,4 +241,93 @@ func (writer *compressResponseWriter) isCompressible() bool {
 	_, ok = writer.allowedWildcards[prefix]
 
 	return ok
+}
+
+// acceptsGzip reports whether an Accept-Encoding header value
+// indicates the client accepts a gzip-encoded response.
+//
+// Unlike Accept (RFC 9110 §12.5.1), an absent Accept-Encoding does
+// NOT imply "any encoding is fine" as far as this function is
+// concerned - a client that never asked for gzip doesn't get it
+// compressed, the same conservative default this middleware always
+// had. What changes is precision: matching is done per RFC 9110
+// §12.5.3 (parsing "gzip"/"*" tokens with their "q" parameter, most
+// specific match wins) instead of a plain substring search, so
+// "gzip;q=0" - a client explicitly declining gzip - is correctly
+// treated as not accepting it, which a bare strings.Contains check
+// would have missed entirely.
+func acceptsGzip(acceptEncoding string) bool {
+	if acceptEncoding == "" {
+		return false
+	}
+
+	bestSpecificity := -1
+
+	bestQuality := 0.0
+
+	for entry := range strings.SplitSeq(acceptEncoding, ",") {
+		coding, quality, ok := parseEncodingRange(entry)
+		if !ok {
+			continue
+		}
+
+		specificity, matches := codingSpecificity(coding)
+		if !matches {
+			continue
+		}
+
+		if specificity > bestSpecificity {
+			bestSpecificity = specificity
+			bestQuality = quality
+		}
+	}
+
+	return bestSpecificity >= 0 && bestQuality > 0
+}
+
+// parseEncodingRange parses one Accept-Encoding entry
+// ("gzip;q=0.5") into its coding name and quality value, defaulting
+// to 1 when the "q" parameter is absent or malformed.
+func parseEncodingRange(entry string) (string, float64, bool) {
+	parameters := strings.Split(entry, ";")
+
+	coding := strings.ToLower(strings.TrimSpace(parameters[0]))
+	if coding == "" {
+		return "", 0, false
+	}
+
+	quality := 1.0
+
+	for _, parameter := range parameters[1:] {
+		name, value, found := strings.Cut(parameter, "=")
+		if !found {
+			continue
+		}
+
+		if strings.TrimSpace(strings.ToLower(name)) != "q" {
+			continue
+		}
+
+		parsed, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+		if err == nil {
+			quality = parsed
+		}
+	}
+
+	return coding, quality, true
+}
+
+// codingSpecificity reports whether coding is relevant to gzip
+// acceptance, and how specific it is ("gzip" itself outranks the "*"
+// wildcard), so the most specific applicable entry's quality value
+// is what decides acceptability when both appear in the same header.
+func codingSpecificity(coding string) (int, bool) {
+	switch coding {
+	case "gzip":
+		return 1, true
+	case "*":
+		return 0, true
+	default:
+		return 0, false
+	}
 }

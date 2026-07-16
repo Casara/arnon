@@ -8,7 +8,9 @@
 
 # Success. Also proves several global/group middlewares are wired up:
 # SecureHeaders (response headers), RateLimit (X-RateLimit-* headers),
-# NoCache (Cache-Control) - all without needing to trip any of them.
+# ServiceDesc (Link), serverBrandMiddleware (X-Powered-By, a custom
+# middleware wired in via ChainConfig.Extra, see main.go) - all
+# without needing to trip any of them.
 POST http://localhost:8080/api/users
 Content-Type: application/json
 {
@@ -21,9 +23,10 @@ header "Content-Type" == "application/json; charset=utf-8"
 jsonpath "$.id" exists
 header "X-Content-Type-Options" == "nosniff"
 header "X-Frame-Options" == "DENY"
-header "Cache-Control" contains "no-store"
 header "X-RateLimit-Limit" == "100"
 header "X-RateLimit-Remaining" exists
+header "Link" == "</openapi.json>; rel=\"service-desc\""
+header "X-Powered-By" == "arnon-example"
 
 # Trailing slash: StripSlashes normalizes the path before routing, so
 # this hits the same handler as above instead of 404ing.
@@ -122,6 +125,40 @@ HTTP 201
 [Asserts]
 header "Content-Encoding" == "gzip"
 
+# --- GET /api/users/{id} -------------------------------------------------
+
+# First request: gets a full body and an ETag.
+GET http://localhost:8080/api/users/42
+HTTP 200
+[Asserts]
+jsonpath "$.id" == "42"
+header "X-Powered-By" == "arnon-example"
+[Captures]
+userETag: header "ETag"
+
+# Second request, with If-None-Match set to the previous ETag: the
+# representation hasn't changed, so ETag (installed before Compress,
+# see main.go) replaces the response with an empty-bodied 304. The
+# custom serverBrandMiddleware header still shows up here too, since
+# Extra anchored it before ETag (see main.go and ChainConfig.Extra).
+GET http://localhost:8080/api/users/42
+If-None-Match: {{userETag}}
+HTTP 304
+[Asserts]
+header "ETag" == "{{userETag}}"
+header "X-Powered-By" == "arnon-example"
+body == ""
+
+# --- OPTIONS /api/users ---------------------------------------------------
+
+# A bare OPTIONS (no Access-Control-Request-Method, so not a CORS
+# preflight) falls through CORS and reaches the mux, which answers
+# with the real Allow for this path - not a fixed list from CORSConfig.
+OPTIONS http://localhost:8080/api/users
+HTTP 405
+[Asserts]
+header "Allow" contains "POST"
+
 # --- GET /openapi.json ------------------------------------------------
 
 GET http://localhost:8080/openapi.json
@@ -129,6 +166,7 @@ HTTP 200
 [Asserts]
 jsonpath "$.openapi" == "3.2.0"
 jsonpath "$.paths['/api/users'].post" exists
+jsonpath "$.paths['/api/users/{id}'].get" exists
 
 # --- GET /docs ----------------------------------------------------------
 

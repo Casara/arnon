@@ -197,3 +197,100 @@ func TestDecode_WrongJSONTypeProducesBodyError(t *testing.T) {
 		t.Errorf("expected error sourced from /name, got %q", validationErrors[0].Source.Field)
 	}
 }
+
+type multiQueryRequest struct {
+	Tags []string `query:"tag"`
+}
+
+func TestDecode_QuerySliceCollectsRepeatedKeys(t *testing.T) {
+	t.Parallel()
+
+	request := httptest.NewRequest(http.MethodGet, "/?tag=a&tag=b", nil)
+
+	dto, validationErrors := binding.Decode[multiQueryRequest](request)
+	if len(validationErrors) != 0 {
+		t.Fatalf("expected no validation errors, got %+v", validationErrors)
+	}
+
+	want := []string{"a", "b"}
+	if len(dto.Tags) != len(want) || dto.Tags[0] != want[0] || dto.Tags[1] != want[1] {
+		t.Errorf("expected Tags %v, got %v", want, dto.Tags)
+	}
+}
+
+func TestDecode_QuerySliceIsEmptyWhenAbsent(t *testing.T) {
+	t.Parallel()
+
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+
+	dto, validationErrors := binding.Decode[multiQueryRequest](request)
+	if len(validationErrors) != 0 {
+		t.Fatalf("expected no validation errors, got %+v", validationErrors)
+	}
+
+	if len(dto.Tags) != 0 {
+		t.Errorf("expected no Tags, got %v", dto.Tags)
+	}
+}
+
+type multiHeaderRequest struct {
+	Tags []string `header:"X-Tags"`
+}
+
+func TestDecode_HeaderSliceCollectsRepeatedLines(t *testing.T) {
+	t.Parallel()
+
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.Header.Add("X-Tags", "a")
+	request.Header.Add("X-Tags", "b")
+
+	dto, validationErrors := binding.Decode[multiHeaderRequest](request)
+	if len(validationErrors) != 0 {
+		t.Fatalf("expected no validation errors, got %+v", validationErrors)
+	}
+
+	want := []string{"a", "b"}
+	if len(dto.Tags) != len(want) || dto.Tags[0] != want[0] || dto.Tags[1] != want[1] {
+		t.Errorf("expected Tags %v, got %v", want, dto.Tags)
+	}
+}
+
+func TestDecode_HeaderSliceSplitsCommaJoinedSingleLine(t *testing.T) {
+	t.Parallel()
+
+	// RFC 9110 §5.3: a single line with comma-joined values is
+	// equivalent to repeating the header once per value.
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.Header.Set("X-Tags", "a, b , c")
+
+	dto, validationErrors := binding.Decode[multiHeaderRequest](request)
+	if len(validationErrors) != 0 {
+		t.Fatalf("expected no validation errors, got %+v", validationErrors)
+	}
+
+	want := []string{"a", "b", "c"}
+	if len(dto.Tags) != len(want) {
+		t.Fatalf("expected Tags %v, got %v", want, dto.Tags)
+	}
+
+	for i, tag := range want {
+		if dto.Tags[i] != tag {
+			t.Errorf("expected Tags %v, got %v", want, dto.Tags)
+		}
+	}
+}
+
+func TestDecode_HeaderSliceIsEmptyWhenHeaderAbsent(t *testing.T) {
+	t.Parallel()
+
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+
+	dto, validationErrors := binding.Decode[multiHeaderRequest](request)
+	if len(validationErrors) != 0 {
+		t.Fatalf("expected no validation errors, got %+v", validationErrors)
+	}
+
+	if len(dto.Tags) != 0 {
+		t.Errorf("expected no Tags, got %v", dto.Tags)
+	}
+}

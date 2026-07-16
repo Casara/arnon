@@ -149,6 +149,7 @@ func RateLimit(
 			if err != nil {
 				httpx.WriteProblem(
 					writer,
+					request,
 					onCounterError(err),
 				)
 
@@ -177,6 +178,7 @@ func RateLimit(
 
 				httpx.WriteProblem(
 					writer,
+					request,
 					problem.NewTooManyRequests(
 						"rate limit exceeded, try again later",
 					),
@@ -201,9 +203,7 @@ func RateLimit(
 func defaultOnCounterError(
 	_ error,
 ) *problem.Problem {
-	return problem.New(
-		http.StatusServiceUnavailable,
-		"Service Unavailable",
+	return problem.NewServiceUnavailable(
 		"rate limit backend is temporarily unavailable",
 	)
 }

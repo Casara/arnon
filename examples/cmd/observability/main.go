@@ -140,10 +140,12 @@ func main() {
 		routing.WithInstrumentation(otel.NewHandler),
 	)
 
-	router.Use(
-		middleware.RealIP(),
-		middleware.RequestID(),
-	)
+	// Only RealIP/RequestID go through BuildChain here: Logging can't
+	// join them in the same global chain, see the comment below.
+	router.Use(middleware.BuildChain(middleware.ChainConfig{
+		RealIP:    true,
+		RequestID: true,
+	})...)
 
 	api := router.Group("/api")
 

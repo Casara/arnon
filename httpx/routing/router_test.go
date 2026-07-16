@@ -198,3 +198,55 @@ func TestRouter_GlobalMiddlewareRunsBeforeGroupMiddleware(t *testing.T) {
 		}
 	}
 }
+
+// TestRouter_MountsArbitraryContentTypeHandlers proves the Router
+// itself has no JSON coupling: httpx.Endpoint is JSON-only by
+// design, but Router.Handle/GET/POST/etc accept any http.Handler, so
+// a route that needs to return XML, a PDF, or any other content type
+// (or file) can be mounted as a plain handler right alongside typed
+// JSON endpoints, using the exact same registration methods.
+func TestRouter_MountsArbitraryContentTypeHandlers(t *testing.T) {
+	t.Parallel()
+
+	router := routing.NewRouter()
+
+	router.GET("/report.pdf", http.HandlerFunc(func(
+		writer http.ResponseWriter,
+		_ *http.Request,
+	) {
+		writer.Header().Set("Content-Type", "application/pdf")
+		writer.WriteHeader(http.StatusOK)
+		_, _ = writer.Write([]byte("%PDF-1.4 fake report"))
+	}))
+
+	router.GET("/feed.xml", http.HandlerFunc(func(
+		writer http.ResponseWriter,
+		_ *http.Request,
+	) {
+		writer.Header().Set("Content-Type", "application/xml; charset=utf-8")
+		writer.WriteHeader(http.StatusOK)
+		_, _ = writer.Write([]byte(`<?xml version="1.0"?><feed></feed>`))
+	}))
+
+	pdfRecorder := httptest.NewRecorder()
+	router.ServeHTTP(pdfRecorder, httptest.NewRequest(http.MethodGet, "/report.pdf", nil))
+
+	if pdfRecorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d for the PDF route, got %d", http.StatusOK, pdfRecorder.Code)
+	}
+
+	if got := pdfRecorder.Header().Get("Content-Type"); got != "application/pdf" {
+		t.Errorf("expected Content-Type %q, got %q", "application/pdf", got)
+	}
+
+	xmlRecorder := httptest.NewRecorder()
+	router.ServeHTTP(xmlRecorder, httptest.NewRequest(http.MethodGet, "/feed.xml", nil))
+
+	if xmlRecorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d for the XML route, got %d", http.StatusOK, xmlRecorder.Code)
+	}
+
+	if got := xmlRecorder.Header().Get("Content-Type"); got != "application/xml; charset=utf-8" {
+		t.Errorf("expected Content-Type %q, got %q", "application/xml; charset=utf-8", got)
+	}
+}

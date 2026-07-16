@@ -58,6 +58,13 @@ func CORS(config CORSConfig) func(http.Handler) http.Handler {
 				writer http.ResponseWriter,
 				request *http.Request,
 			) {
+				// The response always depends on the Origin request
+				// header (whether Access-Control-Allow-Origin ends up
+				// echoing it back or is omitted entirely), so a shared
+				// cache needs Vary: Origin to avoid serving a response
+				// computed for one origin to a request from another.
+				writer.Header().Add("Vary", "Origin")
+
 				origin := request.Header.Get("Origin")
 
 				if origin != "" && isAllowedOrigin(origin, config.AllowedOrigins) {
@@ -107,7 +114,20 @@ func CORS(config CORSConfig) func(http.Handler) http.Handler {
 					)
 				}
 
-				if request.Method == http.MethodOptions {
+				// Only a genuine CORS preflight - OPTIONS carrying
+				// Access-Control-Request-Method (Fetch §4.1's "CORS-preflight
+				// request") - is answered here. A bare OPTIONS request (no
+				// browser doing a preflight, e.g. a client probing
+				// capabilities per RFC 9110 §9.3.7) falls through to next
+				// instead: if the path has no explicit OPTIONS handler,
+				// that reaches net/http.ServeMux's own 405 response, which
+				// already carries an Allow header reflecting the methods
+				// actually registered for that path - a generic blanket 204
+				// here would otherwise mask that (and would also make an
+				// explicit OPTIONS handler registered via Router.OPTIONS
+				// unreachable, since this middleware runs first).
+				if request.Method == http.MethodOptions &&
+					request.Header.Get("Access-Control-Request-Method") != "" {
 					writer.WriteHeader(http.StatusNoContent)
 
 					return

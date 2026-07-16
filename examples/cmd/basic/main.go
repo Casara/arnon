@@ -56,6 +56,19 @@ func main() {
 		},
 	))
 
+	// Demonstrates path binding plus []string binding from both query
+	// (repeated keys: "?tags=a&tags=b") and header (Accept-Language,
+	// repeated lines or one comma-joined line - both work the same
+	// way, see users.GetUserRequest).
+	router.GET("/users/{id}", httpx.Endpoint(
+		users.GetUser,
+		httpx.EndpointConfig{
+			OpenAPI: &openapi.Operation{
+				Summary: "Get a user",
+			},
+		},
+	))
+
 	document := generator.Generate()
 
 	router.GET("/openapi.json", openapi.NewHandler(&document))

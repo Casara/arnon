@@ -456,16 +456,31 @@ Todos em `httpx/middleware`, construídos como `routing.Middleware`
 
 ## Implementado
 
-* **CORS** — configurável (`CORSConfig.AllowedOrigins`, etc).
+* **CORS** — configurável (`CORSConfig.AllowedOrigins`, etc). Só
+  intercepta `OPTIONS` com `204` quando é um preflight de verdade
+  (`Access-Control-Request-Method` presente, Fetch spec §4.1); um
+  `OPTIONS` "nu" cai pro `next`, chegando no `mux` (que devolve
+  `405`+`Allow` real refletindo os métodos registrados pro path, ou
+  aciona um handler `OPTIONS` explícito do usuário, se houver). Sempre
+  adiciona `Vary: Origin` (a resposta sempre depende do `Origin` da
+  request, já que `Access-Control-Allow-Origin` ecoa o valor recebido
+  em vez de usar um `*` literal — necessário pra suportar
+  `AllowCredentials`).
 * **Logging** — logger estruturado (`slog`), enriquecido com
   `request_id`/`real_ip`/`trace_id`/`span_id` quando os middlewares
   correspondentes estão instalados.
-* **RealIP** — extrai IP do cliente (`X-Forwarded-For`, `X-Real-IP`,
-  `RemoteAddr`), disponível via `RealIPFromContext`.
+* **RealIP** — extrai IP do cliente, checando nesta ordem:
+  `Forwarded` (RFC 7239, o padrão IETF) → `X-Forwarded-For` →
+  `X-Real-IP` → `RemoteAddr`. Disponível via `RealIPFromContext`.
 * **RequestID** — gera/propaga `X-Request-Id`, disponível via
   `RequestIDFromContext`.
-* **Recover** — recupera de panics, converte em Problem Details 500.
-* **Timeout** — timeout de requisição via `http.TimeoutHandler`.
+* **Recover** — recupera de panics, converte em Problem Details 500
+  (`problem.NewInternal("")`, detail genérico) e loga o valor do
+  panic via `observability.LoggerFromContext` — nunca inclui o valor
+  bruto do panic na resposta (RFC 9457 §3.1.5).
+* **Timeout** — timeout de requisição; implementação própria (não usa
+  mais `http.TimeoutHandler` da stdlib) que responde com Problem
+  Details em vez de texto puro no timeout.
 * **StripSlashes** / **RedirectSlashes** — duas formas de lidar com
   barra final no path: `StripSlashes` normaliza em silêncio (sem round
   trip), `RedirectSlashes` redireciona (308, preserva método e body).
@@ -480,6 +495,11 @@ Todos em `httpx/middleware`, construídos como `routing.Middleware`
   não se beneficia (imagens, etc). `level` inválido gera panic na
   criação do middleware (erro de configuração, não de runtime). Remove
   `Content-Length` da resposta quando compressão é aplicada.
+  `Accept-Encoding` é interpretado de verdade (`acceptsGzip`,
+  parseando `;q=` e o coringa `*`, RFC 9110 §12.5.3), não com um
+  simples `strings.Contains` — um `gzip;q=0` explícito é recusa, não
+  aceite. Ausência do header continua significando "não comprime"
+  (default conservador que já existia, não muda com essa precisão).
 * **NoCache** — portado do `middleware.NoCache` do chi: além dos
   headers de resposta (`Cache-Control` completo, `Pragma`,
   `X-Accel-Expires`, `Expires` no epoch Unix), também remove da
@@ -539,6 +559,212 @@ Todos em `httpx/middleware`, construídos como `routing.Middleware`
   `httpx/middleware/rate_limit.go`, sem dependência externa (só
   `sync`/`time`/`net`/`math` da stdlib no core; adaptadores de storage
   externo ficam fora do módulo).
+* **ETag** — conditional GET (RFC 9111/9110 §13). Só atua em
+  `GET`/`HEAD` e em respostas 2xx; bufferiza o corpo inteiro do
+  handler (precisa do corpo completo pra hashear), calcula um ETag
+  forte via FNV-1a 64-bit (`hash/fnv` da stdlib) e compara contra
+  `If-None-Match` usando comparação fraca (ignora prefixo `W/` de
+  qualquer lado, conforme RFC 9110 §13.1.2). Em caso de match (ou
+  `If-None-Match: *`), responde `304 Not Modified` sem corpo; senão,
+  responde o corpo completo com o header `ETag`. Um `ETag` já setado
+  pelo handler é respeitado em vez de recalculado. Combinar com
+  `Compress`: instale `ETag` antes (mais externo), pra hashear os
+  bytes já comprimidos, consistente com o `Vary: Accept-Encoding` que
+  `Compress` já seta. Combinar com `NoCache` na mesma rota anula o
+  propósito dos dois. Implementação em `httpx/middleware/etag.go`.
+* **ServiceDesc** — adiciona `Link: <path>; rel="service-desc"`
+  (RFC 8631) em toda resposta, apontando pro documento OpenAPI (ex.
+  `/openapi.json`), permitindo descoberta automática por um
+  cliente/ferramenta genérico que já entende `Link` headers. Usa
+  `header.Add`, não `Set`, então soma a outros `Link` que já existam
+  em vez de substituí-los. Implementação em
+  `httpx/middleware/service_desc.go`.
+
+## Ordem dos middlewares
+
+A ordem relativa das middlewares globais (`Router.Use`) importa —
+várias têm dependências reais umas nas outras (contexto que uma
+popula e outra lê, bytes que uma precisa ver antes da outra
+transformar). Duas formas de aplicar isso, por ordem de preferência:
+
+### `middleware.BuildChain` — ordem garantida por código, não por disciplina
+
+`middleware.BuildChain(config middleware.ChainConfig) []routing.Middleware`
+(`httpx/middleware/chain.go`) monta a cadeia global recomendada na
+ordem certa, sempre — cada campo de `ChainConfig` é
+opcional/independente (nil ou `false` = "não mencionado", não
+"desabilitado"), mas a posição relativa de quem for incluído nunca
+muda, porque quem decide a ordem é o código do `BuildChain`, não quem
+chama `router.Use(...)`. Uso:
+
+```go
+router.Use(middleware.BuildChain(middleware.ChainConfig{
+    Recover:       true,
+    RealIP:        true,
+    RequestID:     true,
+    SecureHeaders: &middleware.SecureHeadersConfig{},
+    RateLimit:     &middleware.RateLimitConfig{ /* ... */ },
+    ETag:          true,
+    Compress:      &middleware.CompressConfig{},
+    CORS:          &middleware.CORSConfig{ /* ... */ },
+    ServiceDescPath: "/openapi.json",
+    Logger:        logger,
+})...)
+```
+
+`BuildChain` também **impede em runtime** a única combinação
+mutuamente exclusiva que existe hoje: setar `StripSlashes` e
+`RedirectSlashes` juntos causa panic imediato (na criação da cadeia,
+não no meio de uma request).
+
+O que `BuildChain` garante e o que não garante: qualquer chamada com
+o mesmo subconjunto de campos preenchidos sempre produz a mesma ordem
+relativa entre eles — isso é testado de verdade em
+`httpx/middleware/chain_test.go` (não só documentado), verificando
+comportamento observável (`RequestID` aparecendo no log do
+`Logging`, `ETag` hasheando bytes já comprimidos pelo `Compress`,
+`Recover` pegando panic de qualquer lugar da cadeia, `SecureHeaders`
+aparecendo mesmo numa resposta `429` do `RateLimit`). O que não é
+garantido: uma cadeia montada manualmente com `router.Use(mw1, mw2,
+...)`, totalmente fora do `BuildChain`, continua sendo
+responsabilidade de quem escreve — não existe (nem seria razoável
+construir, dado que `routing.Middleware` é só
+`func(http.Handler) http.Handler`, sem identidade própria em runtime)
+uma validação estática que barre qualquer chamada manual malformada.
+`BuildChain` (incluindo `Extra`, abaixo) é o caminho recomendado
+justamente para não precisar disso na maioria dos casos.
+
+Middlewares de grupo (`AllowContentType`, `MaxBodyBytes`, `NoCache`)
+ficam de fora do `BuildChain` de propósito: são escopados a um grupo
+específico (ex. só `/api`, não `/openapi.json`/`/docs`) por design,
+não fazem sentido como parte da cadeia global. Não há ordem relevante
+entre eles (são independentes), então não precisam de um builder
+próprio — use `group.Use(...)` diretamente.
+
+### Middleware customizada com requisito de ordem — `ChainConfig.Extra`
+
+`BuildChain` só conhece os middlewares embutidos do `arnon` — se uma
+middleware customizada ou de terceiros precisar rodar numa posição
+específica relativa a um embutido (ex. "depois do `RateLimit`, antes
+do `ETag`"), isso dá pra fazer de dois jeitos:
+
+**1. Dividir a chamada.** Como `Router.Use(...)` acumula a cada
+chamada (a ordem de chamada é preservada) e cada campo do
+`ChainConfig` é independente dos outros, dá pra chamar `BuildChain`
+duas vezes com subconjuntos complementares de campos, com a
+middleware customizada entre elas:
+
+```go
+router.Use(middleware.BuildChain(middleware.ChainConfig{
+    Recover: true, RealIP: true, RequestID: true, RateLimit: &cfg,
+})...)
+router.Use(xpto.Middleware()) // precisa vir depois do RateLimit, antes do ETag
+router.Use(middleware.BuildChain(middleware.ChainConfig{
+    ETag: true, Compress: &cCfg, CORS: &corsCfg, Logger: logger,
+})...)
+```
+
+**2. `ChainConfig.Extra` — mesmo resultado, numa chamada só.** Cada
+posição no `BuildChain` tem um `ChainAnchor` nomeado
+(`AnchorRecover`, `AnchorTimeout`, `AnchorStripSlashes`,
+`AnchorRedirectSlashes`, `AnchorRealIP`, `AnchorRequestID`,
+`AnchorSecureHeaders`, `AnchorRateLimit`, `AnchorThrottle`,
+`AnchorETag`, `AnchorCompress`, `AnchorCORS`, `AnchorServiceDesc`,
+`AnchorLogging`, na mesma ordem da lista abaixo). Um
+`ExtraMiddleware{Middleware: ..., Before: Anchor...}` ou `{...,
+After: Anchor...}` insere a middleware customizada logo antes/depois
+daquele ponto:
+
+```go
+router.Use(middleware.BuildChain(middleware.ChainConfig{
+    Recover: true, RealIP: true, RequestID: true,
+    RateLimit: &cfg,
+    Extra: []middleware.ExtraMiddleware{
+        {Middleware: xpto.Middleware(), After: middleware.AnchorRateLimit},
+    },
+    ETag: true, Compress: &cCfg, CORS: &corsCfg, Logger: logger,
+})...)
+```
+
+Um `ChainAnchor` nomeia uma *posição*, não a presença de uma
+middleware específica — `Extra` ancorado em `AnchorETag` continua
+caindo no lugar certo mesmo que `ChainConfig.ETag` seja `false`
+naquela chamada. `BuildChain` valida cada `ExtraMiddleware` e entra
+em panic (na criação da cadeia, não no meio de uma request) se: nem
+`Before` nem `After` forem setados, os dois forem setados ao mesmo
+tempo, ou a âncora referenciada não for uma das constantes
+`AnchorXxx` — esse último caso existe porque um typo no nome da
+âncora, sem essa validação, simplesmente descartaria a middleware
+customizada da cadeia em silêncio. Múltiplas entradas de `Extra`
+ancoradas no mesmo ponto empilham na ordem em que aparecem no slice.
+
+As duas formas produzem o mesmo resultado; `Extra` só evita ter que
+dividir a chamada e decorar quais campos vão em cada metade. Ambas
+continuam sendo, no fim, "onde no código a middleware é chamada" —
+`Extra` não adiciona nenhuma verificação além de "essa âncora existe
+e está bem formada", não valida se a middleware customizada em si é
+segura para rodar naquela posição (isso continua sendo julgamento de
+quem escreve, como em qualquer outra linguagem sem sistema de tipos
+que modele "ordem de execução").
+
+### A ordem em si, e por quê
+
+Da mais externa (roda primeiro, envolve tudo) pra mais interna (roda
+por último, mais perto do handler):
+
+1. **`Recover`** — precisa envolver literalmente tudo abaixo pra
+   pegar panic de qualquer middleware, não só do handler final.
+   Trade-off aceito: por rodar antes de `RequestID`/`Logging`, não
+   tem `request_id`/`trace_id` no log do panic, a menos que seja
+   reposicionado pra depois desses dois (ver nota em `Recover`,
+   abaixo).
+2. **`Timeout`** — o prazo deve valer pra cadeia inteira abaixo, e o
+   próprio `Timeout` relança (`panic`) o panic do handler pra fora,
+   esperando um `Recover` mais externo pra capturar.
+3. **`StripSlashes`/`RedirectSlashes`** (mutuamente exclusivos) —
+   precisa normalizar o path antes de qualquer coisa que dependa
+   dele, incluindo o próprio roteamento do `mux`.
+4. **`RealIP`** — popula contexto que `RateLimit` (chave por IP) e
+   `Logging` (`real_ip` no log) leem depois.
+5. **`RequestID`** — popula contexto que `Logging` (`request_id` no
+   log) lê depois.
+6. **`SecureHeaders`** — barato, quer aparecer em toda resposta,
+   incluindo erros gerados por qualquer middleware abaixo (um `429`
+   do `RateLimit`, um `404` do `mux`).
+7. **`RateLimit`**/**`Throttle`** — rejeitar cedo, antes de qualquer
+   trabalho real (inclusive antes de `ETag`/`Compress` gastarem CPU
+   numa resposta que nem vai ser aceita).
+8. **`ETag`** — precisa vir antes de `Compress` pra hashear os bytes
+   que de fato saem na rede (já comprimidos), não a versão anterior à
+   compressão — consistente com o `Vary: Accept-Encoding` que o
+   `Compress` seta.
+9. **`Compress`**.
+10. **`CORS`** — intercepta preflight (`OPTIONS` com
+    `Access-Control-Request-Method`) antes do `mux`; um `OPTIONS` que
+    não é preflight cai pro `mux`, então a posição aqui não bloqueia
+    o `405`+`Allow` real discutido em `docs/architecture/rfc-compliance.md`.
+11. **`ServiceDesc`** — só adiciona um header, sem dependência de
+    posição forte; fica perto do fim por convenção.
+12. **`Logging`** — mais interna do grupo acima de propósito: só
+    monta os atributos do log (incluindo o que `RealIP`/`RequestID`
+    populararam) uma vez, antes de chamar `next`, então precisa ser a
+    última pra já ver tudo que as outras deixaram no contexto.
+
+Nota sobre `Recover` + correlação: como ele é o mais externo (item 1),
+ele *não* enxerga o `request_id`/`trace_id` que `RequestID`/`Logging`
+(itens 5 e 12) só populam depois dele já ter rodado sua lógica de
+pré-processamento. Quem precisar disso tem que abrir mão de
+`BuildChain` pra essa parte específica e montar `Recover` manualmente
+depois de `RequestID` — uma troca real (perde a garantia de capturar
+panic de tudo, ganha correlação no log do panic), não uma
+configuração que dê pra ter dos dois jeitos ao mesmo tempo.
+
+**Manutenção**: toda middleware global nova precisa ganhar um campo
+em `ChainConfig`, um `ChainAnchor` correspondente (adicionado em
+`validChainAnchors` também) e uma chamada `appendStage(...)` na
+posição certa dentro de `BuildChain` — senão ela fica inacessível via
+`BuildChain`/`Extra` e essa seção de doc fica desatualizada. Middleware
+de grupo (`AllowContentType`-like) não precisa disso.
 
 ## Planejado / adiado
 
@@ -574,6 +800,41 @@ precisar mudar a assinatura de `binding.Decode`. Ao adicionar um novo
 código de validação que deveria implicar um status diferente de 400,
 adicione o caso em `StatusOverride()` em vez de inventar outro
 mecanismo.
+
+## `WriteProblem` exige `*http.Request` para auto-popular `Problem.Instance`
+
+`httpx.WriteProblem(writer, request, problemInstance)` recebe a
+request desde 2026-07-15 (mudança de assinatura — aceitável porque o
+framework ainda não teve release pública). Se `problemInstance.Instance`
+estiver vazio, é preenchido com `request.URL.Path` antes de
+serializar, nunca sobrescrevendo um valor setado via
+`.WithInstance(...)`. `httpx` não pode depender de
+`httpx/middleware`/`observability` (ver grafo de dependências acima),
+então não dá pra usar `request_id`/`trace_id` aqui — path é o que dá
+pra fazer sem alargar essa fronteira. Todo novo call site de
+`WriteProblem` precisa passar a request.
+
+## `httpx.Endpoint` é JSON-only por design; negociação de `Accept` formaliza isso
+
+`Endpoint()` checa o header `Accept` (`httpx/accept.go`, `acceptsJSON`)
+antes de fazer qualquer binding e responde `406 Not Acceptable`
+(Problem Details) quando o cliente exclui explicitamente
+`application/json` (ex. `Accept: application/xml` sozinho, ou
+`application/json;q=0`). Um `Accept` ausente, vazio, ou que inclua
+`application/json`/`application/*`/`*/*` com `q > 0` passa normal —
+RFC 9110 §12.5.1 diz que header ausente significa "aceita qualquer
+coisa". O parser segue a regra "match mais específico decide": uma
+entrada exata bate antes de `application/*`, que bate antes de `*/*`.
+
+Isso não é (nem deveria virar) negociação de múltiplas representações
+do mesmo endpoint — `Endpoint()` continua só produzindo JSON, sempre.
+Quem precisa servir XML, PDF, CSV ou qualquer outro
+formato/arquivo monta um `http.Handler` comum via
+`Router.GET`/`POST`/etc, exatamente como qualquer outra rota; nenhuma
+middleware do framework (`Compress`, `ETag`, `SecureHeaders`, ...) é
+acoplada a JSON. Não crie uma segunda abstração de endpoint tipado
+"genérico em formato" pra cobrir esse caso — o padrão já é usar
+`http.Handler` puro.
 
 ## Ponteiros em Schemas
 
@@ -765,6 +1026,15 @@ Implementado:
   verdade rodando (trace exportado batendo bit a bit com o trace_id/
   span_id logado pela aplicação, métricas customizadas com exemplars
   apontando pro trace exato).
+* [docs/architecture/rfc-compliance.md](rfc-compliance.md): revisão
+  completa (2026-07-15) de conformidade com as RFCs relevantes pra uma
+  fundação HTTP (RFC 9457, RFC 9110, RFC 9111, RFC 7239, RFC 6585,
+  RFC 8288/8631/8615, RFC 8259), separando o que já é conforme, o que
+  é uma decisão de escopo deliberada e o que é lacuna real — incluindo
+  dois achados que quebram a própria garantia "RFC 9457 é o único
+  formato de erro" (`Recover()` vazando detail de panic, `Timeout`
+  respondendo em texto puro) e um bug de parsing de `X-Forwarded-For`
+  multi-hop encontrado no processo.
 
 ---
 

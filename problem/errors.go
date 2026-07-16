@@ -77,6 +77,19 @@ func NewNotFound(
 	)
 }
 
+// NewNotAcceptable creates a 406 problem.
+func NewNotAcceptable(
+	detail string,
+) *Problem {
+	return New(
+		http.StatusNotAcceptable,
+		http.StatusText(
+			http.StatusNotAcceptable,
+		),
+		detail,
+	)
+}
+
 // NewConflict creates a 409 problem.
 func NewConflict(
 	detail string,
@@ -128,6 +141,19 @@ func NewInternal(
 		http.StatusInternalServerError,
 		http.StatusText(
 			http.StatusInternalServerError,
+		),
+		detail,
+	)
+}
+
+// NewServiceUnavailable creates a 503 problem.
+func NewServiceUnavailable(
+	detail string,
+) *Problem {
+	return New(
+		http.StatusServiceUnavailable,
+		http.StatusText(
+			http.StatusServiceUnavailable,
 		),
 		detail,
 	)

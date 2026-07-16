@@ -54,6 +54,7 @@ func AllowContentType(
 			if err != nil {
 				httpx.WriteProblem(
 					writer,
+					request,
 					problem.New(
 						http.StatusBadRequest,
 						"Malformed Content-Type",
@@ -67,6 +68,7 @@ func AllowContentType(
 			if _, ok := allowed[mediaType]; !ok {
 				httpx.WriteProblem(
 					writer,
+					request,
 					problem.New(
 						http.StatusUnsupportedMediaType,
 						"Unsupported Media Type",

@@ -39,6 +39,21 @@ func bindQuery[T any](
 			continue
 		}
 
+		if field.Kind() == reflect.Slice {
+			if field.Type().Elem().Kind() != reflect.String {
+				continue
+			}
+
+			values := queryValues[tag]
+			if len(values) == 0 {
+				continue
+			}
+
+			field.Set(reflect.ValueOf(values))
+
+			continue
+		}
+
 		value := queryValues.Get(tag)
 		if value == "" {
 			continue

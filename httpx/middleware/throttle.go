@@ -66,7 +66,7 @@ func Throttle(
 			}
 
 			if backlog == nil {
-				writeThrottled(writer)
+				writeThrottled(writer, request)
 
 				return
 			}
@@ -76,7 +76,7 @@ func Throttle(
 				defer func() { <-backlog }()
 
 			default:
-				writeThrottled(writer)
+				writeThrottled(writer, request)
 
 				return
 			}
@@ -94,7 +94,7 @@ func Throttle(
 				)
 
 			case <-timer.C:
-				writeThrottled(writer)
+				writeThrottled(writer, request)
 
 			case <-request.Context().Done():
 				// Client is gone; nothing left to respond to.
@@ -105,9 +105,11 @@ func Throttle(
 
 func writeThrottled(
 	writer http.ResponseWriter,
+	request *http.Request,
 ) {
 	httpx.WriteProblem(
 		writer,
+		request,
 		problem.NewTooManyRequests(
 			"the server is at capacity, try again later",
 		),

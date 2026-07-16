@@ -85,6 +85,57 @@ func TestCompress_PassesThroughWithoutAcceptEncoding(t *testing.T) {
 	}
 }
 
+func TestCompress_ExplicitQZeroDeclinesGzip(t *testing.T) {
+	t.Parallel()
+
+	const body = "plain response"
+
+	handler := middleware.Compress(gzip.DefaultCompression)(
+		writeWithContentType("application/json", body),
+	)
+
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	// A plain strings.Contains(header, "gzip") check would wrongly
+	// treat this as accepting gzip; "q=0" explicitly declines it
+	// (RFC 9110 §12.5.3).
+	request.Header.Set("Accept-Encoding", "gzip;q=0, deflate")
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Header().Get("Content-Encoding") != "" {
+		t.Errorf(
+			"expected no Content-Encoding when gzip;q=0, got %q",
+			recorder.Header().Get("Content-Encoding"),
+		)
+	}
+
+	if recorder.Body.String() != body {
+		t.Errorf("expected plain body %q, got %q", body, recorder.Body.String())
+	}
+}
+
+func TestCompress_WildcardAcceptEncodingMatchesGzip(t *testing.T) {
+	t.Parallel()
+
+	handler := middleware.Compress(gzip.DefaultCompression)(
+		writeWithContentType("application/json", "plain response"),
+	)
+
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.Header.Set("Accept-Encoding", "*")
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Header().Get("Content-Encoding") != "gzip" {
+		t.Errorf(
+			"expected gzip via wildcard Accept-Encoding, got %q",
+			recorder.Header().Get("Content-Encoding"),
+		)
+	}
+}
+
 func TestCompress_SkipsDisallowedContentType(t *testing.T) {
 	t.Parallel()
 

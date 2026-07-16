@@ -74,6 +74,40 @@ permitida em `.go-arch-lint.yml`.
   aplicado por-rota em `router.register`, já que `net/http.ServeMux`
   não tem noção de prefixo. Não volte a mesclar `router.middlewares`
   dentro de `register()` — duplicaria a execução.
+* **A ordem relativa das middlewares globais importa, e
+  `middleware.BuildChain` é o jeito de garantir isso por código, não
+  por disciplina.** `httpx/middleware/chain.go`:
+  `BuildChain(ChainConfig{...})` monta a cadeia recomendada
+  (`Recover` → `Timeout` → `StripSlashes`/`RedirectSlashes` → `RealIP`
+  → `RequestID` → `SecureHeaders` → `RateLimit`/`Throttle` → `ETag` →
+  `Compress` → `CORS` → `ServiceDesc` → `Logging`) sempre na mesma
+  ordem relativa, testado de verdade em
+  `httpx/middleware/chain_test.go` (comportamento observável, não só
+  doc). Detalhe completo do porquê de cada posição em
+  `docs/architecture/project-context.md`, seção "Ordem dos
+  middlewares" — não duplique essa explicação aqui, só o ponteiro. Uma
+  cadeia montada manualmente com `router.Use(mw1, mw2, ...)` continua
+  sendo responsabilidade de quem escreve; não existe validação
+  estática pra isso (`routing.Middleware` é só
+  `func(http.Handler) http.Handler`, sem identidade própria em
+  runtime) — é exatamente por isso que `BuildChain` existe.
+  `AllowContentType`/`MaxBodyBytes`/`NoCache` ficam de fora de
+  propósito: são middlewares de grupo, não globais.
+* **Middleware customizada com requisito de ordem usa
+  `ChainConfig.Extra` (`ChainAnchor` + `ExtraMiddleware`), não uma
+  segunda API paralela.** Cada posição do `BuildChain` tem uma
+  constante `AnchorXxx`; `ExtraMiddleware{Middleware: ..., Before:
+  AnchorY}` ou `{..., After: AnchorY}` insere ali. `BuildChain` valida
+  (panic se não validar) que cada entrada seta exatamente um de
+  Before/After e que a âncora é uma constante conhecida — um typo
+  nunca deve descartar a middleware em silêncio. Alternativa
+  equivalente sem `Extra`: dividir a chamada de `BuildChain` em duas
+  (`Router.Use` acumula entre chamadas). Ao adicionar uma middleware
+  global nova: precisa de campo em `ChainConfig` **e** `ChainAnchor`
+  (com entrada em `validChainAnchors`) **e** chamada
+  `appendStage(...)` no lugar certo — as três coisas, ou ela fica de
+  fora do `BuildChain`/`Extra` e a doc de ordem em
+  `project-context.md` fica desatualizada.
 * **RFC 9457 é o único formato de erro.** Todo erro HTTP vira
   `problem.Problem`. `httpx.WriteProblem`/`httpx.WriteJSON` sempre
   codificam a resposta num buffer antes de escrever qualquer header —
@@ -172,3 +206,74 @@ permitida em `.go-arch-lint.yml`.
   `Counter` vira `problem.Problem` via `RateLimitConfig.OnCounterError`
   (default: 503 Service Unavailable, configurável). Não reintroduza um
   segundo mecanismo de storage paralelo a `LimitCounter`.
+* **`httpx.WriteProblem` recebe `*http.Request` e auto-popula
+  `Problem.Instance`.** Se `Instance` estiver vazio, é preenchido com
+  `request.URL.Path` antes de serializar (nunca sobrescreve um valor
+  já setado via `.WithInstance(...)`). Não dá pra usar
+  `request_id`/`trace_id` aqui em vez do path porque `httpx` não pode
+  depender de `httpx/middleware`/`observability` no grafo de
+  `.go-arch-lint.yml` — quem quiser isso, chama `.WithInstance(...)`
+  no próprio `ProblemMapper`. Todo call site interno de `WriteProblem`
+  passa `request`; novo call site não pode esquecer esse parâmetro.
+* **`ETag` bufferiza a resposta inteira antes de decidir 200 ou 304.**
+  Ao contrário de `Compress` (que consegue transformar em streaming
+  via `gzip.Writer`), gerar um hash do corpo exige o corpo completo
+  primeiro — por isso `httpx/middleware/etag.go` usa o mesmo padrão de
+  "bufferiza tudo, decide no fim" que `Timeout` já usa. Só atua em
+  `GET`/`HEAD` e só em respostas 2xx. A supressão de corpo pra `HEAD` e
+  o cálculo de `Content-Length` acontecem na camada de conexão do
+  `net/http.Server`, *abaixo* de qualquer `ResponseWriter` de
+  middleware — então `ETag` não precisa (nem deveria) tratar `HEAD`
+  como caso especial, o buffer já vê o corpo completo de qualquer
+  jeito (confirmado empiricamente, não por suposição, ao desenhar essa
+  middleware). Se usado com `Compress`, instale `ETag` antes (mais
+  externo), pra hashear os bytes já comprimidos — consistente com o
+  `Vary: Accept-Encoding` que `Compress` já seta.
+* **`CORS` só intercepta `OPTIONS` quando for preflight de verdade.**
+  A condição é `request.Method == http.MethodOptions &&
+  request.Header.Get("Access-Control-Request-Method") != ""` — essa é
+  a definição exata de "CORS-preflight request" na Fetch spec §4.1. Um
+  `OPTIONS` sem esse header cai pra `next.ServeHTTP`, chegando no
+  `mux`, que devolve `405`+`Allow` real (refletindo os métodos
+  registrados pra aquele path) ou aciona um handler `OPTIONS` explícito
+  do usuário, se houver. Não volte a interceptar todo `OPTIONS`
+  incondicionalmente — isso mascarava o `Allow` real do `ServeMux` e
+  tornava um `Router.OPTIONS(...)` explícito inalcançável.
+* **`RealIP` checa `Forwarded` (RFC 7239) antes de
+  `X-Forwarded-For`/`X-Real-IP`/`RemoteAddr`.** `Forwarded` é o
+  substituto padronizado pelo IETF; os outros dois continuam como
+  fallback pela mesma ordem de antes. `parseForwardedFor`
+  (`httpx/middleware/real_ip.go`) só usa o primeiro hop (mesma lógica
+  de "leftmost = cliente original" do `X-Forwarded-For`), trata
+  `for=unknown` como "sem informação" (cai pro próximo header) e
+  mantém um identificador ofuscado (`for=_algumacoisa`) como está, já
+  que ainda serve de chave estável de rate limit mesmo não sendo um IP.
+* **`httpx.Endpoint` é JSON-only por design, mas o `Router` não é.**
+  `Endpoint()` sempre checa `Accept` (`httpx/accept.go`,
+  `acceptsJSON`) e responde `406` se o cliente excluir explicitamente
+  `application/json` — mas isso não vira negociação de múltiplas
+  representações (JSON vs. XML vs. o que for) pro mesmo endpoint, e
+  não deveria: quem precisa devolver XML, PDF, ou qualquer outro
+  formato/arquivo monta um `http.Handler` comum via
+  `Router.GET`/`POST`/etc, igual a qualquer outra rota — nenhuma
+  middleware do framework é acoplada a JSON (`Compress`, `ETag`, etc.
+  funcionam com qualquer `Content-Type`). Não invente uma segunda
+  abstração de endpoint tipado pra "endpoint não-JSON": o padrão já é
+  usar `http.Handler` puro pra esse caso.
+* **Binding de header (`[]string`) trata múltiplas linhas e valor
+  único separado por vírgula como equivalentes.** RFC 9110 §5.3 diz
+  que as duas formas são semanticamente iguais pra headers, então
+  `httpx/binding/header.go` (`headerValues`) junta as duas. Binding de
+  query (`[]string`) só coleta chave repetida (`?tag=a&tag=b`), **não**
+  faz split por vírgula — não existe RFC definindo essa semântica pra
+  query string, e separar arbitrariamente quebraria um valor de busca
+  legítimo tipo `?q=cats,dogs`. Não unifique os dois comportamentos.
+* **`Compress`/`Endpoint` fazem parsing de verdade de
+  `Accept-Encoding`/`Accept`, não `strings.Contains`.** Ambos
+  precisam decidir "o cliente aceita X" considerando o parâmetro `q`
+  (RFC 9110 §12.5.1/§12.5.3) — um `q=0` explícito significa recusa,
+  algo que um simples `strings.Contains(header, "gzip")` (o jeito
+  antigo do `Compress`) não conseguia enxergar. Qualquer novo código
+  que precise checar um header de negociação de conteúdo deve seguir
+  esse padrão (parsear `;q=`, achar o match mais específico), não
+  voltar a um substring check.

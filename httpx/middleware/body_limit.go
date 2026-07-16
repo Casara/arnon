@@ -36,6 +36,7 @@ func MaxBodyBytes(
 			if request.ContentLength > maxBytes {
 				httpx.WriteProblem(
 					writer,
+					request,
 					problem.New(
 						http.StatusRequestEntityTooLarge,
 						"Payload Too Large",

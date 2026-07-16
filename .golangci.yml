@@ -157,6 +157,10 @@ linters:
         - '.*/middleware\.CORSConfig$'
         - '.*/middleware\.SecureHeadersConfig$'
         - '.*/middleware\.RateLimitConfig$'
+        - '.*/middleware\.ChainConfig$'
+        - '.*/middleware\.CompressConfig$'
+        - '.*/middleware\.ThrottleConfig$'
+        - '.*/middleware\.ExtraMiddleware$'
         - '.*/problem\.Problem$'
         - '.*/openapi\.DocsConfig$'
         - '.*/openapi\.Document$'
@@ -175,6 +179,8 @@ linters:
         - '.*/validation\.SchemaEffect$'
         - '.*/middleware\.compressResponseWriter$'
         - '.*/middleware\.localLimitCounter$'
+        - '.*/middleware\.timeoutResponseWriter$'
+        - '.*/middleware\.etagResponseWriter$'
     funlen:
       # Checks the number of lines in a function.
       # If lower than 0, disable the check.
