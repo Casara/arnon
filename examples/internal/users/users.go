@@ -21,11 +21,16 @@ type Address struct {
 // CreateUserRequest is the request body for CreateUser. Address is a
 // pointer: go-playground/validator only dives into a nested struct
 // field when it's non-nil, so a request that omits "address" entirely
-// isn't forced through its validation.
+// isn't forced through its validation. Tags demonstrates the other
+// nesting case, `dive` into a slice of primitives: a validation error
+// on a specific element (e.g. Tags[1]) resolves to the RFC 6901
+// pointer "/tags/1", with the failing element's actual index, not a
+// single "/tags" segment.
 type CreateUserRequest struct {
 	Name    string   `json:"name"    validate:"required,notblank"`
 	Email   string   `json:"email"   validate:"required,email"`
 	Address *Address `json:"address"`
+	Tags    []string `json:"tags"    validate:"omitempty,dive,min=2"`
 }
 
 // CreateUserResponse is the response body for CreateUser.

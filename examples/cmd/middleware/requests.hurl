@@ -94,6 +94,22 @@ HTTP 400
 jsonpath "$.errors[0].code" == "required"
 jsonpath "$.errors[0].source.field" == "/address/city"
 
+# Array index in the field pointer: Tags is a `dive`-validated slice
+# of strings, so a validation error on a specific element resolves to
+# "/tags/<index>" - the second tag ("a") is what fails here, so the
+# pointer must be "/tags/1", not just "/tags".
+POST http://localhost:8080/api/users
+Content-Type: application/json
+{
+    "name": "Ada Lovelace",
+    "email": "ada@example.com",
+    "tags": ["ok", "a"]
+}
+HTTP 400
+[Asserts]
+jsonpath "$.errors[0].code" == "min_length"
+jsonpath "$.errors[0].source.field" == "/tags/1"
+
 # Malformed JSON body.
 POST http://localhost:8080/api/users
 Content-Type: application/json

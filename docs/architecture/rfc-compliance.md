@@ -24,7 +24,7 @@ relevante.
 | RFC | Assunto | Situação |
 |---|---|---|
 | RFC 9457 | Problem Details for HTTP APIs | ✅ Formato único de erro, em toda middleware que produz erro |
-| RFC 6901 | JSON Pointer | ✅ `ValidationSource.field` quando `in: "body"`, com escaping correto e campo aninhado (struct dentro de struct) — falta índice de array/slice (`/items/0/name`) |
+| RFC 6901 | JSON Pointer | ✅ `ValidationSource.field` quando `in: "body"`, com escaping correto, struct aninhado e índice de array/slice (`/items/0/name`) — falta chave de map |
 | RFC 9110 | HTTP Semantics | ✅ HEAD/405/`OPTIONS`/negociação de conteúdo/multi-valor de header |
 | RFC 9111 | HTTP Caching | ✅ ETag + conditional GET via middleware opt-in |
 | RFC 7239 | Forwarded HTTP Extension | ✅ Implementado em `RealIP`, com fallback pros headers de fato |
@@ -74,24 +74,38 @@ RFC central pro `arnon` — é o único formato de erro do framework
   `invalid-params`), com nomes próprios — a RFC não exige nomes
   específicos, só consistência.
 * `source.field` usa **RFC 6901 (JSON Pointer)** quando `source.in` é
-  `"body"` — `/name`, `/address/city` (`problem.NewBodyError`).
-  Caracteres especiais no nome do campo JSON (`~`, `/`) são escapados
-  como `~0`/`~1` conforme RFC 6901 §3 (`validation.escapeJSONPointerToken`)
-  — sem isso, um campo chamado `"a/b"` viraria `/a/b`, indistinguível
-  de dois segmentos. `validation.buildFieldMap` recursa em struct
-  aninhado (por valor ou ponteiro) dentro do corpo, compondo o pointer
-  nível a nível (`Address.City` → `/address/city`), casando contra o
-  `FieldError.StructNamespace()` do `validator/v10` (nome de campo Go,
-  não a tag `json`, com o nome do tipo raiz removido — ver
-  `validation.structFieldNamespace`); limitado a `maxFieldMapDepth`
-  (16) níveis, pra terminar mesmo com um struct auto-referente (ex.
-  árvore com `Parent *Node`) em vez de recursar até estourar a pilha.
-  **Limite atual**: cobre struct-dentro-de-struct, não índice de
-  array/slice (`Items[0].Name` cai no fallback de nome de campo, não
-  vira `/items/0/name`) — exigiria parsear o `[N]` do namespace do
-  `validator/v10` e compor o pointer por item, não só por tipo (o
-  `buildFieldMap` de hoje é construído uma vez a partir do `reflect.Type`,
-  sem noção de índice de valor). RFC 6901 é uma RFC própria, à parte da
+  `"body"` — `/name`, `/address/city`, `/items/0/name`, `/tags/1`
+  (`problem.NewBodyError`). Caracteres especiais no nome do campo JSON
+  (`~`, `/`) são escapados como `~0`/`~1` conforme RFC 6901 §3
+  (`validation.escapeJSONPointerToken`) — sem isso, um campo chamado
+  `"a/b"` viraria `/a/b`, indistinguível de dois segmentos.
+  `validation.buildFieldMap` caminha pelo *valor* real da request
+  (não só o tipo — precisa saber o tamanho de verdade de um
+  slice/array), recursando em struct aninhado (por valor ou ponteiro)
+  e em elemento de slice/array (struct ou primitivo), compondo o
+  pointer nível a nível: `Address.City` → `/address/city`,
+  `Items[2].Name` → `/items/2/name`, e mesmo um slice de primitivo com
+  `dive` (`Tags[1]`) → `/tags/1` (o `validator/v10` reporta erro de
+  elemento sem segmento de campo depois do índice, então precisa de
+  entrada própria no mapa, não só recursão). O cruzamento com o erro
+  do `validator/v10` usa `FieldError.StructNamespace()` (nome de campo
+  Go, não a tag `json`, com o nome do tipo raiz removido — ver
+  `validation.structFieldNamespace`), cujo formato pra elemento de
+  slice (`Items[2].Name`) foi confirmado empiricamente antes de
+  desenhar em cima dele, não assumido. Limitado a `maxFieldMapDepth`
+  (16) níveis de recursão (struct + índice contam pro mesmo limite),
+  pra terminar mesmo com um struct auto-referente (ex. árvore com
+  `Parent *Node`) em vez de recursar até estourar a pilha. Como
+  `buildFieldMap` agora caminha o valor de verdade (não só o tipo), o
+  custo escala com o tamanho de qualquer slice alcançável na request —
+  só importa no caminho de erro (`mapValidationErrors` só roda depois
+  que o `validator/v10` já encontrou pelo menos um erro), não afeta
+  request bem-sucedida. **Limite atual**: cobre struct e slice/array,
+  não chave de map (`Items["chave"].Name` cai no fallback de nome de
+  campo) — chave de map, ao contrário de índice numérico, também
+  precisaria de escaping RFC 6901 próprio (pode conter `~`/`/`), e é
+  bem menos comum em DTO de request que slice; deixado como próximo
+  passo, não implementado ainda. RFC 6901 é uma RFC própria, à parte da
   9457, adotada porque o corpo é a única fonte hierárquica entre as
   quatro que `ValidationSource.in` cobre; `path`/`query`/`header` não
   têm estrutura aninhada, então

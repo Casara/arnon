@@ -454,22 +454,34 @@ Exemplo:
 ```
 
 `field` só usa sintaxe de JSON Pointer (RFC 6901: `/name`,
-`/address/city`) quando `in` é `"body"` — é o único `in` hierárquico.
-O nome de cada segmento (tag `json`, não o nome do campo Go) é
-escapado por `~0`/`~1` conforme RFC 6901 §3
+`/address/city`, `/items/0/name`, `/tags/1`) quando `in` é `"body"` —
+é o único `in` hierárquico. O nome de cada segmento (tag `json`, não o
+nome do campo Go) é escapado por `~0`/`~1` conforme RFC 6901 §3
 (`validation.escapeJSONPointerToken`) — sem isso, um campo chamado
 literalmente `"a/b"` viraria `/a/b`, indistinguível de dois segmentos.
-`buildFieldMap` (`validation/field_map.go`) recursa em struct aninhado
-(valor ou ponteiro) dentro do corpo, compondo o pointer nível a nível;
-o cruzamento com o erro do `validator/v10` usa
-`FieldError.StructNamespace()` com o nome do tipo raiz removido
-(`validation.structFieldNamespace`), não `StructField()` (que só dá o
-nome do campo folha, sem caminho). Limitado a `maxFieldMapDepth` (16)
-níveis, só pra garantir término mesmo com um struct auto-referente.
-**Limite atual**: cobre struct-dentro-de-struct, não índice de
-array/slice (`Items[0].Name` cai no fallback de nome de campo em vez
-de virar `/items/0/name`) — o `buildFieldMap` de hoje é construído uma
-vez a partir do `reflect.Type`, sem noção de índice de valor. Pra
+`buildFieldMap` (`validation/field_map.go`) caminha o *valor* real da
+request (não só o tipo — precisa do tamanho de verdade de
+slice/array), recursando em struct aninhado (valor ou ponteiro) e em
+elemento de slice/array (struct ou primitivo), compondo o pointer
+nível a nível — inclusive um slice de primitivo com `dive`
+(`Tags[1]`), já que o `validator/v10` reporta erro de elemento sem
+segmento de campo depois do índice, então precisa de entrada própria
+no mapa em vez de só recursão. O cruzamento com o erro do
+`validator/v10` usa `FieldError.StructNamespace()` com o nome do tipo
+raiz removido (`validation.structFieldNamespace`), não `StructField()`
+(só dá o nome do campo folha, sem caminho); o formato de
+`StructNamespace()` pra elemento de slice foi confirmado
+empiricamente, não assumido. Limitado a `maxFieldMapDepth` (16) níveis
+(struct e índice contam pro mesmo limite), só pra garantir término
+mesmo com um struct auto-referente. Como agora caminha o valor de
+verdade, o custo escala com o tamanho de slice alcançável na request —
+só no caminho de erro (`mapValidationErrors` só roda depois que já
+existe pelo menos um erro), não afeta request bem-sucedida.
+**Limite atual**: cobre struct e slice/array, não chave de map
+(`Items["x"].Name` cai no fallback de nome de campo) — chave de map
+precisaria de escaping RFC 6901 próprio (pode conter `~`/`/`,
+diferente de índice numérico) e é bem menos comum que slice em DTO de
+request; deixado como próximo passo. Pra
 `path`/`query`/`header`
 (`NewPathError`/`NewQueryError`/`NewHeaderError` em `problem/validation.go`),
 `field` é sempre o nome cru do campo (`id`, `page`, `Authorization`), sem

@@ -229,6 +229,107 @@ func TestPlaygroundValidator_ResolvesDeeplyNestedBodyFields(t *testing.T) {
 	}
 }
 
+// TestPlaygroundValidator_ResolvesSliceOfStructBodyFields confirms a
+// field inside a struct element of a slice (Items[1].Name) produces
+// the composed RFC 6901 pointer "/items/1/name", with the runtime
+// index of the failing element - not the type-only "/items/name" a
+// naive extension of struct-nesting support would produce.
+func TestPlaygroundValidator_ResolvesSliceOfStructBodyFields(t *testing.T) {
+	t.Parallel()
+
+	type item struct {
+		Name string `json:"name" validate:"required"`
+	}
+
+	type request struct {
+		Items []item `json:"items" validate:"dive"`
+	}
+
+	validator, err := validation.New()
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+
+	errs := validator.Validate(request{
+		Items: []item{{Name: "ok"}, {Name: ""}},
+	})
+
+	if len(errs) != 1 {
+		t.Fatalf("expected 1 validation error, got %d: %+v", len(errs), errs)
+	}
+
+	if errs[0].Source.Field != "/items/1/name" {
+		t.Errorf(`expected Source.Field "/items/1/name", got %q`, errs[0].Source.Field)
+	}
+}
+
+// TestPlaygroundValidator_ResolvesSliceOfPrimitiveBodyFields covers a
+// dive-validated slice of primitives (Tags[1]): validator/v10 reports
+// an error with no field segment after the index
+// (StructNamespace() == "...Tags[1]"), so the pointer must resolve to
+// "/tags/1", not fall back to a single "/tags" or "/tags1" segment.
+func TestPlaygroundValidator_ResolvesSliceOfPrimitiveBodyFields(t *testing.T) {
+	t.Parallel()
+
+	type request struct {
+		Tags []string `json:"tags" validate:"dive,min=3"`
+	}
+
+	validator, err := validation.New()
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+
+	errs := validator.Validate(request{
+		Tags: []string{"valid", "ab"},
+	})
+
+	if len(errs) != 1 {
+		t.Fatalf("expected 1 validation error, got %d: %+v", len(errs), errs)
+	}
+
+	if errs[0].Source.Field != "/tags/1" {
+		t.Errorf(`expected Source.Field "/tags/1", got %q`, errs[0].Source.Field)
+	}
+}
+
+// TestPlaygroundValidator_ResolvesNestedSliceInsideStructBodyFields
+// combines both mechanisms: a slice field inside a nested struct
+// (Building.Items[0].Name), confirming the pointer composes through a
+// struct level, then an index, then another field.
+func TestPlaygroundValidator_ResolvesNestedSliceInsideStructBodyFields(t *testing.T) {
+	t.Parallel()
+
+	type item struct {
+		Name string `json:"name" validate:"required"`
+	}
+
+	type building struct {
+		Items []item `json:"items" validate:"dive"`
+	}
+
+	type request struct {
+		Building building `json:"building"`
+	}
+
+	validator, err := validation.New()
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+
+	errs := validator.Validate(request{
+		Building: building{Items: []item{{Name: ""}}},
+	})
+
+	if len(errs) != 1 {
+		t.Fatalf("expected 1 validation error, got %d: %+v", len(errs), errs)
+	}
+
+	if errs[0].Source.Field != "/building/items/0/name" {
+		t.Errorf(`expected Source.Field "/building/items/0/name", got %q`, errs[0].Source.Field)
+	}
+}
+
 func TestPlaygroundValidator_UnknownBuiltinTagFallsBackToGenericError(t *testing.T) {
 	t.Parallel()
 
