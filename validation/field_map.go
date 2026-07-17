@@ -7,27 +7,31 @@ import (
 	"github.com/Casara/arnon/problem"
 )
 
-// maxFieldMapDepth bounds recursion into nested body structs/slices
-// while building the field map. Real request DTOs never nest this
-// deep; the limit exists to guarantee termination for a pathological
-// self-referential struct (e.g. a tree node with a `Parent *Node`
-// field) instead of recursing until the stack overflows - fields
-// past the limit still validate, they just fall back to the
-// single-segment pointer built from mapper.go's lookup miss path.
+// maxFieldMapDepth bounds recursion into nested body structs/
+// slices/maps while building the field map. Real request DTOs never
+// nest this deep; the limit exists to guarantee termination for a
+// pathological self-referential struct (e.g. a tree node with a
+// `Parent *Node` field) instead of recursing until the stack
+// overflows - fields past the limit still validate, they just fall
+// back to the single-segment pointer built from mapper.go's lookup
+// miss path.
 const maxFieldMapDepth = 16
 
 // buildFieldMap walks value's actual struct value (not just its type
-// - slice/array length is only known at the value level) and returns
-// a map from the Go namespace path (matching the tail of a
-// validator/v10 FieldError.StructNamespace(), once its leading
-// "TypeName." is stripped - see mapper.go) to the ValidationSource
-// that field resolves to. Body fields recurse into nested structs and
-// slice/array elements, so a field like Address.City produces the RFC
-// 6901 pointer "/address/city" instead of a single "/city" segment,
-// and Items[2].Name produces "/items/2/name".
+// - a slice/array/map's runtime size is only known at the value
+// level) and returns a map from the Go namespace path (matching the
+// tail of a validator/v10 FieldError.StructNamespace(), once its
+// leading "TypeName." is stripped - see mapper.go) to the
+// ValidationSource that field resolves to. Body fields recurse into
+// nested structs, slice/array elements and string-keyed map entries,
+// so a field like Address.City produces the RFC 6901 pointer
+// "/address/city" instead of a single "/city" segment, Items[2].Name
+// produces "/items/2/name", and Meta["x/y"] produces "/meta/x~1y"
+// (the map key gets RFC 6901 §3 escaping same as a JSON field name -
+// a slice index never needs it, since it's always digits).
 //
 // Because this walks the actual value, its cost scales with the size
-// of any slice/array reachable from value, not just the number of
+// of any slice/array/map reachable from value, not just the number of
 // fields in its type - only relevant on the validation-failure path
 // (mapValidationErrors only calls this once validator/v10 has already
 // found at least one error), so it doesn't affect successful requests.
@@ -92,16 +96,23 @@ func populateFieldMap(
 }
 
 // populateNestedFieldMap descends into a body field's value: directly
-// if it's a (possibly pointer) struct, or per-element - with the
+// if it's a (possibly pointer) struct, per-element - with the
 // element's runtime index spliced into both the Go namespace and the
-// RFC 6901 pointer - if it's a slice/array. A slice/array element
-// itself gets a map entry even when it isn't a struct (e.g.
-// `Tags []string`), since validator/v10 reports a per-element error
-// for a `dive`-validated primitive slice with no further field
-// segment (FieldError.StructNamespace() ends in "Tags[0]", not
-// "Tags[0].something"). Maps aren't handled yet - a validation error
-// inside one falls back to mapper.go's single-segment lookup miss
-// path (see rfc-compliance.md's "O que ainda não está implementado").
+// RFC 6901 pointer - if it's a slice/array, or per-key if it's a
+// string-keyed map. A slice/array element or map entry gets a map
+// entry even when it isn't a struct (e.g. `Tags []string`), since
+// validator/v10 reports a per-element error for a `dive`-validated
+// primitive collection with no further field segment
+// (FieldError.StructNamespace() ends in "Tags[0]" or "Meta[key]", not
+// "Tags[0].something"). Map keys, unlike a slice index, can contain
+// "~"/"/" and so need the same RFC 6901 §3 escaping as a JSON field
+// name; validator/v10's namespace itself uses the raw, unescaped key
+// (confirmed empirically), so only the pointer half is escaped - the
+// namespace segment used as this function's own map key must match
+// validator/v10's raw format exactly. Non-string map keys are the one
+// remaining gap: skipped here, falling back to mapper.go's
+// single-segment lookup-miss path, since JSON object keys (and so a
+// meaningful RFC 6901 segment) are always strings.
 func populateNestedFieldMap(
 	fieldMap map[string]problem.ValidationSource,
 	fieldValue reflect.Value,
@@ -111,7 +122,7 @@ func populateNestedFieldMap(
 ) {
 	fieldValue = dereference(fieldValue)
 
-	//nolint:exhaustive // only Struct/Slice/Array need special handling; everything else is a leaf
+	//nolint:exhaustive // only Struct/Slice/Array/Map need special handling; everything else is a leaf
 	switch fieldValue.Kind() {
 	case reflect.Struct:
 		populateFieldMap(
@@ -135,6 +146,31 @@ func populateNestedFieldMap(
 			populateNestedFieldMap(
 				fieldMap,
 				fieldValue.Index(elementIndex),
+				elementNamespace,
+				elementPointer,
+				depth+1,
+			)
+		}
+
+	case reflect.Map:
+		for _, key := range fieldValue.MapKeys() {
+			if key.Kind() != reflect.String {
+				continue
+			}
+
+			keyString := key.String()
+
+			elementNamespace := fmt.Sprintf("%s[%s]", namespace, keyString)
+			elementPointer := pointerPrefix + "/" + escapeJSONPointerToken(keyString)
+
+			fieldMap[elementNamespace] = problem.ValidationSource{
+				In:    problem.ValidationLocationBody,
+				Field: elementPointer,
+			}
+
+			populateNestedFieldMap(
+				fieldMap,
+				fieldValue.MapIndex(key),
 				elementNamespace,
 				elementPointer,
 				depth+1,

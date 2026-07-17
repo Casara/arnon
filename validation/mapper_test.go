@@ -330,6 +330,99 @@ func TestPlaygroundValidator_ResolvesNestedSliceInsideStructBodyFields(t *testin
 	}
 }
 
+// TestPlaygroundValidator_ResolvesMapOfStructBodyFields confirms a
+// field inside a struct value of a string-keyed map (Items["b"].Name)
+// produces the composed RFC 6901 pointer "/items/b/name", with the
+// actual failing key.
+func TestPlaygroundValidator_ResolvesMapOfStructBodyFields(t *testing.T) {
+	t.Parallel()
+
+	type item struct {
+		Name string `json:"name" validate:"required"`
+	}
+
+	type request struct {
+		Items map[string]item `json:"items" validate:"dive"`
+	}
+
+	validator, err := validation.New()
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+
+	errs := validator.Validate(request{
+		Items: map[string]item{"a": {Name: "ok"}, "b": {Name: ""}},
+	})
+
+	if len(errs) != 1 {
+		t.Fatalf("expected 1 validation error, got %d: %+v", len(errs), errs)
+	}
+
+	if errs[0].Source.Field != "/items/b/name" {
+		t.Errorf(`expected Source.Field "/items/b/name", got %q`, errs[0].Source.Field)
+	}
+}
+
+// TestPlaygroundValidator_ResolvesMapOfPrimitiveBodyFields covers a
+// dive-validated map of primitives: validator/v10 reports an error
+// with no field segment after the key (StructNamespace() ends in
+// `Tags["short"]`), so the pointer must resolve to "/tags/short", not
+// fall back to a single "/tags" segment.
+func TestPlaygroundValidator_ResolvesMapOfPrimitiveBodyFields(t *testing.T) {
+	t.Parallel()
+
+	type request struct {
+		Tags map[string]string `json:"tags" validate:"dive,min=3"`
+	}
+
+	validator, err := validation.New()
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+
+	errs := validator.Validate(request{
+		Tags: map[string]string{"long": "valid", "short": "ab"},
+	})
+
+	if len(errs) != 1 {
+		t.Fatalf("expected 1 validation error, got %d: %+v", len(errs), errs)
+	}
+
+	if errs[0].Source.Field != "/tags/short" {
+		t.Errorf(`expected Source.Field "/tags/short", got %q`, errs[0].Source.Field)
+	}
+}
+
+// TestPlaygroundValidator_EscapesMapKeySpecialCharacters covers RFC
+// 6901 §3 for a map key specifically (not a JSON field name): unlike
+// a slice index (always digits), a map key can contain "~"/"/" and
+// must be escaped the same way a field name is, or the pointer would
+// be indistinguishable from a deeper nested path.
+func TestPlaygroundValidator_EscapesMapKeySpecialCharacters(t *testing.T) {
+	t.Parallel()
+
+	type request struct {
+		Meta map[string]string `json:"meta" validate:"dive,min=100"`
+	}
+
+	validator, err := validation.New()
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+
+	errs := validator.Validate(request{
+		Meta: map[string]string{"a/b": "short"},
+	})
+
+	if len(errs) != 1 {
+		t.Fatalf("expected 1 validation error, got %d: %+v", len(errs), errs)
+	}
+
+	if errs[0].Source.Field != "/meta/a~1b" {
+		t.Errorf(`expected Source.Field "/meta/a~1b", got %q`, errs[0].Source.Field)
+	}
+}
+
 func TestPlaygroundValidator_UnknownBuiltinTagFallsBackToGenericError(t *testing.T) {
 	t.Parallel()
 

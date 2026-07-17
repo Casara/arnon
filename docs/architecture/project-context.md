@@ -311,6 +311,36 @@ format: uri
 
 ---
 
+### `dive` redireciona constraint pro schema do elemento
+
+```go
+Tags []string `validate:"dive,min=2"`
+```
+
+↓
+
+```yaml
+type: array
+items:
+  type: string
+  minLength: 2   # não minItems
+```
+
+`applyValidationTags` (`openapi/validation.go`) rastreia se já passou
+por um `dive` na tag `validate`; a partir daí, `min`/`max`/`len`/`gt`/
+`gte`/`lt`/`lte`/`oneof`/`email`/`uuid`/`url`/regra customizada
+redirecionam pro `schema.Items` em vez do schema do campo — sem isso,
+`applyMin`/`applyMax` só olham `schema.Type` (`"array"` com ou sem
+`dive`), então `dive,min=2` virava `minItems: 2` (array com 2+
+elementos) em vez de `minLength: 2` em cada elemento (o schema mentia
+sobre o próprio contrato: o runtime já validava certo, só o schema
+documentado é que estava errado). `dive,dive` (slice de slice) desce
+dois níveis de `Items`, e um `required` depois de `dive` não marca o
+campo como obrigatório no schema (não tem equivalente OpenAPI pra
+"nenhum elemento pode ser zero-value").
+
+---
+
 ## Examples
 
 Examples são convertidos para o tipo correto.
@@ -454,34 +484,36 @@ Exemplo:
 ```
 
 `field` só usa sintaxe de JSON Pointer (RFC 6901: `/name`,
-`/address/city`, `/items/0/name`, `/tags/1`) quando `in` é `"body"` —
-é o único `in` hierárquico. O nome de cada segmento (tag `json`, não o
-nome do campo Go) é escapado por `~0`/`~1` conforme RFC 6901 §3
-(`validation.escapeJSONPointerToken`) — sem isso, um campo chamado
-literalmente `"a/b"` viraria `/a/b`, indistinguível de dois segmentos.
-`buildFieldMap` (`validation/field_map.go`) caminha o *valor* real da
-request (não só o tipo — precisa do tamanho de verdade de
-slice/array), recursando em struct aninhado (valor ou ponteiro) e em
-elemento de slice/array (struct ou primitivo), compondo o pointer
-nível a nível — inclusive um slice de primitivo com `dive`
-(`Tags[1]`), já que o `validator/v10` reporta erro de elemento sem
-segmento de campo depois do índice, então precisa de entrada própria
-no mapa em vez de só recursão. O cruzamento com o erro do
-`validator/v10` usa `FieldError.StructNamespace()` com o nome do tipo
-raiz removido (`validation.structFieldNamespace`), não `StructField()`
-(só dá o nome do campo folha, sem caminho); o formato de
-`StructNamespace()` pra elemento de slice foi confirmado
-empiricamente, não assumido. Limitado a `maxFieldMapDepth` (16) níveis
-(struct e índice contam pro mesmo limite), só pra garantir término
-mesmo com um struct auto-referente. Como agora caminha o valor de
-verdade, o custo escala com o tamanho de slice alcançável na request —
-só no caminho de erro (`mapValidationErrors` só roda depois que já
-existe pelo menos um erro), não afeta request bem-sucedida.
-**Limite atual**: cobre struct e slice/array, não chave de map
-(`Items["x"].Name` cai no fallback de nome de campo) — chave de map
-precisaria de escaping RFC 6901 próprio (pode conter `~`/`/`,
-diferente de índice numérico) e é bem menos comum que slice em DTO de
-request; deixado como próximo passo. Pra
+`/address/city`, `/items/0/name`, `/tags/1`, `/meta/x~1y`) quando `in`
+é `"body"` — é o único `in` hierárquico. O nome de cada segmento (tag
+`json`, não o nome do campo Go) é escapado por `~0`/`~1` conforme RFC
+6901 §3 (`validation.escapeJSONPointerToken`) — sem isso, um campo
+chamado literalmente `"a/b"` viraria `/a/b`, indistinguível de dois
+segmentos; o mesmo vale pra chave de map (`Meta["x/y"]` → `/meta/x~1y`,
+diferente de índice de slice, que nunca precisa escapar por ser sempre
+dígito). `buildFieldMap` (`validation/field_map.go`) caminha o *valor*
+real da request (não só o tipo — precisa do tamanho de verdade de
+slice/array/map), recursando em struct aninhado (valor ou ponteiro),
+elemento de slice/array (struct ou primitivo) e entrada de map com
+chave string (struct ou primitivo), compondo o pointer nível a nível —
+inclusive slice/map de primitivo com `dive` (`Tags[1]`, `Meta["x"]`),
+já que o `validator/v10` reporta erro de elemento sem segmento de
+campo depois do índice/chave, então precisa de entrada própria no
+mapa em vez de só recursão. O cruzamento com o erro do `validator/v10`
+usa `FieldError.StructNamespace()` com o nome do tipo raiz removido
+(`validation.structFieldNamespace`), não `StructField()` (só dá o
+nome do campo folha, sem caminho); o formato de `StructNamespace()`
+pra elemento de slice/map (chave crua, sem escaping, no namespace — só
+o pointer final é escapado) foi confirmado empiricamente, não
+assumido. Limitado a `maxFieldMapDepth` (16) níveis (struct, índice e
+chave contam pro mesmo limite), só pra garantir término mesmo com um
+struct auto-referente. Como agora caminha o valor de verdade, o custo
+escala com o tamanho de slice/map alcançável na request — só no
+caminho de erro (`mapValidationErrors` só roda depois que já existe
+pelo menos um erro), não afeta request bem-sucedida. **Limite atual**:
+chave de map não-string (`map[int]T`) cai no fallback de nome de campo
+— JSON só tem chave string de qualquer forma, caso raro em DTO de
+request. Pra
 `path`/`query`/`header`
 (`NewPathError`/`NewQueryError`/`NewHeaderError` em `problem/validation.go`),
 `field` é sempre o nome cru do campo (`id`, `page`, `Authorization`), sem

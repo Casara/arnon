@@ -223,7 +223,9 @@ responsabilidade única:
 | `observability/otel`  | Configuração e inicialização do SDK do OpenTelemetry.                                                                  |
 
 O grafo de dependências permitido entre esses pacotes está documentado
-em [.go-arch-lint.yml](.go-arch-lint.yml) e é verificado em CI.
+em [.go-arch-lint.yml](.go-arch-lint.yml) (diagrama em
+[CLAUDE.md](CLAUDE.md#grafo-de-dependências-entre-pacotes)) e é
+verificado em CI.
 
 Mais contexto sobre decisões arquiteturais está em
 [docs/architecture/project-context.md](docs/architecture/project-context.md).
@@ -282,4 +284,6 @@ instalação global nem poluir o `go.mod` do módulo com dependências que
 só existem em tempo de desenvolvimento.
 
 Convenções de estilo estão documentadas em
-[docs/coding-style.md](docs/coding-style.md).
+[docs/coding-style.md](docs/coding-style.md); fluxo de branch e
+convenção de commit (Conventional Commits) em
+[CONTRIBUTING.md](CONTRIBUTING.md).

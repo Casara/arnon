@@ -222,6 +222,91 @@ func TestApplyValidationTags_OneOfSetsEnum(t *testing.T) {
 	}
 }
 
+// TestApplyValidationTags_DiveRedirectsConstraintsToItems confirms
+// `dive,min=2` on a []string field constrains each element's length
+// (Items.MinLength), not the array's item count (MinItems) -
+// dive,min=2 means "each string must be >= 2 characters", not "the
+// array must have >= 2 elements". Before the fix, applyMin only
+// looked at schema.Type ("array" either way), so this produced
+// MinItems regardless of dive.
+func TestApplyValidationTags_DiveRedirectsConstraintsToItems(t *testing.T) {
+	t.Parallel()
+
+	type request struct {
+		Tags []string `json:"tags" validate:"dive,min=2,max=10"`
+	}
+
+	schema := openapi.NewSchemaGenerator().GenerateSchema(request{})
+
+	tags := schema.Properties["tags"]
+
+	if tags.MinItems != nil || tags.MaxItems != nil {
+		t.Errorf(
+			"expected no item-count constraint on the array itself, got MinItems=%+v MaxItems=%+v",
+			tags.MinItems,
+			tags.MaxItems,
+		)
+	}
+
+	if tags.Items == nil {
+		t.Fatalf("expected an Items schema, got nil")
+	}
+
+	if tags.Items.MinLength == nil || *tags.Items.MinLength != 2 {
+		t.Errorf("expected Items.MinLength=2, got %+v", tags.Items.MinLength)
+	}
+
+	if tags.Items.MaxLength == nil || *tags.Items.MaxLength != 10 {
+		t.Errorf("expected Items.MaxLength=10, got %+v", tags.Items.MaxLength)
+	}
+}
+
+// TestApplyValidationTags_RepeatedDiveDescendsTwoLevels confirms
+// `dive,dive` (a slice of slices) redirects constraints two Items
+// levels down, not just one.
+func TestApplyValidationTags_RepeatedDiveDescendsTwoLevels(t *testing.T) {
+	t.Parallel()
+
+	type request struct {
+		Grid [][]string `json:"grid" validate:"dive,dive,min=1"`
+	}
+
+	schema := openapi.NewSchemaGenerator().GenerateSchema(request{})
+
+	grid := schema.Properties["grid"]
+
+	innerItems := grid.Items.Items
+
+	if innerItems == nil {
+		t.Fatalf("expected a two-level Items schema, got %+v", grid)
+	}
+
+	if innerItems.MinLength == nil || *innerItems.MinLength != 1 {
+		t.Errorf("expected inner Items.MinLength=1, got %+v", innerItems.MinLength)
+	}
+}
+
+// TestApplyValidationTags_DiveRequiredDoesNotMarkFieldRequired covers
+// the `dive,required` case: it means each element must be non-zero,
+// which has no OpenAPI object-level "required" equivalent - the field
+// itself must not be added to the parent schema's Required list
+// because of a required tag that comes after dive.
+func TestApplyValidationTags_DiveRequiredDoesNotMarkFieldRequired(t *testing.T) {
+	t.Parallel()
+
+	type request struct {
+		Tags []string `json:"tags" validate:"dive,required"`
+	}
+
+	schema := openapi.NewSchemaGenerator().GenerateSchema(request{})
+
+	for _, name := range schema.Required {
+		if name == "tags" {
+			t.Fatalf("expected \"tags\" not to be in Required, got %v", schema.Required)
+		}
+	}
+}
+
 // TestApplyValidationTags_FormatShortcuts covers applyEmail and
 // applyURL (applyUUID already has coverage from
 // TestSchemaGenerator_AppliesCustomRuleSchemaEffect's sibling tests),

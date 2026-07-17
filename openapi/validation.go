@@ -11,7 +11,17 @@ import (
 // schema constraints, one switch arm per validator tag, mirroring the
 // mapping in validation.mapFieldError so both stay easy to compare.
 //
-//nolint:cyclop // one switch arm per validator tag, see comment above
+// A `dive` tag (go-playground/validator's marker for "validate each
+// element of this slice/array/map instead of the field itself")
+// retargets every constraint tag that follows it from schema to
+// schema.Items - without this, `validate:"dive,min=2"` on a
+// `[]string` field would set MinItems (array must have >= 2 elements)
+// instead of MinLength on each element (each string must have >= 2
+// characters), because applyMin/applyMax only look at the target
+// schema's Type, which is "array" either way. Repeated `dive` tags
+// (a slice of slices) descend one further Items level each time.
+//
+//nolint:cyclop,funlen // one switch arm per validator tag, see comment above
 func applyValidationTags(
 	schema *Schema,
 	tagValue string,
@@ -27,77 +37,96 @@ func applyValidationTags(
 		",",
 	)
 
+	target := schema
+	dived := false
+
 	for tag := range tags {
 		name, value, hasValue := strings.Cut(tag, "=")
 
+		if name == "dive" {
+			dived = true
+
+			if target.Items != nil {
+				target = target.Items
+			}
+
+			continue
+		}
+
 		switch name {
 		case "required":
-			*required = append(
-				*required,
-				fieldName,
-			)
+			// A dived "required" means each element must be non-zero,
+			// which has no OpenAPI object-level "required" equivalent
+			// (that lists property names, not an array-content rule) -
+			// only a pre-dive "required" marks the field itself required.
+			if !dived {
+				*required = append(
+					*required,
+					fieldName,
+				)
+			}
 
 		case "min":
 			applyMin(
-				schema,
+				target,
 				value,
 			)
 
 		case "max":
 			applyMax(
-				schema,
+				target,
 				value,
 			)
 
 		case "gt":
 			applyGT(
-				schema,
+				target,
 				value,
 			)
 
 		case "gte":
 			applyGTE(
-				schema,
+				target,
 				value,
 			)
 
 		case "lt":
 			applyLT(
-				schema,
+				target,
 				value,
 			)
 
 		case "lte":
 			applyLTE(
-				schema,
+				target,
 				value,
 			)
 
 		case "len":
 			applyLen(
-				schema,
+				target,
 				value,
 			)
 
 		case "oneof":
 			if hasValue {
 				applyOneOf(
-					schema,
+					target,
 					value,
 				)
 			}
 
 		case "email":
-			applyEmail(schema)
+			applyEmail(target)
 
 		case "uuid":
-			applyUUID(schema)
+			applyUUID(target)
 
 		case "url":
-			applyURL(schema)
+			applyURL(target)
 
 		default:
-			applyCustomRule(schema, name)
+			applyCustomRule(target, name)
 		}
 	}
 }

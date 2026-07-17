@@ -9,6 +9,11 @@ Leia primeiro, nesta ordem:
    especificação funcional/arquitetural e estado atual do projeto.
 2. [docs/coding-style.md](docs/coding-style.md) — convenções de código
    (formatação, tratamento de erro/wrapcheck, dependências explícitas).
+3. [CONTRIBUTING.md](CONTRIBUTING.md) — fluxo de branch (rebase) e
+   convenção de commit (Conventional Commits, em inglês, modo
+   imperativo), obrigatória em `main`. Numa branch de trabalho que vai
+   passar por squash ao ser mesclada, o histórico intermediário não
+   precisa seguir à risca.
 
 ## Comandos
 
@@ -39,24 +44,27 @@ inteiro); não troque para `./...` achando que é equivalente.
 Documentado e verificado por `.go-arch-lint.yml`. Direção das setas =
 "pode depender de":
 
+```mermaid
+flowchart TD
+    problem["problem"]
+    validation["validation"] --> problem
+    openapi["openapi"] --> validation
+    httpxBinding["httpx/binding"] --> problem
+    httpx["httpx"] --> httpxBinding
+    httpx --> openapi
+    httpx --> problem
+    httpx --> validation
+    httpxRouting["httpx/routing"] --> httpx
+    httpxRouting --> openapi
+    httpxMiddleware["httpx/middleware"] --> httpx
+    httpxMiddleware --> httpxRouting
+    httpxMiddleware --> observability["observability"]
+    httpxMiddleware --> problem
+    observabilityOtel["observability/otel"] --> observability
 ```
-problem  <-- validation <-- openapi
-   ^             ^             ^
-   |             |             |
-httpx/binding    |             |
-   ^             |             |
-   +---------- httpx ----------+
-                 ^
-                 |
-          httpx/routing  (única aresta "de baixo pra cima": routing
-                           depende de httpx por causa da interface
-                           httpx.OpenAPIProvider)
-                 ^
-                 |
-          httpx/middleware
 
-observability <-- observability/otel
-```
+`httpx/routing` é a única aresta "de baixo pra cima" do grafo: routing
+depende de `httpx` por causa da interface `httpx.OpenAPIProvider`.
 
 Antes de adicionar um import entre pacotes internos, rode
 `go-arch-lint check` — ele falha o build se a aresta não estiver

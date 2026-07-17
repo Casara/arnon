@@ -36,14 +36,20 @@ lint-fix: ## Roda o linter e aplica as correções automáticas possíveis
 arch-lint: ## Verifica o grafo de dependências entre pacotes (.go-arch-lint.yml)
 	@go run $(GO_ARCH_LINT) check
 
+# examples/ é código de demonstração, testado de ponta a ponta com
+# hurl contra um servidor de verdade (ver examples/cmd/*/requests.hurl),
+# não com go test - por isso fica de fora de test/test-race/coverage,
+# mesmo critério que test-mutation já usava (-E 'examples/.*' abaixo).
+LIB_PACKAGES = $$(go list ./... | grep -v /examples)
+
 test: ## Executa os testes
-	@go test ./...
+	@go test $(LIB_PACKAGES)
 
 test-race: ## Executa os testes com o detector de race conditions
-	@go test -race ./...
+	@go test -race $(LIB_PACKAGES)
 
 coverage: ## Gera coverage.out e coverage.html com o relatório de cobertura
-	@go test -coverprofile=coverage.out ./...
+	@go test -coverprofile=coverage.out $(LIB_PACKAGES)
 	@go tool cover -html=coverage.out -o coverage.html
 	@echo "Relatório em coverage.html"
 

@@ -144,6 +144,11 @@ HTTP 200
 jsonpath "$.openapi" == "3.2.0"
 jsonpath "$.paths['/users'].post" exists
 jsonpath "$.paths['/users/{id}'].get" exists
+# Tags is `validate:"omitempty,dive,min=2"`: dive redirects min=2 to
+# each element's length (Items.minLength), not the array's item count
+# (minItems) - the schema must match the runtime constraint above.
+jsonpath "$.components.schemas.CreateUserRequest.properties.tags.items.minLength" == 2
+jsonpath "$.components.schemas.CreateUserRequest.properties.tags.minItems" not exists
 
 # --- GET /docs ----------------------------------------------------------
 
