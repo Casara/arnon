@@ -9,10 +9,23 @@ import (
 	"log/slog"
 )
 
-// CreateUserRequest is the request body for CreateUser.
+// Address is a nested request field, used only to demonstrate that a
+// validation error inside a nested struct resolves to a full RFC 6901
+// pointer (e.g. "/address/city"), not just "/city" -
+// validation.buildFieldMap recurses into nested body structs to
+// compose that path.
+type Address struct {
+	City string `json:"city" validate:"required"`
+}
+
+// CreateUserRequest is the request body for CreateUser. Address is a
+// pointer: go-playground/validator only dives into a nested struct
+// field when it's non-nil, so a request that omits "address" entirely
+// isn't forced through its validation.
 type CreateUserRequest struct {
-	Name  string `json:"name"  validate:"required,notblank"`
-	Email string `json:"email" validate:"required,email"`
+	Name    string   `json:"name"    validate:"required,notblank"`
+	Email   string   `json:"email"   validate:"required,email"`
+	Address *Address `json:"address"`
 }
 
 // CreateUserResponse is the response body for CreateUser.

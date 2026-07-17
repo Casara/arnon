@@ -172,6 +172,43 @@ forma de registrar uma regra customizada na aplicação; e mesmo que
 existisse, a geração de OpenAPI (que reprocessa a tag `validate` de forma
 independente) não teria como saber da nova regra.
 
+### Por que `ValidationError` tem `detail` + `code` + `source` + `meta`
+
+Cada campo tem um papel deliberadamente diferente, não é redundância:
+
+* `detail` — texto humano em inglês. Não é contrato estável: quem
+  consome a API não deve fazer parsing dele.
+* `code` — vocabulário estável e i18n-friendly (`required`, `min_length`,
+  ...). É dissociado de propósito dos nomes internos de tag do
+  `validator/v10`, pra não vazar detalhe de implementação nem quebrar
+  contrato se a lib de validação por trás for trocada um dia.
+* `meta` — valores estruturados da regra (ex. `min`) pra quem consome
+  montar a própria mensagem localizada, sem precisar fazer parsing de
+  `detail`.
+
+### `min`/`max` é comprimento, não valor numérico
+
+`validate:"min=1,max=100"` num `int` é um erro semântico comum:
+`min`/`max` do `validator/v10` sempre significam comprimento de
+string/slice/map, nunca o valor numérico em si — `validation/mapper.go`
+mapeia as duas pra `ValidationCodeMinLength`/`MaxLength` incondicionalmente,
+com mensagem "must contain at least/most N characters", mesmo aplicadas a
+um campo numérico. Pra restringir o *valor* de um número, a tag certa é
+`gt`/`gte`/`lt`/`lte`.
+
+### Mapeamento de erro do validator: regras explícitas + fallback
+
+`mapFieldError` (`validation/mapper.go`) mapeia um conjunto fixo de tags
+conhecidas explicitamente; qualquer tag não coberta (built-in do
+`validator/v10` sem mapeamento dedicado, ou uma regra custom registrada
+direto no `*validator.Validate` subjacente em vez de via
+`validation.RegisterCustomRule`) cai num fallback genérico
+(`ValidationCodeValidationFailed`, com `meta.rule`/`meta.param`). O
+fallback existe de propósito pra nunca expor a string de erro crua do
+`validator/v10` (formato tipo `Key: 'Foo.Bar' Error:Field validation...`)
+como `detail` — isso vazaria detalhe de implementação e quebraria a
+garantia de `code` ser vocabulário estável.
+
 ---
 
 # OpenAPI
@@ -217,6 +254,12 @@ Implementados:
 * minItems
 * maxItems
 * pattern
+
+`required` no schema vem exclusivamente da tag `validate:"required"` —
+nunca de `json:"...,omitempty"`. São preocupações independentes:
+`omitempty` só controla serialização JSON (omitir campo zero-value),
+não é usado como proxy de "campo opcional" no schema gerado (diferente
+de alguns outros frameworks Go).
 
 ---
 
@@ -409,6 +452,29 @@ Exemplo:
   "field": "/name"
 }
 ```
+
+`field` só usa sintaxe de JSON Pointer (RFC 6901: `/name`,
+`/address/city`) quando `in` é `"body"` — é o único `in` hierárquico.
+O nome de cada segmento (tag `json`, não o nome do campo Go) é
+escapado por `~0`/`~1` conforme RFC 6901 §3
+(`validation.escapeJSONPointerToken`) — sem isso, um campo chamado
+literalmente `"a/b"` viraria `/a/b`, indistinguível de dois segmentos.
+`buildFieldMap` (`validation/field_map.go`) recursa em struct aninhado
+(valor ou ponteiro) dentro do corpo, compondo o pointer nível a nível;
+o cruzamento com o erro do `validator/v10` usa
+`FieldError.StructNamespace()` com o nome do tipo raiz removido
+(`validation.structFieldNamespace`), não `StructField()` (que só dá o
+nome do campo folha, sem caminho). Limitado a `maxFieldMapDepth` (16)
+níveis, só pra garantir término mesmo com um struct auto-referente.
+**Limite atual**: cobre struct-dentro-de-struct, não índice de
+array/slice (`Items[0].Name` cai no fallback de nome de campo em vez
+de virar `/items/0/name`) — o `buildFieldMap` de hoje é construído uma
+vez a partir do `reflect.Type`, sem noção de índice de valor. Pra
+`path`/`query`/`header`
+(`NewPathError`/`NewQueryError`/`NewHeaderError` em `problem/validation.go`),
+`field` é sempre o nome cru do campo (`id`, `page`, `Authorization`), sem
+prefixo `/` (não é JSON Pointer, não tem por quê escapar). Detalhe da
+RFC em [docs/architecture/rfc-compliance.md](rfc-compliance.md).
 
 ---
 
@@ -872,11 +938,31 @@ Motivos:
 * consistência
 * compatibilidade com linter recvcheck
 
+Exceção deliberada: tipos-valor pequenos e imutáveis, sem identidade
+própria (ex. `openapi.Tag`, que é fluente e retorna novos valores a cada
+`With*`; `problem.ValidationErrorCode`, um enum) usam receiver por
+**valor** de propósito — não é inconsistência a corrigir. A heurística:
+tipo com identidade/mutação/builder → ponteiro; tipo pequeno,
+imutável, comportando-se como valor → valor.
+
 ---
 
 ## Stoplight
 
-Foi escolhido Stoplight Elements ao invés de Swagger UI.
+Foi escolhido Stoplight Elements ao invés de Swagger UI — encaixa melhor
+com a proposta de "fundação" pouco opinativa (visual mais neutro,
+apresentação em formato de doc/portal em vez de console de teste).
+
+Ponto de atenção revisado em 2026-07-16: Swagger UI (a partir da
+`swagger-ui-dist@5.32.0`, fev/2026) passou a ter suporte a OpenAPI 3.2.0;
+o Stoplight Elements, até a mesma data, documenta suporte oficial só até
+3.1. Como o `arnon` gera documentos `"openapi": "3.2.0"`
+(`openapi.OpenAPIVersion3_2`), isso pode significar que o Stoplight
+Elements não reconheça recursos novos da 3.2 (a maior parte das mudanças
+de 3.2 sobre 3.1 é aditiva, então a renderização geral deve continuar
+funcionando). Não verificado empiricamente num navegador real ainda —
+antes de trocar o padrão ou expor a UI como configurável (`NOTES.md`),
+vale essa validação.
 
 ---
 

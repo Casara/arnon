@@ -55,6 +55,23 @@ HTTP 400
 jsonpath "$.errors[0].code" == "invalid_email"
 jsonpath "$.errors[0].source.field" == "/email"
 
+# Nested field validation: Address is a nested struct (see
+# examples/internal/users), so a validation error inside it resolves
+# to a full RFC 6901 pointer ("/address/city"), not just "/city".
+POST http://localhost:8080/users
+Content-Type: application/json
+{
+    "name": "Ada Lovelace",
+    "email": "ada@example.com",
+    "address": {
+        "city": ""
+    }
+}
+HTTP 400
+[Asserts]
+jsonpath "$.errors[0].code" == "required"
+jsonpath "$.errors[0].source.field" == "/address/city"
+
 # Malformed JSON body.
 POST http://localhost:8080/users
 Content-Type: application/json

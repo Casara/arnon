@@ -79,6 +79,21 @@ func (generator *Generator) Register(
 
 	case http.MethodDelete:
 		pathItem.Delete = &operation
+
+	case http.MethodHead:
+		pathItem.Head = &operation
+
+	case http.MethodOptions:
+		pathItem.Options = &operation
+
+	case http.MethodTrace:
+		pathItem.Trace = &operation
+
+	// "QUERY" mirrors routing.MethodQuery (httpx/routing) - openapi
+	// cannot import routing (see .go-arch-lint.yml), so the method name
+	// is duplicated here as a literal instead.
+	case "QUERY":
+		pathItem.Query = &operation
 	}
 
 	generator.document.Paths[path] = pathItem

@@ -24,6 +24,7 @@ relevante.
 | RFC | Assunto | Situação |
 |---|---|---|
 | RFC 9457 | Problem Details for HTTP APIs | ✅ Formato único de erro, em toda middleware que produz erro |
+| RFC 6901 | JSON Pointer | ✅ `ValidationSource.field` quando `in: "body"`, com escaping correto e campo aninhado (struct dentro de struct) — falta índice de array/slice (`/items/0/name`) |
 | RFC 9110 | HTTP Semantics | ✅ HEAD/405/`OPTIONS`/negociação de conteúdo/multi-valor de header |
 | RFC 9111 | HTTP Caching | ✅ ETag + conditional GET via middleware opt-in |
 | RFC 7239 | Forwarded HTTP Extension | ✅ Implementado em `RealIP`, com fallback pros headers de fato |
@@ -72,8 +73,39 @@ RFC central pro `arnon` — é o único formato de erro do framework
   do exemplo não-normativo do apêndice da RFC (que usa
   `invalid-params`), com nomes próprios — a RFC não exige nomes
   específicos, só consistência.
+* `source.field` usa **RFC 6901 (JSON Pointer)** quando `source.in` é
+  `"body"` — `/name`, `/address/city` (`problem.NewBodyError`).
+  Caracteres especiais no nome do campo JSON (`~`, `/`) são escapados
+  como `~0`/`~1` conforme RFC 6901 §3 (`validation.escapeJSONPointerToken`)
+  — sem isso, um campo chamado `"a/b"` viraria `/a/b`, indistinguível
+  de dois segmentos. `validation.buildFieldMap` recursa em struct
+  aninhado (por valor ou ponteiro) dentro do corpo, compondo o pointer
+  nível a nível (`Address.City` → `/address/city`), casando contra o
+  `FieldError.StructNamespace()` do `validator/v10` (nome de campo Go,
+  não a tag `json`, com o nome do tipo raiz removido — ver
+  `validation.structFieldNamespace`); limitado a `maxFieldMapDepth`
+  (16) níveis, pra terminar mesmo com um struct auto-referente (ex.
+  árvore com `Parent *Node`) em vez de recursar até estourar a pilha.
+  **Limite atual**: cobre struct-dentro-de-struct, não índice de
+  array/slice (`Items[0].Name` cai no fallback de nome de campo, não
+  vira `/items/0/name`) — exigiria parsear o `[N]` do namespace do
+  `validator/v10` e compor o pointer por item, não só por tipo (o
+  `buildFieldMap` de hoje é construído uma vez a partir do `reflect.Type`,
+  sem noção de índice de valor). RFC 6901 é uma RFC própria, à parte da
+  9457, adotada porque o corpo é a única fonte hierárquica entre as
+  quatro que `ValidationSource.in` cobre; `path`/`query`/`header` não
+  têm estrutura aninhada, então
+  `NewPathError`/`NewQueryError`/`NewHeaderError` usam o nome cru do
+  campo, sem sintaxe de pointer.
 * `problem.With` protege contra colisão com os campos padrão e chave
   vazia (`ErrReservedExtensionKey`/`ErrEmptyExtensionKey`).
+* O schema OpenAPI gerado pra `Problem`/`ValidationError`/`ValidationSource`
+  (`openapi/problem.go`) marca como `required` mais campos do que a RFC
+  exige — ex. `title`/`status`/`detail` em `Problem`, embora a RFC trate
+  todos os membros como opcionais. Não é inconsistência: o schema
+  documenta o **contrato real que o `arnon` sempre produz**, não o mínimo
+  permitido pela RFC — são coisas diferentes, e a decisão aqui foi
+  deliberada em favor do primeiro.
 
 **Nota**: se `json.Encode` falhar dentro de `WriteProblem` (só
 teoricamente possível — o encoder já processou o mesmo `Problem` uma

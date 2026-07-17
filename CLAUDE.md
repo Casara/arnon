@@ -9,9 +9,6 @@ Leia primeiro, nesta ordem:
    especificação funcional/arquitetural e estado atual do projeto.
 2. [docs/coding-style.md](docs/coding-style.md) — convenções de código
    (formatação, tratamento de erro/wrapcheck, dependências explícitas).
-3. `docs/history/chatgpt-origin-transcript.md` — histórico de como o
-   projeto surgiu; só vale consultar para entender *por que* uma decisão
-   antiga foi tomada, não é referência de uso.
 
 ## Comandos
 

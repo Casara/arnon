@@ -7,8 +7,15 @@ import (
 	"github.com/Casara/arnon/problem"
 )
 
+// resolveValidationSource determines where a field's value comes from
+// and, for a body field, its RFC 6901 pointer. pointerPrefix is the
+// already-resolved pointer of the enclosing struct field ("" at the
+// root, "/address" when resolving a field inside an Address struct
+// nested under an "address" JSON field) - it has no meaning outside
+// the body case, since path/query/header are never hierarchical.
 func resolveValidationSource(
 	field reflect.StructField,
+	pointerPrefix string,
 ) problem.ValidationSource {
 	switch {
 	case field.Tag.Get("path") != "":
@@ -32,8 +39,10 @@ func resolveValidationSource(
 	default:
 		return problem.ValidationSource{
 			In: problem.ValidationLocationBody,
-			Field: "/" + normalizeJSONField(
-				field.Tag.Get("json"),
+			Field: pointerPrefix + "/" + escapeJSONPointerToken(
+				normalizeJSONField(
+					field.Tag.Get("json"),
+				),
 			),
 		}
 	}
@@ -53,4 +62,20 @@ func normalizeJSONField(
 	}
 
 	return fieldName
+}
+
+// escapeJSONPointerToken escapes a single JSON Pointer (RFC 6901 §3)
+// reference token: "~" becomes "~0" and "/" becomes "~1", in that
+// order (escaping "/" first would double-escape the "~" it
+// introduces). Without this, a JSON field literally named e.g. "a/b"
+// would produce "/a/b" - indistinguishable from two path segments
+// ("a" then "b") instead of the single segment "a/b" the pointer
+// actually means.
+func escapeJSONPointerToken(token string) string {
+	replacer := strings.NewReplacer(
+		"~", "~0",
+		"/", "~1",
+	)
+
+	return replacer.Replace(token)
 }

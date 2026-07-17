@@ -124,6 +124,111 @@ func TestPlaygroundValidator_ValidRequestHasNoErrors(t *testing.T) {
 	}
 }
 
+// TestPlaygroundValidator_EscapesJSONPointerSpecialCharacters covers
+// RFC 6901 §3: a JSON field name containing "/" or "~" must have those
+// characters escaped ("~1"/"~0") in the pointer, or the resulting
+// Source.Field would be indistinguishable from a nested path.
+func TestPlaygroundValidator_EscapesJSONPointerSpecialCharacters(t *testing.T) {
+	t.Parallel()
+
+	type request struct {
+		Slash string `json:"a/b" validate:"required"`
+		Tilde string `json:"a~b" validate:"required"`
+	}
+
+	validator, err := validation.New()
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+
+	errs := validator.Validate(request{})
+
+	byField := make(map[string]problem.ValidationError, len(errs))
+	for _, validationErr := range errs {
+		byField[validationErr.Source.Field] = validationErr
+	}
+
+	if _, ok := byField["/a~1b"]; !ok {
+		t.Errorf(`expected escaped pointer "/a~1b" for json tag "a/b", got %+v`, byField)
+	}
+
+	if _, ok := byField["/a~0b"]; !ok {
+		t.Errorf(`expected escaped pointer "/a~0b" for json tag "a~b", got %+v`, byField)
+	}
+}
+
+// TestPlaygroundValidator_ResolvesNestedBodyFields confirms a field
+// inside a nested struct (Address.City) produces the composed RFC
+// 6901 pointer "/address/city", not just "/city" - buildFieldMap
+// recurses into nested body structs and mapper.go matches errors
+// against the full Go-name namespace (StructNamespace, with the
+// leading root type name stripped), not just the leaf field name.
+func TestPlaygroundValidator_ResolvesNestedBodyFields(t *testing.T) {
+	t.Parallel()
+
+	type address struct {
+		City string `json:"city" validate:"required"`
+	}
+
+	type request struct {
+		Name    string  `json:"name"    validate:"required"`
+		Address address `json:"address"`
+	}
+
+	validator, err := validation.New()
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+
+	errs := validator.Validate(request{Name: "ok"})
+
+	if len(errs) != 1 {
+		t.Fatalf("expected 1 validation error, got %d: %+v", len(errs), errs)
+	}
+
+	if errs[0].Source.Field != "/address/city" {
+		t.Errorf(`expected Source.Field "/address/city", got %q`, errs[0].Source.Field)
+	}
+
+	if errs[0].Source.In != problem.ValidationLocationBody {
+		t.Errorf("expected body location, got %q", errs[0].Source.In)
+	}
+}
+
+// TestPlaygroundValidator_ResolvesDeeplyNestedBodyFields covers more
+// than one level of nesting (Building.Address.City), confirming the
+// pointer composes across every level instead of only one.
+func TestPlaygroundValidator_ResolvesDeeplyNestedBodyFields(t *testing.T) {
+	t.Parallel()
+
+	type address struct {
+		City string `json:"city" validate:"required"`
+	}
+
+	type building struct {
+		Address address `json:"address"`
+	}
+
+	type request struct {
+		Building building `json:"building"`
+	}
+
+	validator, err := validation.New()
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+
+	errs := validator.Validate(request{})
+
+	if len(errs) != 1 {
+		t.Fatalf("expected 1 validation error, got %d: %+v", len(errs), errs)
+	}
+
+	if errs[0].Source.Field != "/building/address/city" {
+		t.Errorf(`expected Source.Field "/building/address/city", got %q`, errs[0].Source.Field)
+	}
+}
+
 func TestPlaygroundValidator_UnknownBuiltinTagFallsBackToGenericError(t *testing.T) {
 	t.Parallel()
 

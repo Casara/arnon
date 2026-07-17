@@ -9,8 +9,6 @@ type DocsConfig struct {
 	FaviconURL string
 
 	LogoURL string
-
-	UseLocalAssets bool
 }
 
 func defaultDocsConfig() DocsConfig {
@@ -18,7 +16,5 @@ func defaultDocsConfig() DocsConfig {
 		Title: "API Documentation",
 
 		OpenAPIURL: "/openapi.json",
-
-		UseLocalAssets: false,
 	}
 }

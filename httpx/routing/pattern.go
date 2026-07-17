@@ -81,7 +81,10 @@ func splitPattern(pattern string) (
 		http.MethodPatch,
 		http.MethodDelete,
 		http.MethodHead,
-		http.MethodOptions:
+		http.MethodOptions,
+		http.MethodConnect,
+		http.MethodTrace,
+		MethodQuery:
 
 	default:
 		return "", "", fmt.Errorf("method %q in pattern %q: %w", method, pattern, ErrInvalidMethod)

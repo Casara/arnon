@@ -37,13 +37,15 @@ func mapValidationErrors(
 	)
 
 	for _, fieldErr := range validationErrors {
-		source, ok := structFieldMap[fieldErr.StructField()]
+		source, ok := structFieldMap[structFieldNamespace(fieldErr)]
 
 		if !ok {
 			source = problem.ValidationSource{
 				In: problem.ValidationLocationBody,
-				Field: "/" + strings.ToLower(
-					fieldErr.Field(),
+				Field: "/" + escapeJSONPointerToken(
+					strings.ToLower(
+						fieldErr.Field(),
+					),
 				),
 			}
 		}
@@ -60,6 +62,23 @@ func mapValidationErrors(
 	}
 
 	return errors
+}
+
+// structFieldNamespace strips the leading "TypeName." validator/v10
+// always prefixes FieldError.StructNamespace() with (the type of the
+// struct passed to Validate()), leaving the dot-joined Go field name
+// path relative to that root - e.g. "CreateUserRequest.Address.City"
+// becomes "Address.City", matching the keys buildFieldMap produces.
+func structFieldNamespace(
+	fieldErr validatorv10.FieldError,
+) string {
+	namespace := fieldErr.StructNamespace()
+
+	if _, rest, ok := strings.Cut(namespace, "."); ok {
+		return rest
+	}
+
+	return namespace
 }
 
 // mapFieldError translates validator tags into framework validation errors.

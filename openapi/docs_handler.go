@@ -31,8 +31,6 @@ func NewDocsHandler(config *DocsConfig) *DocsHandler {
 		if config.LogoURL != "" {
 			cfg.LogoURL = config.LogoURL
 		}
-
-		cfg.UseLocalAssets = config.UseLocalAssets
 	}
 
 	return &DocsHandler{
