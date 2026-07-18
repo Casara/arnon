@@ -1,68 +1,67 @@
-# Ferramentas de desenvolvimento, com versão fixa via `go run` em vez de
-# binário instalado globalmente ou de `go get -tool` no go.mod: o arnon é
-# uma biblioteca, então não faz sentido puxar as dependências transitivas
-# de linter/mutation-tester para dentro do go.mod/go.sum do módulo que
-# quem consome o arnon também resolve.
+# Dev tools, version-pinned via `go run` instead of a globally
+# installed binary or `go get -tool` in go.mod: arnon is a library, so
+# it doesn't make sense to pull linter/mutation-tester transitive
+# dependencies into the go.mod/go.sum of the module that consumes
+# arnon too.
 GOLANGCI_LINT := github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
 GO_ARCH_LINT  := github.com/fe3dback/go-arch-lint@v1.16.0
 GREMLINS      := github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0
 
-# Pacote do exemplo executado por `make run`/`make build`, dentro de
-# examples/cmd (ver examples/internal para o código compartilhado
-# entre eles).
+# Example package run by `make run`/`make build`, under examples/cmd
+# (see examples/internal for the code shared between them).
 EXAMPLE ?= basic
 
 .PHONY: help build run fmt lint lint-fix arch-lint test test-race coverage \
 	test-mutation test-mutation-dry-run check clean
 
-help: ## Exibe esta ajuda
+help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-24s\033[0m %s\n", $$1, $$2}'
 
-build: ## Compila o exemplo em examples/cmd/basic (outro: make build EXAMPLE=nome)
+build: ## Build the example in examples/cmd/basic (or: make build EXAMPLE=name)
 	@go build -o bin/$(EXAMPLE) ./examples/cmd/$(EXAMPLE)
 
-run: ## Executa o exemplo em examples/cmd/basic (outro: make run EXAMPLE=nome)
+run: ## Run the example in examples/cmd/basic (or: make run EXAMPLE=name)
 	@go run ./examples/cmd/$(EXAMPLE)
 
-fmt: ## Formata o código (gofmt/gofumpt/goimports/gci/golines, via golangci-lint)
+fmt: ## Format the code (gofmt/gofumpt/goimports/gci/golines, via golangci-lint)
 	@go run $(GOLANGCI_LINT) fmt
 
-lint: ## Roda o linter (golangci-lint v2)
+lint: ## Run the linter (golangci-lint v2)
 	@go run $(GOLANGCI_LINT) run
 
-lint-fix: ## Roda o linter e aplica as correções automáticas possíveis
+lint-fix: ## Run the linter and apply available auto-fixes
 	@go run $(GOLANGCI_LINT) run --fix
 
-arch-lint: ## Verifica o grafo de dependências entre pacotes (.go-arch-lint.yml)
+arch-lint: ## Check the package dependency graph (.go-arch-lint.yml)
 	@go run $(GO_ARCH_LINT) check
 
-# examples/ é código de demonstração, testado de ponta a ponta com
-# hurl contra um servidor de verdade (ver examples/cmd/*/requests.hurl),
-# não com go test - por isso fica de fora de test/test-race/coverage,
-# mesmo critério que test-mutation já usava (-E 'examples/.*' abaixo).
+# examples/ is demo code, tested end-to-end with hurl against a real
+# running server (see examples/cmd/*/requests.hurl), not with go test
+# - so it's excluded from test/test-race/coverage, the same criterion
+# test-mutation already used (-E 'examples/.*' below).
 LIB_PACKAGES = $$(go list ./... | grep -v /examples)
 
-test: ## Executa os testes
+test: ## Run the tests
 	@go test $(LIB_PACKAGES)
 
-test-race: ## Executa os testes com o detector de race conditions
+test-race: ## Run the tests with the race detector
 	@go test -race $(LIB_PACKAGES)
 
-coverage: ## Gera coverage.out e coverage.html com o relatório de cobertura
+coverage: ## Generate coverage.out and coverage.html with the coverage report
 	@go test -coverprofile=coverage.out $(LIB_PACKAGES)
 	@go tool cover -html=coverage.out -o coverage.html
-	@echo "Relatório em coverage.html"
+	@echo "Report at coverage.html"
 
-test-mutation: ## Executa testes de mutação (gremlins) e grava mutation.json
-# gremlins não lida bem com o padrão "./..." do Go (silenciosamente não
-# reporta nada); passar "." faz ele recursar no módulo inteiro sozinho.
-# examples/ é excluído por ser código de demonstração, não a biblioteca.
+test-mutation: ## Run mutation tests (gremlins), writes mutation.json
+# gremlins doesn't handle Go's "./..." pattern well (silently reports
+# nothing); passing "." makes it recurse through the whole module on
+# its own. examples/ is excluded since it's demo code, not the library.
 	@go run $(GREMLINS) unleash -E 'examples/.*' -o mutation.json .
 
-test-mutation-dry-run: ## Lista os mutantes sem rodar os testes (bem mais rápido)
+test-mutation-dry-run: ## List the mutants without running the tests (much faster)
 	@go run $(GREMLINS) unleash --dry-run -E 'examples/.*' .
 
-check: lint arch-lint test-race ## Roda lint + arch-lint + testes com race detector (o que o CI deveria rodar no mínimo)
+check: lint arch-lint test-race ## Run lint + arch-lint + tests with the race detector (the minimum CI should run)
 
-clean: ## Remove artefatos de build/teste
+clean: ## Remove build/test artifacts
 	@rm -rf bin coverage.out coverage.html mutation.json
