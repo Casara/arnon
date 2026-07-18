@@ -1,19 +1,27 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg viewBox="25 25 395.60511779785156 110" width="350" height="105" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/">
+<svg viewBox="0 0 340 110" width="340" height="105" version="1.1" xmlns="http://www.w3.org/2000/svg" xml:space="preserve">
+  <!--
+    "O limiar": uma linha (a borda) com hastes só acima dela, nada
+    embaixo - o framework valida/tipa na borda e não desce mais fundo
+    que o handler. Ver docs/architecture/project-context.md.
+  -->
   <defs>
     <style>
-      .line-flow { stroke: #007acc; stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; fill: none; }
-        .box-pattern { stroke: #24292f; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; fill: none; }
-        .text-main { font-family: -apple-system, BlinkMacSystemFont, &apos;Segoe UI&apos;, Roboto, sans-serif; font-weight: 800; font-size: 52px; fill: #24292f; letter-spacing: 4px; }
-        @media (prefers-color-scheme: dark) {
-          .box-pattern { stroke: #f0f6fc; }
-          .text-main { fill: #4fc3f7; }
-          .line-flow { stroke: #4fc3f7; }
-        }
+      .threshold { stroke: #123a41; stroke-width: 8; stroke-linecap: round; fill: none; }
+      .reed { stroke: #c1622d; stroke-width: 7; stroke-linecap: round; fill: none; }
+      .wordmark { font-family: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas, monospace; font-weight: 700; font-size: 46px; fill: #123a41; letter-spacing: 3px; }
+      @media (prefers-color-scheme: dark) {
+        .threshold { stroke: #ede7da; }
+        .reed { stroke: #e08a54; }
+        .wordmark { fill: #ede7da; }
+      }
     </style>
   </defs>
-  <polygon points="95,25 145,52 145,108 95,135 45,108 45,52" class="box-pattern" opacity="0.3"/>
-  <path d="M25,80 L65,80 L95,45 L125,115 L165,115" class="line-flow"/>
-  <text x="210" y="92" class="text-main">ARNON</text>
+  <line x1="14" y1="80" x2="28" y2="56" class="reed"/>
+  <line x1="38" y1="80" x2="52" y2="40" class="reed"/>
+  <line x1="62" y1="80" x2="76" y2="52" class="reed"/>
+  <line x1="86" y1="80" x2="100" y2="62" class="reed"/>
+  <line x1="8" y1="80" x2="104" y2="80" class="threshold"/>
+  <text x="140" y="90" class="wordmark">ARNON</text>
 </svg>

@@ -1,83 +1,88 @@
-# Contribuindo
+# Contributing
 
-## Antes de começar
+*[Leia em português](CONTRIBUTING.pt-BR.md)*
 
-Leia, nesta ordem:
+This project follows the [Code of Conduct](CODE_OF_CONDUCT.md). By
+participating, you're expected to follow it.
 
-1. [CLAUDE.md](CLAUDE.md) — comandos, grafo de dependências entre
-   pacotes, decisões de design não óbvias.
+## Before you start
+
+Read, in this order:
+
+1. [CLAUDE.md](CLAUDE.md) — commands, package dependency graph,
+   non-obvious design decisions.
 2. [docs/architecture/project-context.md](docs/architecture/project-context.md) —
-   especificação funcional/arquitetural e estado atual do projeto.
-3. [docs/coding-style.md](docs/coding-style.md) — convenções de código.
+   the project's functional/architectural spec and current state.
+3. [docs/coding-style.md](docs/coding-style.md) — code conventions.
 4. [docs/architecture/rfc-compliance.md](docs/architecture/rfc-compliance.md) —
-   se a mudança tocar formato de erro, negociação de conteúdo, cache
-   ou qualquer coisa RFC-adjacente, o comportamento já documentado ali
-   é o que não pode regredir.
+   if your change touches error format, content negotiation, caching,
+   or anything RFC-adjacent, the behavior already documented there is
+   what can't regress.
 
-## Ambiente
+## Environment
 
-`make help` lista todos os comandos. Antes de abrir um PR, rode:
+`make help` lists every command. Before opening a PR, run:
 
 ```sh
-make check   # lint + arch-lint + testes com race detector
+make check   # lint + arch-lint + tests with race detector
 ```
 
-Isso é o mínimo que o CI roda em todo PR
-([.github/workflows/ci.yml](.github/workflows/ci.yml)). Se a mudança
-tocar comportamento — não só refatoração — inclua teste cobrindo o
-caso novo (unitário em `_test.go`, ou um caso em
-`examples/cmd/*/requests.hurl` se for algo observável de ponta a ponta
-via HTTP) e, quando fizer sentido, atualize
+That's the minimum CI runs on every PR
+([.github/workflows/ci.yml](.github/workflows/ci.yml)). If the change
+touches behavior — not just refactoring — include a test covering the
+new case (unit test in `_test.go`, or a case in
+`examples/cmd/*/requests.hurl` if it's something observable end-to-end
+over HTTP), and, when it makes sense, update
 `docs/architecture/project-context.md`/`rfc-compliance.md`.
 
-## Fluxo de branch
+## Branch workflow
 
-Rebase, não merge commit: atualize sua branch com `git rebase` contra
-a base antes de abrir/atualizar um PR, em vez de mesclar a base pra
-dentro da sua branch. Histórico linear, sem commits de merge.
+Rebase, not merge commits: update your branch with `git rebase`
+against the base before opening/updating a PR, instead of merging the
+base into your branch. Linear history, no merge commits.
 
-A convenção de commit abaixo é obrigatória em `main`. Uma branch de
-trabalho que vai passar por squash ao ser mesclada não precisa segui-la
-à risca — o histórico intermediário não é o que fica.
+The commit convention below is mandatory on `main`. A work branch that
+will be squashed on merge doesn't need to follow it strictly — the
+intermediate history isn't what stays.
 
-## Mensagens de commit
+## Commit messages
 
-[Conventional Commits](https://www.conventionalcommits.org/), em
-inglês, modo imperativo:
+[Conventional Commits](https://www.conventionalcommits.org/), in
+English, imperative mood:
 
 ```
-<tipo>(<escopo>): <descrição>
+<type>(<scope>): <description>
 ```
 
-* `<descrição>` no imperativo, descrevendo a ação (`add`, `fix`,
-  `remove`, `harden`, `resolve`, `guarantee`), não o estado
-  resultante (`added`) nem o histórico (`fixed`, "adds/added").
-* `<escopo>` é o pacote ou área afetada. Não é uma lista fechada, mas
-  os mais comuns batem com os componentes de
+* `<description>` in the imperative, describing the action (`add`,
+  `fix`, `remove`, `harden`, `resolve`, `guarantee`), not the
+  resulting state (`added`) or history (`fixed`, "adds/added").
+* `<scope>` is the affected package or area. It's not a closed list,
+  but the most common ones match the components in
   [.go-arch-lint.yml](.go-arch-lint.yml): `problem`, `validation`,
   `openapi`, `httpx`, `binding`, `routing`, `middleware`,
-  `observability`, `otel`, `examples` — mais os transversais `release`,
-  `docs`, `ci`, `deps`.
+  `observability`, `otel`, `examples` — plus the cross-cutting
+  `release`, `docs`, `ci`, `deps`.
 
-### Tipos
+### Types
 
-| Tipo | Quando usar |
+| Type | When to use |
 | --- | --- |
-| `feat` | Novo recurso (MINOR do versionamento semântico). |
-| `fix` | Correção de bug (PATCH do versionamento semântico). |
-| `docs` | Só documentação (README, `docs/`, comentários) — sem mudança de código. |
-| `test` | Só teste (criação, alteração ou remoção) — sem mudança de código de produção. |
-| `refactor` | Muda a forma como o código é escrito/organizado sem mudar comportamento observável. |
-| `perf` | Mudança cujo objetivo é performance. |
-| `style` | Formatação, ponto e vírgula, espaço em branco, lint — sem mudança de código. |
-| `build` | Build e dependências (`go.mod`, `Makefile`, ferramentas). |
-| `ci` | Integração contínua (`.github/workflows/`). |
-| `chore` | Tarefas de manutenção que não se encaixam nos tipos acima (config, `.gitignore`, ...). |
-| `cleanup` | Remove código comentado, morto ou desnecessário — sem mudar comportamento. |
-| `remove` | Remove arquivo, diretório ou funcionalidade obsoleta/não usada. |
-| `raw` | Mudança em arquivo de configuração/dado/parâmetro que não se encaixa nos tipos acima. |
+| `feat` | New feature (semver MINOR). |
+| `fix` | Bug fix (semver PATCH). |
+| `docs` | Documentation only (README, `docs/`, comments) — no code change. |
+| `test` | Test only (added, changed, or removed) — no production code change. |
+| `refactor` | Changes how code is written/organized without changing observable behavior. |
+| `perf` | A change whose purpose is performance. |
+| `style` | Formatting, semicolons, whitespace, lint — no code change. |
+| `build` | Build and dependencies (`go.mod`, `Makefile`, tooling). |
+| `ci` | Continuous integration (`.github/workflows/`). |
+| `chore` | Maintenance tasks that don't fit the types above (config, `.gitignore`, ...). |
+| `cleanup` | Removes commented-out, dead, or unnecessary code — no behavior change. |
+| `remove` | Removes an obsolete/unused file, directory, or feature. |
+| `raw` | Change to a configuration/data/parameter file that doesn't fit the types above. |
 
-### Exemplos (do próprio histórico do projeto)
+### Examples (from the project's own history)
 
 ```
 feat(validation): resolve RFC 6901 pointers through array/slice indices
@@ -88,12 +93,11 @@ test(openapi): cover dive-redirected schema constraints
 
 ## Pull requests
 
-* `make check` verde é obrigatório, não opcional.
-* PR pequeno e focado em uma mudança é preferível a um PR grande
-  cobrindo várias coisas não relacionadas — mas isso é julgamento, não
-  regra rígida (ex.: uma correção de bug encontrada testando uma
-  feature nova pode ir junto, se documentada claramente na descrição
-  do PR/commit).
-* Se a mudança altera comportamento documentado, atualize a doc no
-  mesmo PR — não é aceitável um PR deixar `project-context.md`/
-  `rfc-compliance.md` desatualizados de propósito "pra depois".
+* `make check` passing is mandatory, not optional.
+* A small PR focused on one change is preferable to a large PR
+  covering several unrelated things — but that's judgment, not a
+  strict rule (e.g. a bug fix found while testing a new feature can go
+  in the same PR, if clearly documented in the PR/commit description).
+* If the change alters documented behavior, update the docs in the
+  same PR — it's not acceptable for a PR to leave
+  `project-context.md`/`rfc-compliance.md` stale "for later."

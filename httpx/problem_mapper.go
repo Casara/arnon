@@ -8,7 +8,9 @@ import (
 	"github.com/Casara/arnon/problem"
 )
 
-// ProblemMapper maps errors into problems.
+// ProblemMapper converts a handler's returned error into the RFC 9457
+// Problem written to the response. EndpointConfig.ProblemMapper
+// defaults to DefaultProblemMapper when unset.
 type ProblemMapper interface {
 	Map(err error) *problem.Problem
 }
@@ -25,10 +27,15 @@ func (mapper ProblemMapperFunc) Map(
 	return mapper(err)
 }
 
-// DefaultProblemMapper maps errors to RFC 7807 problems.
+// DefaultProblemMapper maps errors to RFC 9457 problems.
 type DefaultProblemMapper struct{}
 
-// Map maps an error to a problem.
+// Map recognizes two binding failure shapes it can describe precisely
+// (a malformed JSON body vs. a value of the wrong type for a field,
+// the latter pointing at the exact field via a body ValidationError),
+// passes an existing *problem.Problem through unchanged, and maps
+// everything else to a generic 500 - the fallback exists so a handler
+// error never leaks as a raw error string in the response.
 func (mapper DefaultProblemMapper) Map(
 	err error,
 ) *problem.Problem {

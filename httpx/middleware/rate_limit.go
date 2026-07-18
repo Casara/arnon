@@ -54,7 +54,8 @@ type LimitCounter interface {
 	) (currentCount, previousCount int, err error)
 }
 
-// RateLimitConfig configures the RateLimit middleware.
+// RateLimitConfig configures RateLimit. RequestLimit and WindowLength
+// are the only required fields; everything else has a working default.
 type RateLimitConfig struct {
 	// RequestLimit is the maximum number of requests allowed per
 	// client key within WindowLength.

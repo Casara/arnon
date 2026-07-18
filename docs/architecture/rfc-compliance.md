@@ -1,200 +1,202 @@
-# Conformidade com RFCs
+# RFC Compliance
 
-Como o `arnon` se relaciona com os padrões IETF relevantes para uma
-fundação HTTP: o que é implementado, como funciona, o que é uma
-decisão deliberada de escopo (e por quê) e o que ainda não existe.
-Última revisão: 2026-07-15.
+*[Leia em português](rfc-compliance.pt-BR.md)*
 
-O objetivo não é "implementar toda RFC que existe", mas deixar
-explícito, para cada uma relevante, se o `arnon` atende, atende
-parcialmente por decisão deliberada, ou não implementa — e por que
-cada caso é ou não um problema.
+How `arnon` relates to the relevant IETF standards for an HTTP
+foundation: what is implemented, how it works, what is a deliberate
+scope decision (and why), and what doesn't exist yet.
+Last reviewed: 2026-07-15.
 
-## Metodologia
+The goal is not "implement every RFC that exists," but to make
+explicit, for each relevant one, whether `arnon` complies, partially
+complies by deliberate decision, or doesn't implement it — and why
+each case is or isn't a problem.
 
-Cada afirmação abaixo foi verificada lendo o código-fonte relevante
-diretamente. Onde o comportamento depende de `net/http`/
-`net/http.ServeMux` em vez de código do `arnon`, isso foi confirmado
-empiricamente com programas Go mínimos (não por suposição sobre o que
-a stdlib "deveria" fazer) — os resultados estão anotados onde
-relevante.
+## Methodology
 
-## Resumo
+Each statement below was verified by reading the relevant source code
+directly. Where the behavior depends on `net/http`/
+`net/http.ServeMux` rather than `arnon` code, this was confirmed
+empirically with minimal Go programs (not by assumption about what the
+stdlib "should" do) — the results are noted where relevant.
 
-| RFC | Assunto | Situação |
+## Summary
+
+| RFC | Subject | Status |
 |---|---|---|
-| RFC 9457 | Problem Details for HTTP APIs | ✅ Formato único de erro, em toda middleware que produz erro |
-| RFC 6901 | JSON Pointer | ✅ `ValidationSource.field` quando `in: "body"`, com escaping correto, struct aninhado, índice de array/slice (`/items/0/name`) e chave de map (`/meta/x~1y`) |
-| RFC 9110 | HTTP Semantics | ✅ HEAD/405/`OPTIONS`/negociação de conteúdo/multi-valor de header |
-| RFC 9111 | HTTP Caching | ✅ ETag + conditional GET via middleware opt-in |
-| RFC 7239 | Forwarded HTTP Extension | ✅ Implementado em `RealIP`, com fallback pros headers de fato |
-| RFC 6585 | Additional HTTP Status Codes | ✅ 429 com `Retry-After`; 431/428 fora do alcance do framework (limite de plataforma) |
+| RFC 9457 | Problem Details for HTTP APIs | ✅ Single error format, across every middleware that produces an error |
+| RFC 6901 | JSON Pointer | ✅ `ValidationSource.field` when `in: "body"`, with correct escaping, nested struct, array/slice index (`/items/0/name`), and map key (`/meta/x~1y`) |
+| RFC 9110 | HTTP Semantics | ✅ HEAD/405/`OPTIONS`/content negotiation/multi-value headers |
+| RFC 9111 | HTTP Caching | ✅ ETag + conditional GET via opt-in middleware |
+| RFC 7239 | Forwarded HTTP Extension | ✅ Implemented in `RealIP`, with fallback to the de facto headers |
+| RFC 6585 | Additional HTTP Status Codes | ✅ 429 with `Retry-After`; 431/428 out of the framework's reach (platform limit) |
 | RFC 8288 / RFC 8631 | Web Linking / service link relations | ✅ `Link: rel="service-desc"` opt-in |
-| RFC 8615 | Well-Known URIs | ❌ Fora de escopo |
-| RFC 6749 / RFC 6750 / RFC 7617 | OAuth2 / Bearer / Basic | ❌ Adiado (roadmap em `NOTES.md`) |
-| RFC 8259 | JSON | ✅ Conforme |
-| draft-ietf-httpapi-idempotency-key-header | Idempotency-Key (ainda não é RFC) | ❌ Não implementado, vale acompanhar |
+| RFC 8615 | Well-Known URIs | ❌ Out of scope |
+| RFC 6749 / RFC 6750 / RFC 7617 | OAuth2 / Bearer / Basic | ❌ Deferred (roadmap in `NOTES.md`) |
+| RFC 8259 | JSON | ✅ Compliant |
+| draft-ietf-httpapi-idempotency-key-header | Idempotency-Key (not yet an RFC) | ❌ Not implemented, worth tracking |
 
 ---
 
 ## RFC 9457 — Problem Details for HTTP APIs
 
-RFC central pro `arnon` — é o único formato de erro do framework
-(`CLAUDE.md`). Todo erro HTTP, de qualquer middleware ou do
-`httpx.Endpoint`, vira um `problem.Problem` serializado por
-`httpx.WriteProblem` como `application/problem+json; charset=utf-8`.
+The central RFC for `arnon` — it's the framework's only error format
+(`CLAUDE.md`). Every HTTP error, from any middleware or from
+`httpx.Endpoint`, becomes a `problem.Problem` serialized by
+`httpx.WriteProblem` as `application/problem+json; charset=utf-8`.
 
-* `type` nunca é setado por padrão e é omitido do JSON (`omitempty`) —
-  conforme a RFC, que diz para interpretar a ausência de `type` como
-  `"about:blank"`. `Problem.WithType(...)` existe pra quem quiser URIs
-  de tipo de erro dereferenciáveis.
-* `instance` é auto-populado por `httpx.WriteProblem` com
-  `request.URL.Path` sempre que estiver vazio (nunca sobrescrevendo um
-  valor setado via `.WithInstance(...)`) — o padrão do próprio exemplo
-  não-normativo da RFC (`"/account/12345/msgs/abc"`). Não usa
-  `request_id`/`trace_id` porque `httpx` não pode depender de
-  `httpx/middleware`/`observability` no grafo de dependências
-  (`.go-arch-lint.yml`); quem quiser um identificador mais rico chama
-  `.WithInstance(...)` no próprio `ProblemMapper`.
-* `Recover()` loga o valor de um panic recuperado via
-  `observability.LoggerFromContext` mas nunca o inclui na resposta —
-  responde com `problem.NewInternal("")` (detail genérico). A RFC
-  §3.1.5 é explícita sobre `detail` poder carregar informação
-  sensível; um panic em Go frequentemente carrega o valor exato de
-  uma variável, uma mensagem de nil pointer dereference, às vezes até
-  paths de arquivo.
-* `Timeout()` também responde com Problem Details (503) quando o
-  prazo estoura — implementação própria (não usa
-  `http.TimeoutHandler` da stdlib, que só sabe responder em texto
-  puro), mantendo o mesmo comportamento de buffering/deadline da
-  stdlib. Ver detalhes na seção RFC 9111 mais abaixo sobre o
-  mecanismo de buffering compartilhado com `ETag`.
-* `errors`/`source.field` como extensão de validação segue o espírito
-  do exemplo não-normativo do apêndice da RFC (que usa
-  `invalid-params`), com nomes próprios — a RFC não exige nomes
-  específicos, só consistência.
-* `source.field` usa **RFC 6901 (JSON Pointer)** quando `source.in` é
+* `type` is never set by default and is omitted from the JSON
+  (`omitempty`) — per the RFC, which says the absence of `type` should
+  be interpreted as `"about:blank"`. `Problem.WithType(...)` exists
+  for anyone who wants dereferenceable error type URIs.
+* `instance` is auto-populated by `httpx.WriteProblem` with
+  `request.URL.Path` whenever it's empty (never overwriting a value
+  set via `.WithInstance(...)`) — the pattern from the RFC's own
+  non-normative example (`"/account/12345/msgs/abc"`). It doesn't use
+  `request_id`/`trace_id` because `httpx` can't depend on
+  `httpx/middleware`/`observability` in the dependency graph
+  (`.go-arch-lint.yml`); anyone who wants a richer identifier calls
+  `.WithInstance(...)` in their own `ProblemMapper`.
+* `Recover()` logs the value of a recovered panic via
+  `observability.LoggerFromContext` but never includes it in the
+  response — it responds with `problem.NewInternal("")` (generic
+  detail). RFC §3.1.5 is explicit that `detail` can carry sensitive
+  information; a panic in Go frequently carries the exact value of a
+  variable, a nil pointer dereference message, sometimes even file
+  paths.
+* `Timeout()` also responds with Problem Details (503) when the
+  deadline expires — its own implementation (not stdlib's
+  `http.TimeoutHandler`, which only knows how to respond in plain
+  text), keeping the same buffering/deadline behavior as the stdlib.
+  See details in the RFC 9111 section below about the buffering
+  mechanism shared with `ETag`.
+* `errors`/`source.field` as a validation extension follows the
+  spirit of the RFC appendix's non-normative example (which uses
+  `invalid-params`), with its own names — the RFC doesn't require
+  specific names, just consistency.
+* `source.field` uses **RFC 6901 (JSON Pointer)** when `source.in` is
   `"body"` — `/name`, `/address/city`, `/items/0/name`, `/tags/1`,
-  `/meta/x~1y` (`problem.NewBodyError`). Caracteres especiais no nome
-  do campo JSON (`~`, `/`) são escapados como `~0`/`~1` conforme RFC
-  6901 §3 (`validation.escapeJSONPointerToken`) — sem isso, um campo
-  chamado `"a/b"` viraria `/a/b`, indistinguível de dois segmentos.
-  `validation.buildFieldMap` caminha pelo *valor* real da request
-  (não só o tipo — precisa saber o tamanho de verdade de um
-  slice/array/map), recursando em struct aninhado (por valor ou
-  ponteiro), elemento de slice/array (struct ou primitivo) e entrada
-  de map com chave string (struct ou primitivo), compondo o pointer
-  nível a nível: `Address.City` → `/address/city`, `Items[2].Name` →
-  `/items/2/name`, um slice de primitivo com `dive` (`Tags[1]`) →
-  `/tags/1`, e uma entrada de map com `dive` (`Meta["x/y"]`) →
-  `/meta/x~1y` (a chave, diferente do índice de slice, também passa
-  por `escapeJSONPointerToken` — pode conter `~`/`/`). Tanto slice
-  quanto map de primitivo precisam de entrada própria no mapa pro
-  índice/chave sozinho, já que o `validator/v10` reporta erro de
-  elemento sem segmento de campo depois deles, não só recursão. O
-  cruzamento com o erro do `validator/v10` usa
-  `FieldError.StructNamespace()` (nome de campo Go, não a tag `json`,
-  com o nome do tipo raiz removido — ver
-  `validation.structFieldNamespace`), cujo formato pra elemento de
-  slice/map (`Items[2].Name`, `Meta[x/y]` — chave crua, sem escaping,
-  no namespace; só o pointer final é escapado) foi confirmado
-  empiricamente antes de desenhar em cima dele, não assumido. Limitado
-  a `maxFieldMapDepth` (16) níveis de recursão (struct, índice e chave
-  contam pro mesmo limite), pra terminar mesmo com um struct
-  auto-referente (ex. árvore com `Parent *Node`) em vez de recursar até
-  estourar a pilha. Como `buildFieldMap` agora caminha o valor de
-  verdade (não só o tipo), o custo escala com o tamanho de qualquer
-  slice/map alcançável na request — só importa no caminho de erro
-  (`mapValidationErrors` só roda depois que o `validator/v10` já
-  encontrou pelo menos um erro), não afeta request bem-sucedida.
-  **Limite atual**: chave de map não-string (`map[int]T`) cai no
-  fallback de nome de campo em vez de virar segmento — JSON só tem
-  chave string de qualquer forma (`encoding/json` já exige isso, ou
-  `TextMarshaler`), então é um caso raro em DTO de request. RFC 6901 é
-  uma RFC própria, à parte da
-  9457, adotada porque o corpo é a única fonte hierárquica entre as
-  quatro que `ValidationSource.in` cobre; `path`/`query`/`header` não
-  têm estrutura aninhada, então
-  `NewPathError`/`NewQueryError`/`NewHeaderError` usam o nome cru do
-  campo, sem sintaxe de pointer.
-* `problem.With` protege contra colisão com os campos padrão e chave
-  vazia (`ErrReservedExtensionKey`/`ErrEmptyExtensionKey`).
-* O schema OpenAPI gerado pra `Problem`/`ValidationError`/`ValidationSource`
-  (`openapi/problem.go`) marca como `required` mais campos do que a RFC
-  exige — ex. `title`/`status`/`detail` em `Problem`, embora a RFC trate
-  todos os membros como opcionais. Não é inconsistência: o schema
-  documenta o **contrato real que o `arnon` sempre produz**, não o mínimo
-  permitido pela RFC — são coisas diferentes, e a decisão aqui foi
-  deliberada em favor do primeiro.
+  `/meta/x~1y` (`problem.NewBodyError`). Special characters in the
+  JSON field name (`~`, `/`) are escaped as `~0`/`~1` per RFC 6901 §3
+  (`validation.escapeJSONPointerToken`) — without this, a field named
+  `"a/b"` would become `/a/b`, indistinguishable from two segments.
+  `validation.buildFieldMap` walks the request's actual *value* (not
+  just the type — it needs to know the real size of a
+  slice/array/map), recursing into nested structs (by value or
+  pointer), slice/array elements (struct or primitive), and map
+  entries with a string key (struct or primitive), composing the
+  pointer level by level: `Address.City` → `/address/city`,
+  `Items[2].Name` → `/items/2/name`, a primitive slice with `dive`
+  (`Tags[1]`) → `/tags/1`, and a map entry with `dive`
+  (`Meta["x/y"]`) → `/meta/x~1y` (the key, unlike the slice index,
+  also goes through `escapeJSONPointerToken` — it can contain
+  `~`/`/`). Both primitive slice and map need their own entry in the
+  map for the index/key alone, since `validator/v10` reports the
+  element's error without a field segment after them, not just
+  recursion. Matching against the `validator/v10` error uses
+  `FieldError.StructNamespace()` (the Go field name, not the `json`
+  tag, with the root type name stripped — see
+  `validation.structFieldNamespace`), whose format for a
+  slice/map element (`Items[2].Name`, `Meta[x/y]` — raw key, no
+  escaping, in the namespace; only the final pointer is escaped) was
+  confirmed empirically before designing on top of it, not assumed.
+  Limited to `maxFieldMapDepth` (16) levels of recursion (struct,
+  index, and key all count toward the same limit), so it terminates
+  even with a self-referential struct (e.g. a tree with `Parent
+  *Node`) instead of recursing until the stack overflows. Since
+  `buildFieldMap` now walks the real value (not just the type), the
+  cost scales with the size of any slice/map reachable in the
+  request — it only matters on the error path (`mapValidationErrors`
+  only runs after `validator/v10` has already found at least one
+  error), it doesn't affect a successful request. **Current
+  limitation**: a non-string map key (`map[int]T`) falls back to the
+  field name instead of becoming a segment — JSON only has string keys
+  anyway (`encoding/json` already requires this, or `TextMarshaler`),
+  so it's a rare case in a request DTO. RFC 6901 is its own RFC,
+  separate from 9457, adopted because the body is the only
+  hierarchical source among the four that `ValidationSource.in`
+  covers; `path`/`query`/`header` have no nested structure, so
+  `NewPathError`/`NewQueryError`/`NewHeaderError` use the raw field
+  name, without pointer syntax.
+* `problem.With` protects against collision with the default fields
+  and empty keys (`ErrReservedExtensionKey`/`ErrEmptyExtensionKey`).
+* The OpenAPI schema generated for `Problem`/`ValidationError`/`ValidationSource`
+  (`openapi/problem.go`) marks more fields as `required` than the RFC
+  demands — e.g. `title`/`status`/`detail` on `Problem`, even though
+  the RFC treats all members as optional. This isn't an inconsistency:
+  the schema documents the **actual contract that `arnon` always
+  produces**, not the minimum the RFC permits — those are different
+  things, and the decision here was deliberately made in favor of the
+  former.
 
-**Nota**: se `json.Encode` falhar dentro de `WriteProblem` (só
-teoricamente possível — o encoder já processou o mesmo `Problem` uma
-vez), o fallback é `http.Error` (texto puro), não um `Problem`
-serializado à mão. Defensável (não dá pra confiar no encoder que
-acabou de falhar), mas ainda é um caminho, praticamente impossível de
-disparar em produção, onde o formato de erro não é o `Problem` usual.
+**Note**: if `json.Encode` fails inside `WriteProblem` (only
+theoretically possible — the encoder already processed the same
+`Problem` once), the fallback is `http.Error` (plain text), not a
+hand-serialized `Problem`. Defensible (you can't trust an encoder that
+just failed), but it's still a code path, practically impossible to
+trigger in production, where the error format isn't the usual
+`Problem`.
 
 ---
 
 ## RFC 9110 — HTTP Semantics
 
-### HEAD e 405+`Allow`
+### HEAD and 405+`Allow`
 
-`net/http.ServeMux` (Go 1.22+) já garante isso sozinho: um padrão
-`"GET /caminho"` também casa `HEAD`, e a camada de conexão do
-`net/http.Server` suprime o corpo e calcula o `Content-Length`
-corretamente pra `HEAD` automaticamente — abaixo de qualquer
-`http.ResponseWriter` que uma middleware use pra empacotar a resposta
-(confirmado empiricamente com um servidor real: um middleware que
-bufferiza a resposta inteira, como `ETag`, ainda vê o corpo completo
-numa request `HEAD`, sem tratamento especial). Requisições pra um
-método não registrado num path existente recebem `405` com `Allow`
-refletindo os métodos de fato registrados — também garantido pelo
-`ServeMux`, não por código do `arnon`.
+`net/http.ServeMux` (Go 1.22+) already guarantees this on its own: a
+`"GET /path"` pattern also matches `HEAD`, and the `net/http.Server`
+connection layer suppresses the body and calculates `Content-Length`
+correctly for `HEAD` automatically — below any `http.ResponseWriter`
+that a middleware uses to wrap the response (confirmed empirically
+with a real server: a middleware that buffers the entire response,
+like `ETag`, still sees the full body on a `HEAD` request, with no
+special handling). Requests to an unregistered method on an existing
+path get `405` with `Allow` reflecting the actually registered
+methods — also guaranteed by `ServeMux`, not by `arnon` code.
 
 ### `OPTIONS`
 
-`CORS` (`httpx/middleware/cors.go`) só intercepta `OPTIONS` com `204`
-quando a requisição é um preflight de verdade — `Access-Control-Request-Method`
-presente, a definição exata de "CORS-preflight request" na Fetch spec
-§4.1. Um `OPTIONS` sem esse header (um cliente genérico checando
-capacidades, RFC 9110 §9.3.7, não um browser fazendo preflight) cai
-pro `mux`: se o path não tiver handler `OPTIONS` explícito, isso
-resulta no `405`+`Allow` real do `ServeMux`; se tiver, o handler
-explícito registrado via `Router.OPTIONS(...)` é alcançado.
+`CORS` (`httpx/middleware/cors.go`) only intercepts `OPTIONS` with
+`204` when the request is a genuine preflight —
+`Access-Control-Request-Method` present, the exact definition of a
+"CORS-preflight request" in the Fetch spec §4.1. An `OPTIONS` without
+that header (a generic client checking capabilities, RFC 9110 §9.3.7,
+not a browser doing preflight) falls through to the `mux`: if the
+path has no explicit `OPTIONS` handler, this results in `ServeMux`'s
+real `405`+`Allow`; if it does, the explicit handler registered via
+`Router.OPTIONS(...)` is reached.
 
-### Negociação de conteúdo (`Accept`)
+### Content negotiation (`Accept`)
 
-`httpx.Endpoint` só produz `application/json` — é a proposta central
-do framework (endpoint tipado, validado contra um schema, documentado
-em OpenAPI). Isso não significa que o `arnon` ignore o header
-`Accept`: `Endpoint` checa se o cliente aceita `application/json`
-antes de fazer qualquer binding, e responde `406 Not Acceptable`
-(Problem Details) quando o `Accept` explicitamente exclui esse tipo —
-por exemplo `Accept: application/xml` sozinho, ou
-`Accept: application/json;q=0`. Um `Accept` ausente, vazio, ou que
-inclua `application/json`/`application/*`/`*/*` com q > 0 passa
-normalmente (RFC 9110 §12.5.1: ausência de `Accept` significa "aceito
-qualquer coisa"). A implementação (`httpx/accept.go`) segue a regra
-de "match mais específico decide" da RFC — uma entrada exata
-`application/json` tem prioridade sobre `application/*`, que tem
-prioridade sobre `*/*`.
+`httpx.Endpoint` only produces `application/json` — that's the
+framework's central proposal (typed endpoint, validated against a
+schema, documented in OpenAPI). This doesn't mean `arnon` ignores the
+`Accept` header: `Endpoint` checks whether the client accepts
+`application/json` before doing any binding, and responds `406 Not
+Acceptable` (Problem Details) when `Accept` explicitly excludes that
+type — for example `Accept: application/xml` alone, or
+`Accept: application/json;q=0`. A missing, empty, or `Accept` that
+includes `application/json`/`application/*`/`*/*` with q > 0 passes
+normally (RFC 9110 §12.5.1: absence of `Accept` means "I accept
+anything"). The implementation (`httpx/accept.go`) follows the RFC's
+"most specific match wins" rule — an exact `application/json` entry
+takes priority over `application/*`, which takes priority over `*/*`.
 
-Isso resolve o "não responde 406 nunca" sem exigir que o framework
-saiba serializar múltiplas representações do mesmo recurso (JSON vs.
-XML vs. o que for) — que seria uma mudança de escopo bem maior,
-provavelmente indo contra a proposta central de endpoint tipado com
-schema único. Ver a seção "Formatos além de JSON" abaixo pra como
-servir XML, PDF, ou qualquer outro tipo de conteúdo/arquivo dentro do
-mesmo `Router`.
+This resolves "never respond 406" without requiring the framework to
+know how to serialize multiple representations of the same resource
+(JSON vs. XML vs. whatever) — which would be a much bigger scope
+change, likely working against the central proposal of a typed
+endpoint with a single schema. See the "Formats besides JSON" section
+below for how to serve XML, PDF, or any other content type/file within
+the same `Router`.
 
-### Formatos além de JSON (XML, PDF, arquivos, ...)
+### Formats besides JSON (XML, PDF, files, ...)
 
-`httpx.Endpoint()` é JSON-only por design, mas o `Router` não é:
-`Router.GET`/`POST`/etc. aceitam qualquer `http.Handler`, não só o
-que `httpx.Endpoint` produz. Uma rota que precisa devolver XML, PDF,
-CSV, ou qualquer outro conteúdo/arquivo é um handler comum, montado
-exatamente como qualquer outra:
+`httpx.Endpoint()` is JSON-only by design, but the `Router` isn't:
+`Router.GET`/`POST`/etc. accept any `http.Handler`, not just what
+`httpx.Endpoint` produces. A route that needs to return XML, PDF,
+CSV, or any other content/file is a plain handler, mounted exactly
+like any other:
 
 ```go
 router.GET("/report.pdf", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -203,210 +205,210 @@ router.GET("/report.pdf", http.HandlerFunc(func(w http.ResponseWriter, r *http.R
 }))
 ```
 
-Nenhuma middleware do framework é acoplada a JSON: `Compress`
-comprime qualquer `Content-Type` permitido (a lista default já inclui
-`application/xml`, por exemplo, e é configurável);
-`ETag`/conditional GET funciona em qualquer `Content-Type` (só olha
-método e status, nunca o corpo em si além de hashear os bytes);
-`SecureHeaders`/`RateLimit`/`Throttle`/etc. não fazem suposição
-nenhuma sobre o corpo da resposta. Verificado com testes de ponta a
-ponta (`httpx/routing/router_test.go`:
+No framework middleware is coupled to JSON: `Compress` compresses any
+allowed `Content-Type` (the default list already includes
+`application/xml`, for example, and is configurable);
+`ETag`/conditional GET works with any `Content-Type` (it only looks
+at method and status, never the body itself beyond hashing the
+bytes); `SecureHeaders`/`RateLimit`/`Throttle`/etc. make no assumption
+about the response body. Verified with end-to-end tests
+(`httpx/routing/router_test.go`:
 `TestRouter_MountsArbitraryContentTypeHandlers`;
 `httpx/middleware/etag_test.go`: `TestETag_WorksWithNonJSONContentTypes`).
 
-### Binding de header e query com múltiplos valores
+### Header and query binding with multiple values
 
-Um campo `[]string` com tag `header:"X-Tags"` ou `query:"tag"` coleta
-todos os valores, não só o primeiro. Pra header
-(`httpx/binding/header.go`), isso soma valores de múltiplas linhas do
-mesmo header (`Header.Values`) e também faz split por vírgula dentro
-de uma única linha — RFC 9110 §5.3 trata as duas formas como
-semanticamente equivalentes (`X-Tags: a` + `X-Tags: b` é o mesmo que
-`X-Tags: a, b`), então o framework aceita as duas. Pra query
-(`httpx/binding/query.go`), só a repetição de chave (`?tag=a&tag=b`)
-é coletada — comas dentro de um valor de query não são separados,
-porque não existe uma RFC definindo essa semântica pra query strings
-(diferente de header, onde a RFC 9110 é explícita) e separar por
-vírgula arbitrariamente quebraria um valor de busca legítimo como
+A `[]string` field with a `header:"X-Tags"` or `query:"tag"` tag
+collects all values, not just the first. For header
+(`httpx/binding/header.go`), this adds up values from multiple lines
+of the same header (`Header.Values`) and also splits on commas within
+a single line — RFC 9110 §5.3 treats both forms as semantically
+equivalent (`X-Tags: a` + `X-Tags: b` is the same as
+`X-Tags: a, b`), so the framework accepts both. For query
+(`httpx/binding/query.go`), only key repetition (`?tag=a&tag=b`) is
+collected — commas within a single query value aren't split, because
+there's no RFC defining that semantics for query strings (unlike
+header, where RFC 9110 is explicit) and splitting on commas
+arbitrarily would break a legitimate search value like
 `?q=cats,dogs`.
 
-Campos escalares (`string`, `int`, `bool` em query; `string` em
-header) continuam funcionando como sempre — a mudança é aditiva, só
-ativa quando o campo é `[]string`.
+Scalar fields (`string`, `int`, `bool` in query; `string` in header)
+keep working as always — the change is additive, only kicking in when
+the field is `[]string`.
 
-### Nota — 422 vs. 400 pra erros de validação
+### Note — 422 vs. 400 for validation errors
 
-`arnon` sempre usa `400` pra erro de binding/validação, exceto os
-`StatusOverride` explícitos (ex. `MaxBodyBytes` → 413). `422
-Unprocessable Entity` (originado na RFC 4918/WebDAV, não na RFC 9110,
-mas amplamente adotado fora de WebDAV pra "sintaticamente válido,
-semanticamente inválido") já tem um builder pronto
-(`problem.NewUnprocessableEntity`), só não é o default. Decisão
-deliberada, defensável dos dois jeitos — citada aqui só pra constar
-que a ferramenta existe.
+`arnon` always uses `400` for binding/validation errors, except for
+the explicit `StatusOverride` cases (e.g. `MaxBodyBytes` → 413). `422
+Unprocessable Entity` (originating in RFC 4918/WebDAV, not RFC 9110,
+but widely adopted outside WebDAV for "syntactically valid,
+semantically invalid") already has a ready-made builder
+(`problem.NewUnprocessableEntity`), it's just not the default.
+Deliberate decision, defensible either way — mentioned here just for
+the record that the tool exists.
 
 ---
 
 ## RFC 9111 — HTTP Caching
 
-Middleware `ETag()` (`httpx/middleware/etag.go`), opt-in — instale
-onde fizer sentido, como qualquer outra middleware. Só atua em
-`GET`/`HEAD` e só em respostas `2xx` (redirects e Problem Details
-passam inalterados). Bufferiza a resposta inteira do handler (precisa
-do corpo completo pra hashear — diferente do `Compress`, que
-transforma em streaming), calcula um ETag forte via FNV-1a 64-bit
-(`hash/fnv` da stdlib — ETag é validador de mudança, não token de
-segurança, não precisa de hash criptográfico) sobre os bytes exatos
-do corpo, e compara contra `If-None-Match` usando comparação fraca
-(RFC 9110 §13.1.2: GET/HEAD devem usar comparação fraca, então um
-prefixo `W/` de qualquer lado é ignorado). Em caso de match (ou
-`If-None-Match: *`), responde `304` sem corpo; senão, responde o
-corpo completo com o header `ETag` adicionado. Um `ETag` já setado
-pelo handler é respeitado em vez de recalculado.
+`ETag()` middleware (`httpx/middleware/etag.go`), opt-in — install it
+wherever it makes sense, like any other middleware. Only acts on
+`GET`/`HEAD` and only on `2xx` responses (redirects and Problem
+Details pass through unchanged). Buffers the handler's entire
+response (needs the full body to hash — unlike `Compress`, which
+turns into streaming), calculates a strong ETag via FNV-1a 64-bit
+(stdlib's `hash/fnv` — ETag is a change validator, not a security
+token, doesn't need a cryptographic hash) over the exact body bytes,
+and compares against `If-None-Match` using weak comparison (RFC 9110
+§13.1.2: GET/HEAD must use weak comparison, so a `W/` prefix on either
+side is ignored). On a match (or `If-None-Match: *`), responds `304`
+with no body; otherwise, responds with the full body plus the `ETag`
+header added. An `ETag` already set by the handler is respected
+instead of recalculated.
 
-A supressão de corpo pra `HEAD` e o cálculo de `Content-Length`
-acontecem na camada de conexão do próprio `net/http.Server`, abaixo
-de qualquer `http.ResponseWriter` de middleware — então `ETag`
-funciona correto pra `HEAD` sem tratamento especial (confirmado com
-um teste de ponta a ponta usando um `net/http.Server` de verdade).
+Body suppression for `HEAD` and `Content-Length` calculation happen
+at the `net/http.Server`'s own connection layer, below any middleware
+`http.ResponseWriter` — so `ETag` works correctly for `HEAD` with no
+special handling (confirmed with an end-to-end test using a real
+`net/http.Server`).
 
-Ordem recomendada quando combinado com `Compress`: `ETag` antes (mais
-externo), pra hashear os bytes já comprimidos — consistente com o
-`Vary: Accept-Encoding` que o `Compress` já seta, um cache acaba com
-um validador por encoding. Combinar com `NoCache` na mesma rota anula
-o propósito dos dois — não impedido pelo código, só documentado.
+Recommended order when combined with `Compress`: `ETag` before (more
+external), to hash the already-compressed bytes — consistent with the
+`Vary: Accept-Encoding` that `Compress` already sets, a cache ends up
+with one validator per encoding. Combining with `NoCache` on the same
+route defeats the purpose of both — not prevented by the code, just
+documented.
 
-`NoCache` (o lado negativo, forçar "nunca guardar em cache") e `ETag`
-(o lado positivo, "guarde, mas valide antes de reusar") são
-ferramentas complementares e independentes; nenhuma é o default,
-ambas são opt-in por rota/grupo.
+`NoCache` (the negative side, forcing "never store in cache") and
+`ETag` (the positive side, "store, but validate before reusing") are
+complementary and independent tools; neither is the default, both are
+opt-in per route/group.
 
 ---
 
 ## RFC 7239 — Forwarded HTTP Extension
 
-`RealIP` (`httpx/middleware/real_ip.go`) resolve o IP do cliente
-checando, nesta ordem, com fallback quando ausente:
+`RealIP` (`httpx/middleware/real_ip.go`) resolves the client IP by
+checking, in this order, with fallback when absent:
 
-1. `Forwarded` (RFC 7239 — o padrão IETF, substituto formal dos dois
-   headers abaixo).
-2. `X-Forwarded-For` (de fato, não normatizado por nenhuma RFC) — só
-   o primeiro valor de uma lista separada por vírgula é usado
-   (leftmost = cliente original, convenção de um valor por proxy no
-   caminho).
-3. `X-Real-IP` (de fato).
+1. `Forwarded` (RFC 7239 — the IETF standard, formal replacement for
+   the two headers below).
+2. `X-Forwarded-For` (de facto, not standardized by any RFC) — only
+   the first value of a comma-separated list is used (leftmost =
+   original client, the convention of one value per proxy in the
+   path).
+3. `X-Real-IP` (de facto).
 4. `request.RemoteAddr`.
 
-O parser de `Forwarded` (`parseForwardedFor`) extrai o parâmetro
-`for=` do primeiro hop, lidando com: valor simples
-(`for=192.0.2.60`), IPv6 com colchetes e aspas
-(`for="[2001:db8:cafe::17]:4711"`), múltiplos hops (só o primeiro é
-usado), `for=unknown` (RFC 7239 §7.1 — servidor não sabe a identidade
-do cliente, cai pro próximo header) e identificador ofuscado (RFC
-7239 §6.3 — um `for=_hidden` não é IP, mas é mantido como está por
-ser um token estável por cliente, ainda útil como chave de rate
-limit). Um scanner ciente de aspas (`splitTopLevel`) evita quebrar em
-`,`/`;` dentro de valores entre aspas.
+The `Forwarded` parser (`parseForwardedFor`) extracts the `for=`
+parameter from the first hop, handling: a plain value
+(`for=192.0.2.60`), IPv6 with brackets and quotes
+(`for="[2001:db8:cafe::17]:4711"`), multiple hops (only the first is
+used), `for=unknown` (RFC 7239 §7.1 — the server doesn't know the
+client's identity, falls through to the next header), and an
+obfuscated identifier (RFC 7239 §6.3 — a `for=_hidden` isn't an IP,
+but is kept as-is since it's a stable per-client token, still useful
+as a rate-limit key). A quote-aware scanner (`splitTopLevel`) avoids
+breaking on `,`/`;` inside quoted values.
 
-`CanonicalizeIP` (usado por `RateLimit`) reduz endereços IPv6 ao
-prefixo `/64` — um cliente IPv6 controla um `/64` inteiro via SLAAC,
-então chavear pelo endereço completo deixaria o cliente rotacionar
-endereço dentro do próprio bloco pra escapar do limite.
+`CanonicalizeIP` (used by `RateLimit`) reduces IPv6 addresses to the
+`/64` prefix — an IPv6 client controls an entire `/64` via SLAAC, so
+keying on the full address would let the client rotate addresses
+within its own block to escape the limit.
 
 ---
 
 ## RFC 6585 — Additional HTTP Status Codes
 
-* **429 Too Many Requests**: `RateLimit` usa `429` + `Retry-After` (em
-  segundos, forma válida pela RFC 9110 §10.2.3) + os headers
-  `X-RateLimit-*` (esses não são normatizados por RFC nenhuma, são
-  convenção de mercado).
-* **431 Request Header Fields Too Large**: fora do alcance do
-  framework — quando o limite de tamanho de header é excedido, é o
-  `net/http.Server` (nível de transporte/parsing, via
-  `MaxHeaderBytes`) que fecha a conexão antes de qualquer handler do
-  `arnon` rodar. Não dá pra interceptar isso e responder com Problem
-  Details sem abandonar `net/http` como base.
-* **428 Precondition Required**: não implementado; faria sentido
-  revisitar junto com um mecanismo de `If-Match` (fora do escopo de
-  `ETag`, que só cobre `If-None-Match` pra métodos seguros), não
-  isoladamente.
+* **429 Too Many Requests**: `RateLimit` uses `429` + `Retry-After`
+  (in seconds, a valid form per RFC 9110 §10.2.3) + the
+  `X-RateLimit-*` headers (these aren't standardized by any RFC,
+  they're market convention).
+* **431 Request Header Fields Too Large**: out of the framework's
+  reach — when the header size limit is exceeded, it's
+  `net/http.Server` (transport/parsing layer, via `MaxHeaderBytes`)
+  that closes the connection before any `arnon` handler runs. There's
+  no way to intercept this and respond with Problem Details without
+  abandoning `net/http` as the foundation.
+* **428 Precondition Required**: not implemented; it would make sense
+  to revisit this together with an `If-Match` mechanism (out of scope
+  for `ETag`, which only covers `If-None-Match` for safe methods),
+  not in isolation.
 
 ---
 
 ## RFC 8288 (Web Linking) / RFC 8631 (service link relations)
 
-Middleware `ServiceDesc(path string)`
-(`httpx/middleware/service_desc.go`), opt-in, adiciona
-`Link: <path>; rel="service-desc"` (via `header.Add`, não `Set` —
-soma a outros `Link` que já existam, ex. de paginação, em vez de
-substituí-los) em toda resposta. Um cliente/ferramenta genérico que
-já entende `Link` headers descobre o documento OpenAPI (ex.
-`/openapi.json`) sem URL hardcoded ou documentação fora de banda.
+`ServiceDesc(path string)` middleware
+(`httpx/middleware/service_desc.go`), opt-in, adds
+`Link: <path>; rel="service-desc"` (via `header.Add`, not `Set` —
+adds to any other `Link` that already exists, e.g. from pagination,
+instead of replacing them) on every response. A generic
+client/tool that already understands `Link` headers discovers the
+OpenAPI document (e.g. `/openapi.json`) without a hardcoded URL or
+out-of-band documentation.
 
 ## RFC 8615 — Well-Known URIs
 
-Fora de escopo. `/openapi.json` (ou o path que o usuário escolher) é
-um path arbitrário, não um endpoint bem-conhecido em
-`/.well-known/`. Não implementado porque não foi pedido e o ganho é
-pequeno frente ao `ServiceDesc` acima, que já resolve a descoberta
-via `Link`.
+Out of scope. `/openapi.json` (or whatever path the user chooses) is
+an arbitrary path, not a well-known endpoint under
+`/.well-known/`. Not implemented because it wasn't requested and the
+gain is small compared to `ServiceDesc` above, which already solves
+discovery via `Link`.
 
-Paginação via `Link` (`rel="next"`/`"prev"`, convenção popularizada
-pela API do GitHub) também não está implementada — não há hoje
-nenhum conceito de coleção paginada em `arnon` (endpoints retornam um
-valor único, não uma coleção), então não haveria onde plugar isso
-ainda.
+Pagination via `Link` (`rel="next"`/`"prev"`, a convention popularized
+by GitHub's API) also isn't implemented — there's currently no concept
+of a paginated collection in `arnon` (endpoints return a single value,
+not a collection), so there would be nowhere to plug this in yet.
 
 ---
 
 ## RFC 6749 / RFC 6750 / RFC 7617 — OAuth 2.0 / Bearer Token / Basic Auth
 
-Não implementado — decisão adiada, roadmap em `NOTES.md`. Bearer =
-RFC 6750, Basic = RFC 7617 (não a RFC 2617 obsoleta).
+Not implemented — deferred decision, roadmap in `NOTES.md`. Bearer =
+RFC 6750, Basic = RFC 7617 (not the obsolete RFC 2617).
 
 ---
 
 ## RFC 8259 — JSON
 
-Conforme. `application/json; charset=utf-8` é aceito universalmente
-mesmo que o parâmetro `charset` seja redundante pra JSON (a RFC 8259
-§11 já assume UTF-8 como default) — não é um erro, só um detalhe
-pedante.
+Compliant. `application/json; charset=utf-8` is universally accepted
+even though the `charset` parameter is redundant for JSON (RFC 8259
+§11 already assumes UTF-8 as the default) — not an error, just a
+pedantic detail.
 
-Nota à parte (não é questão de RFC, mas adjacente): `encoding/json`
-por padrão HTML-escapa `<`, `>` e `&` em strings a menos que
-`SetEscapeHTML(false)` seja chamado. Comportamento válido pela
-RFC 8259 (qualquer caractere pode virar um `\uXXXX`), só surpreendente
-pra quem espera ver `&` literal numa resposta JSON de API.
+Side note (not an RFC matter, but adjacent): `encoding/json` by
+default HTML-escapes `<`, `>`, and `&` in strings unless
+`SetEscapeHTML(false)` is called. Valid behavior per RFC 8259 (any
+character can become a `\uXXXX`), just surprising for anyone expecting
+to see a literal `&` in an API's JSON response.
 
 ---
 
 ## draft-ietf-httpapi-idempotency-key-header — Idempotency-Key
 
-Ainda não é uma RFC (confirmado: está na versão -07 como
-Internet-Draft do grupo de trabalho HTTPAPI da IETF, sem número de
-RFC atribuído) — citado aqui só como algo a acompanhar. Se/quando
-virar RFC, é um encaixe natural pro `arnon`: o header
-`Idempotency-Key` existe exatamente pra tornar `POST`/`PATCH`
-tolerantes a retry, e o framework já tem `RateLimit`/`MaxBodyBytes`
-como precedente de "middleware com storage plugável"
-(`LimitCounter`) — o mesmo padrão serviria de modelo pra um
-"IdempotencyStore" análogo.
+Not yet an RFC (confirmed: it's at version -07 as an Internet-Draft
+of the IETF HTTPAPI working group, with no RFC number assigned) —
+mentioned here just as something to track. If/when it becomes an RFC,
+it's a natural fit for `arnon`: the `Idempotency-Key` header exists
+precisely to make `POST`/`PATCH` retry-tolerant, and the framework
+already has `RateLimit`/`MaxBodyBytes` as precedent for a "middleware
+with pluggable storage" (`LimitCounter`) — the same pattern would
+serve as a model for an analogous "IdempotencyStore."
 
 ---
 
-## O que ainda não está implementado
+## What's not implemented yet
 
-Trabalho futuro genuíno, fora do escopo já coberto acima:
+Genuine future work, outside the scope already covered above:
 
-* Adaptadores de storage plugável pra `RateLimit` (Redis, Valkey,
-  Memcached — já rastreado em `NOTES.md`, interface `LimitCounter` já
-  pronta pra isso).
-* Bearer/Basic Auth (adiado, roadmap separado em `NOTES.md`).
-* `/.well-known/` (RFC 8615) e paginação via `Link` — sem demanda
-  concreta hoje, ver notas acima.
-* `428 Precondition Required` / `If-Match` — só faria sentido junto
-  de um mecanismo de precondition mais amplo que o `ETag` atual
-  cobre.
-* Acompanhar o `Idempotency-Key` (ainda draft, não RFC).
+* Pluggable storage adapters for `RateLimit` (Redis, Valkey,
+  Memcached — already tracked in `NOTES.md`, the `LimitCounter`
+  interface is already ready for it).
+* Bearer/Basic Auth (deferred, separate roadmap in `NOTES.md`).
+* `/.well-known/` (RFC 8615) and pagination via `Link` — no concrete
+  demand today, see notes above.
+* `428 Precondition Required` / `If-Match` — would only make sense
+  alongside a broader precondition mechanism than what `ETag`
+  currently covers.
+* Track `Idempotency-Key` (still a draft, not an RFC).

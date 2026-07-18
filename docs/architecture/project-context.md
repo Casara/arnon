@@ -1,86 +1,88 @@
-# Foundation Go - Contexto do Projeto
+# Foundation Go - Project Context
 
-## Visão Geral
+*[Leia em português](project-context.pt-BR.md)*
 
-O objetivo deste projeto é criar uma foundation moderna para APIs e microsserviços em Go, com foco em:
+## Overview
 
-* Excelente experiência para desenvolvedores.
-* Forte integração com OpenAPI.
-* Observabilidade de primeira classe.
-* Compatibilidade com Clean Architecture, DDD e Hexagonal Architecture.
-* Pouco boilerplate.
-* Convenções sensatas.
-* Componentes independentes e desacoplados.
-* Facilidade de testes.
-* Preparação para uso em produção.
+The goal of this project is to build a modern foundation for APIs and microservices in Go, focused on:
 
-A intenção futura é que a foundation possa ser distribuída como biblioteca open source para a comunidade Go.
+* Excellent developer experience.
+* Strong OpenAPI integration.
+* First-class observability.
+* Compatibility with Clean Architecture, DDD, and Hexagonal Architecture.
+* Little boilerplate.
+* Sensible conventions.
+* Independent, decoupled components.
+* Ease of testing.
+* Production readiness.
 
----
-
-# Princípios Arquiteturais
-
-## Simplicidade antes de abstração
-
-Abstrações só devem ser adicionadas quando houver ganho real.
-
-Evitar over-engineering.
+The future intent is for the foundation to be distributed as an open source library for the Go community.
 
 ---
 
-## Convenção sobre configuração
+# Architectural Principles
 
-O framework deve inferir o máximo possível através de:
+## Simplicity before abstraction
+
+Abstractions should only be added when there is real gain.
+
+Avoid over-engineering.
+
+---
+
+## Convention over configuration
+
+The framework should infer as much as possible through:
 
 * reflection
 * tags
 * validators
-* tipos Go
+* Go types
 
-A configuração explícita deve existir apenas para sobrescrever comportamentos.
-
----
-
-## OpenAPI híbrida
-
-A documentação OpenAPI deve ser gerada automaticamente sempre que possível.
-
-O desenvolvedor pode complementar ou sobrescrever metadados manualmente.
-
-Exemplo:
-
-* request body gerado automaticamente
-* responses padrão geradas automaticamente
-* schemas gerados automaticamente
-* operation customizada quando necessário
+Explicit configuration should exist only to override behavior.
 
 ---
 
-## RFC 9457 como padrão de erro
+## Hybrid OpenAPI
 
-Todos os erros HTTP devem convergir para Problem Details.
+OpenAPI documentation should be generated automatically whenever possible.
 
-O framework utiliza RFC 9457 como padrão oficial de representação de erros.
+The developer can supplement or override metadata manually.
+
+Example:
+
+* request body generated automatically
+* default responses generated automatically
+* schemas generated automatically
+* customized operation when necessary
+
+---
+
+## RFC 9457 as the error standard
+
+All HTTP errors must converge to Problem Details.
+
+The framework uses RFC 9457 as the official error representation standard.
 
 ---
 
 ## OpenAPI 3.2.0
 
-A versão adotada é OpenAPI 3.2.0.
+The adopted version is OpenAPI 3.2.0.
 
-Motivos:
+Reasons:
 
-* O projeto ainda não é público.
-* É possível adotar recursos mais modernos da especificação.
-* Quando a foundation estiver madura, a versão deverá estar mais amplamente suportada.
+* The project is not yet public.
+* It's possible to adopt more modern features of the specification.
+* By the time the foundation matures, the version should be more broadly supported.
 
 ---
 
-# Estado Atual
+# Current State
 
 ## HTTP
 
-Implementado:
+Implemented:
 
 * Router
 * Route Groups
@@ -96,9 +98,9 @@ Implementado:
 
 ## Endpoint Helper
 
-Os endpoints utilizam uma assinatura tipada.
+Endpoints use a typed signature.
 
-Exemplo conceitual:
+Conceptual example:
 
 ```go
 func(
@@ -110,126 +112,125 @@ func(
 )
 ```
 
-O endpoint realiza automaticamente:
+The endpoint automatically performs:
 
 * binding
-* validação
-* serialização
-* tratamento de erros
-* mapeamento para Problem Details
+* validation
+* serialization
+* error handling
+* mapping to Problem Details
 
-Os defaults (validador padrão, `DefaultProblemMapper`, status 200) vêm de
-`EndpointConfig.WithDefaults()`, chamado internamente por `Endpoint()`.
-Nenhum deles precisa ser configurado manualmente para o caso comum.
+The defaults (default validator, `DefaultProblemMapper`, status 200) come from
+`EndpointConfig.WithDefaults()`, called internally by `Endpoint()`.
+None of them need to be configured manually for the common case.
 
-### Registro no OpenAPI é opt-in por endpoint
+### OpenAPI registration is opt-in per endpoint
 
-Diferente do binding/validação, a rota só entra no documento OpenAPI
-gerado se `EndpointConfig.OpenAPI` for preenchido (mesmo que com um
-`&openapi.Operation{}` vazio). Isso é intencional: o desenvolvedor decide
-explicitamente quais rotas são públicas na documentação.
+Unlike binding/validation, a route only enters the generated OpenAPI
+document if `EndpointConfig.OpenAPI` is populated (even with an empty
+`&openapi.Operation{}`). This is intentional: the developer explicitly
+decides which routes are public in the documentation.
 
-### `SuccessStatus` existe em dois lugares
+### `SuccessStatus` exists in two places
 
-`EndpointConfig.SuccessStatus` (o status HTTP que o handler de fato
-retorna) e `openapi.Operation.SuccessStatus` (o status que o documento
-OpenAPI gerado descreve como resposta de sucesso) são campos
-independentes. Hoje é responsabilidade do desenvolvedor mantê-los
-sincronizados manualmente; ver `examples/cmd/basic/main.go`. Uma
-unificação futura desses dois campos é candidata a melhoria.
+`EndpointConfig.SuccessStatus` (the HTTP status the handler actually
+returns) and `openapi.Operation.SuccessStatus` (the status the generated
+OpenAPI document describes as the success response) are independent
+fields. Today it's the developer's responsibility to keep them
+synchronized manually; see `examples/cmd/basic/main.go`. A future
+unification of these two fields is a candidate for improvement.
 
 ---
 
 ## Validation
 
-A validação ocorre através de validators. O validador padrão
-(`validation.Default()`) usa `github.com/go-playground/validator/v10`
-por baixo.
+Validation happens through validators. The default validator
+(`validation.Default()`) uses `github.com/go-playground/validator/v10`
+under the hood.
 
-As informações dos validators são reutilizadas na geração OpenAPI.
+Validator information is reused in OpenAPI generation.
 
 ### Custom Validators
 
-Regras de validação customizadas (tags que o `validator/v10` não conhece
-nativamente) são registradas uma única vez, via
-`validation.RegisterCustomRule(rule)`, tipicamente no bootstrap da
-aplicação. Um único registro alimenta três pontos ao mesmo tempo, que
-antes eram desconectados:
+Custom validation rules (tags that `validator/v10` doesn't know
+natively) are registered once, via `validation.RegisterCustomRule(rule)`,
+typically during application bootstrap. A single registration feeds
+three points at once, which used to be disconnected:
 
-1. **Runtime**: a `Func` da regra é aplicada automaticamente a todo
-   validador criado por `validation.New()`/`validation.Default()` a
-   partir do momento do registro.
-2. **Mapeamento de erro**: `Code` e `Message` da regra definem o
-   código/detail retornados em `problem.ValidationError` quando a regra
-   falha, em vez do fallback genérico `validation_failed`.
-3. **OpenAPI**: `Schema` (um `*validation.SchemaEffect` com `Format` e/ou
-   `Pattern`) enriquece o schema gerado para campos que usam a tag,
-   assim como acontece hoje para `email`/`uuid`/`url`.
+1. **Runtime**: the rule's `Func` is automatically applied to every
+   validator created by `validation.New()`/`validation.Default()` from
+   the moment of registration onward.
+2. **Error mapping**: the rule's `Code` and `Message` define the
+   code/detail returned in `problem.ValidationError` when the rule
+   fails, instead of the generic `validation_failed` fallback.
+3. **OpenAPI**: `Schema` (a `*validation.SchemaEffect` with `Format`
+   and/or `Pattern`) enriches the generated schema for fields that use
+   the tag, the same way it already happens today for
+   `email`/`uuid`/`url`.
 
-Antes dessa mudança, não havia acesso à instância interna do
-`validator.Validate` usada por `PlaygroundValidator`, então não existia
-forma de registrar uma regra customizada na aplicação; e mesmo que
-existisse, a geração de OpenAPI (que reprocessa a tag `validate` de forma
-independente) não teria como saber da nova regra.
+Before this change, there was no access to the internal
+`validator.Validate` instance used by `PlaygroundValidator`, so there
+was no way to register a custom rule at the application level; and even
+if there were, OpenAPI generation (which reprocesses the `validate` tag
+independently) would have no way to know about the new rule.
 
-### Por que `ValidationError` tem `detail` + `code` + `source` + `meta`
+### Why `ValidationError` has `detail` + `code` + `source` + `meta`
 
-Cada campo tem um papel deliberadamente diferente, não é redundância:
+Each field has a deliberately different role, it's not redundancy:
 
-* `detail` — texto humano em inglês. Não é contrato estável: quem
-  consome a API não deve fazer parsing dele.
-* `code` — vocabulário estável e i18n-friendly (`required`, `min_length`,
-  ...). É dissociado de propósito dos nomes internos de tag do
-  `validator/v10`, pra não vazar detalhe de implementação nem quebrar
-  contrato se a lib de validação por trás for trocada um dia.
-* `meta` — valores estruturados da regra (ex. `min`) pra quem consome
-  montar a própria mensagem localizada, sem precisar fazer parsing de
-  `detail`.
+* `detail` — human-readable English text. It is not a stable contract:
+  API consumers should not parse it.
+* `code` — stable, i18n-friendly vocabulary (`required`, `min_length`,
+  ...). It is deliberately decoupled from `validator/v10`'s internal tag
+  names, so as not to leak implementation detail or break the contract
+  if the underlying validation library is ever swapped out.
+* `meta` — structured rule values (e.g. `min`) so consumers can build
+  their own localized message without having to parse `detail`.
 
-### `min`/`max` é comprimento, não valor numérico
+### `min`/`max` is length, not numeric value
 
-`validate:"min=1,max=100"` num `int` é um erro semântico comum:
-`min`/`max` do `validator/v10` sempre significam comprimento de
-string/slice/map, nunca o valor numérico em si — `validation/mapper.go`
-mapeia as duas pra `ValidationCodeMinLength`/`MaxLength` incondicionalmente,
-com mensagem "must contain at least/most N characters", mesmo aplicadas a
-um campo numérico. Pra restringir o *valor* de um número, a tag certa é
-`gt`/`gte`/`lt`/`lte`.
+`validate:"min=1,max=100"` on an `int` is a common semantic mistake:
+`validator/v10`'s `min`/`max` always mean string/slice/map length, never
+the numeric value itself — `validation/mapper.go` maps both
+unconditionally to `ValidationCodeMinLength`/`MaxLength`, with the
+message "must contain at least/most N characters", even when applied to
+a numeric field. To constrain the *value* of a number, the correct tag
+is `gt`/`gte`/`lt`/`lte`.
 
-### Mapeamento de erro do validator: regras explícitas + fallback
+### Validator error mapping: explicit rules + fallback
 
-`mapFieldError` (`validation/mapper.go`) mapeia um conjunto fixo de tags
-conhecidas explicitamente; qualquer tag não coberta (built-in do
-`validator/v10` sem mapeamento dedicado, ou uma regra custom registrada
-direto no `*validator.Validate` subjacente em vez de via
-`validation.RegisterCustomRule`) cai num fallback genérico
-(`ValidationCodeValidationFailed`, com `meta.rule`/`meta.param`). O
-fallback existe de propósito pra nunca expor a string de erro crua do
-`validator/v10` (formato tipo `Key: 'Foo.Bar' Error:Field validation...`)
-como `detail` — isso vazaria detalhe de implementação e quebraria a
-garantia de `code` ser vocabulário estável.
+`mapFieldError` (`validation/mapper.go`) explicitly maps a fixed set of
+known tags; any tag not covered (a `validator/v10` built-in without a
+dedicated mapping, or a custom rule registered directly on the
+underlying `*validator.Validate` instead of via
+`validation.RegisterCustomRule`) falls back to a generic
+(`ValidationCodeValidationFailed`, with `meta.rule`/`meta.param`). The
+fallback exists deliberately so as to never expose `validator/v10`'s raw
+error string (format like `Key: 'Foo.Bar' Error:Field validation...`)
+as `detail` — that would leak implementation detail and break the
+guarantee that `code` is a stable vocabulary.
 
 ---
 
 # OpenAPI
 
-## Estado Atual
+## Current State
 
-Implementado:
+Implemented:
 
-* geração automática de schemas
-* geração automática de request body
-* geração automática de responses
-* geração automática de parâmetros query
-* geração automática de parâmetros path
-* geração automática de parâmetros header
-* geração automática de schemas de erro
+* automatic schema generation
+* automatic request body generation
+* automatic response generation
+* automatic query parameter generation
+* automatic path parameter generation
+* automatic header parameter generation
+* automatic error schema generation
 
 ---
 
-## Recursos de Schema
+## Schema Features
 
-Implementados:
+Implemented:
 
 * type
 * format
@@ -255,19 +256,19 @@ Implementados:
 * maxItems
 * pattern
 
-`required` no schema vem exclusivamente da tag `validate:"required"` —
-nunca de `json:"...,omitempty"`. São preocupações independentes:
-`omitempty` só controla serialização JSON (omitir campo zero-value),
-não é usado como proxy de "campo opcional" no schema gerado (diferente
-de alguns outros frameworks Go).
+`required` in the schema comes exclusively from the `validate:"required"`
+tag — never from `json:"...,omitempty"`. These are independent
+concerns: `omitempty` only controls JSON serialization (omitting a
+zero-value field), it is not used as a proxy for "optional field" in the
+generated schema (unlike some other Go frameworks).
 
 ---
 
-## Inferência Automática
+## Automatic Inference
 
-O framework infere informações automaticamente a partir dos validators.
+The framework automatically infers information from validators.
 
-Atualmente:
+Currently:
 
 ### email
 
@@ -311,7 +312,7 @@ format: uri
 
 ---
 
-### `dive` redireciona constraint pro schema do elemento
+### `dive` redirects the constraint to the element's schema
 
 ```go
 Tags []string `validate:"dive,min=2"`
@@ -323,29 +324,30 @@ Tags []string `validate:"dive,min=2"`
 type: array
 items:
   type: string
-  minLength: 2   # não minItems
+  minLength: 2   # not minItems
 ```
 
-`applyValidationTags` (`openapi/validation.go`) rastreia se já passou
-por um `dive` na tag `validate`; a partir daí, `min`/`max`/`len`/`gt`/
-`gte`/`lt`/`lte`/`oneof`/`email`/`uuid`/`url`/regra customizada
-redirecionam pro `schema.Items` em vez do schema do campo — sem isso,
-`applyMin`/`applyMax` só olham `schema.Type` (`"array"` com ou sem
-`dive`), então `dive,min=2` virava `minItems: 2` (array com 2+
-elementos) em vez de `minLength: 2` em cada elemento (o schema mentia
-sobre o próprio contrato: o runtime já validava certo, só o schema
-documentado é que estava errado). `dive,dive` (slice de slice) desce
-dois níveis de `Items`, e um `required` depois de `dive` não marca o
-campo como obrigatório no schema (não tem equivalente OpenAPI pra
-"nenhum elemento pode ser zero-value").
+`applyValidationTags` (`openapi/validation.go`) tracks whether it has
+already passed through a `dive` in the `validate` tag; from that point
+on, `min`/`max`/`len`/`gt`/`gte`/`lt`/`lte`/`oneof`/`email`/`uuid`/`url`/
+custom rule redirect to `schema.Items` instead of the field's schema —
+without this, `applyMin`/`applyMax` only look at `schema.Type`
+(`"array"` with or without `dive`), so `dive,min=2` would turn into
+`minItems: 2` (array with 2+ elements) instead of `minLength: 2` on each
+element (the schema would lie about its own contract: the runtime
+already validated correctly, only the documented schema was wrong).
+`dive,dive` (slice of slice) descends two `Items` levels, and a
+`required` after `dive` does not mark the field as required in the
+schema (there's no OpenAPI equivalent for "no element may be
+zero-value").
 
 ---
 
 ## Examples
 
-Examples são convertidos para o tipo correto.
+Examples are converted to the correct type.
 
-Exemplos:
+Examples:
 
 ```go
 example:"1"
@@ -385,9 +387,9 @@ example: 1.5
 
 ## Default
 
-Defaults também são convertidos para o tipo correto.
+Defaults are also converted to the correct type.
 
-Exemplos:
+Examples:
 
 ```go
 default:"20"
@@ -401,11 +403,11 @@ default: 20
 
 ---
 
-## Tags OpenAPI
+## OpenAPI Tags
 
-Foi adotado o modelo OpenAPI 3.2.
+The OpenAPI 3.2 model was adopted.
 
-Campos suportados:
+Supported fields:
 
 * name
 * summary
@@ -414,7 +416,7 @@ Campos suportados:
 * parent
 * kind
 
-Kinds suportados:
+Supported kinds:
 
 * nav
 * badge
@@ -422,33 +424,33 @@ Kinds suportados:
 
 ---
 
-## UI da Documentação
+## Documentation UI
 
-Ferramenta adotada:
+Adopted tool:
 
 Stoplight Elements
 
-Motivos:
+Reasons:
 
-* melhor experiência visual
-* suporte moderno à OpenAPI
-* suporte mais avançado que Swagger UI
+* better visual experience
+* modern OpenAPI support
+* more advanced support than Swagger UI
 
 ---
 
-### Recursos atuais
+### Current features
 
-* título customizável
-* logo customizável
-* favicon customizável
-* modo embed
-* modo CDN
+* customizable title
+* customizable logo
+* customizable favicon
+* embed mode
+* CDN mode
 
 ---
 
 # Problem Details
 
-## Padrão
+## Standard
 
 RFC 9457
 
@@ -456,25 +458,25 @@ RFC 9457
 
 ## Schemas
 
-Implementados:
+Implemented:
 
 ### Problem
 
-Representa um erro HTTP.
+Represents an HTTP error.
 
 ---
 
 ### ValidationError
 
-Representa um erro individual de validação.
+Represents a single validation error.
 
 ---
 
 ### ValidationSource
 
-Representa a origem do erro.
+Represents the origin of the error.
 
-Exemplo:
+Example:
 
 ```json
 {
@@ -483,48 +485,50 @@ Exemplo:
 }
 ```
 
-`field` só usa sintaxe de JSON Pointer (RFC 6901: `/name`,
-`/address/city`, `/items/0/name`, `/tags/1`, `/meta/x~1y`) quando `in`
-é `"body"` — é o único `in` hierárquico. O nome de cada segmento (tag
-`json`, não o nome do campo Go) é escapado por `~0`/`~1` conforme RFC
-6901 §3 (`validation.escapeJSONPointerToken`) — sem isso, um campo
-chamado literalmente `"a/b"` viraria `/a/b`, indistinguível de dois
-segmentos; o mesmo vale pra chave de map (`Meta["x/y"]` → `/meta/x~1y`,
-diferente de índice de slice, que nunca precisa escapar por ser sempre
-dígito). `buildFieldMap` (`validation/field_map.go`) caminha o *valor*
-real da request (não só o tipo — precisa do tamanho de verdade de
-slice/array/map), recursando em struct aninhado (valor ou ponteiro),
-elemento de slice/array (struct ou primitivo) e entrada de map com
-chave string (struct ou primitivo), compondo o pointer nível a nível —
-inclusive slice/map de primitivo com `dive` (`Tags[1]`, `Meta["x"]`),
-já que o `validator/v10` reporta erro de elemento sem segmento de
-campo depois do índice/chave, então precisa de entrada própria no
-mapa em vez de só recursão. O cruzamento com o erro do `validator/v10`
-usa `FieldError.StructNamespace()` com o nome do tipo raiz removido
-(`validation.structFieldNamespace`), não `StructField()` (só dá o
-nome do campo folha, sem caminho); o formato de `StructNamespace()`
-pra elemento de slice/map (chave crua, sem escaping, no namespace — só
-o pointer final é escapado) foi confirmado empiricamente, não
-assumido. Limitado a `maxFieldMapDepth` (16) níveis (struct, índice e
-chave contam pro mesmo limite), só pra garantir término mesmo com um
-struct auto-referente. Como agora caminha o valor de verdade, o custo
-escala com o tamanho de slice/map alcançável na request — só no
-caminho de erro (`mapValidationErrors` só roda depois que já existe
-pelo menos um erro), não afeta request bem-sucedida. **Limite atual**:
-chave de map não-string (`map[int]T`) cai no fallback de nome de campo
-— JSON só tem chave string de qualquer forma, caso raro em DTO de
-request. Pra
+`field` only uses JSON Pointer syntax (RFC 6901: `/name`,
+`/address/city`, `/items/0/name`, `/tags/1`, `/meta/x~1y`) when `in` is
+`"body"` — it's the only hierarchical `in`. Each segment's name (the
+`json` tag, not the Go field name) is escaped via `~0`/`~1` per RFC
+6901 §3 (`validation.escapeJSONPointerToken`) — without this, a field
+literally named `"a/b"` would turn into `/a/b`, indistinguishable from
+two segments; the same applies to a map key (`Meta["x/y"]` →
+`/meta/x~1y`, unlike a slice index, which never needs escaping since
+it's always a digit). `buildFieldMap` (`validation/field_map.go`) walks
+the *actual value* of the request (not just the type — it needs the
+real size of a slice/array/map), recursing into a nested struct (value
+or pointer), a slice/array element (struct or primitive), and a map
+entry with a string key (struct or primitive), composing the pointer
+level by level — including a slice/map of primitives with `dive`
+(`Tags[1]`, `Meta["x"]`), since `validator/v10` reports an element error
+without a field segment after the index/key, so it needs its own entry
+in the map instead of just recursion. The cross-reference with
+`validator/v10`'s error uses `FieldError.StructNamespace()` with the
+root type name removed (`validation.structFieldNamespace`), not
+`StructField()` (which only gives the leaf field name, no path); the
+format of `StructNamespace()` for a slice/map element (raw key, no
+escaping, in the namespace — only the final pointer is escaped) was
+confirmed empirically, not assumed. Limited to `maxFieldMapDepth` (16)
+levels (struct, index, and key all count toward the same limit), just
+to guarantee termination even with a self-referencing struct. Since it
+now walks the actual value, the cost scales with the size of any
+slice/map reachable in the request — but only on the error path
+(`mapValidationErrors` only runs after there's already at least one
+error), it does not affect a successful request. **Current
+limitation**: a non-string map key (`map[int]T`) falls back to the
+field-name fallback — JSON only has string keys anyway, a rare case in
+a request DTO. For
 `path`/`query`/`header`
-(`NewPathError`/`NewQueryError`/`NewHeaderError` em `problem/validation.go`),
-`field` é sempre o nome cru do campo (`id`, `page`, `Authorization`), sem
-prefixo `/` (não é JSON Pointer, não tem por quê escapar). Detalhe da
-RFC em [docs/architecture/rfc-compliance.md](rfc-compliance.md).
+(`NewPathError`/`NewQueryError`/`NewHeaderError` in `problem/validation.go`),
+`field` is always the raw field name (`id`, `page`, `Authorization`),
+with no `/` prefix (it's not a JSON Pointer, so there's no reason to
+escape it). RFC details in
+[docs/architecture/rfc-compliance.md](rfc-compliance.md).
 
 ---
 
-## Responses automáticas
+## Automatic responses
 
-Endpoints recebem automaticamente:
+Endpoints automatically receive:
 
 ### 400
 
@@ -548,164 +552,167 @@ application/problem+json
 
 ## Examples
 
-Cada response possui seu próprio exemplo.
+Each response has its own example.
 
-Exemplo:
+Example:
 
-400 → erro de validação
+400 → validation error
 
-500 → erro interno
+500 → internal error
 
 ---
 
 # Middleware
 
-Todos em `httpx/middleware`, construídos como `routing.Middleware`
-(`func(http.Handler) http.Handler`), aplicados via `Router.Use`
-(global, roda antes do roteamento) ou `Group.Use` (por-grupo).
+All in `httpx/middleware`, built as `routing.Middleware`
+(`func(http.Handler) http.Handler`), applied via `Router.Use`
+(global, runs before routing) or `Group.Use` (per-group).
 
-## Implementado
+## Implemented
 
-* **CORS** — configurável (`CORSConfig.AllowedOrigins`, etc). Só
-  intercepta `OPTIONS` com `204` quando é um preflight de verdade
-  (`Access-Control-Request-Method` presente, Fetch spec §4.1); um
-  `OPTIONS` "nu" cai pro `next`, chegando no `mux` (que devolve
-  `405`+`Allow` real refletindo os métodos registrados pro path, ou
-  aciona um handler `OPTIONS` explícito do usuário, se houver). Sempre
-  adiciona `Vary: Origin` (a resposta sempre depende do `Origin` da
-  request, já que `Access-Control-Allow-Origin` ecoa o valor recebido
-  em vez de usar um `*` literal — necessário pra suportar
+* **CORS** — configurable (`CORSConfig.AllowedOrigins`, etc). Only
+  intercepts `OPTIONS` with `204` when it's a real preflight
+  (`Access-Control-Request-Method` present, Fetch spec §4.1); a "bare"
+  `OPTIONS` falls through to `next`, reaching the `mux` (which returns a
+  real `405`+`Allow` reflecting the methods registered for the path, or
+  triggers an explicit user `OPTIONS` handler, if any). Always adds
+  `Vary: Origin` (the response always depends on the request's
+  `Origin`, since `Access-Control-Allow-Origin` echoes the received
+  value instead of using a literal `*` — necessary to support
   `AllowCredentials`).
-* **Logging** — logger estruturado (`slog`), enriquecido com
-  `request_id`/`real_ip`/`trace_id`/`span_id` quando os middlewares
-  correspondentes estão instalados.
-* **RealIP** — extrai IP do cliente, checando nesta ordem:
-  `Forwarded` (RFC 7239, o padrão IETF) → `X-Forwarded-For` →
-  `X-Real-IP` → `RemoteAddr`. Disponível via `RealIPFromContext`.
-* **RequestID** — gera/propaga `X-Request-Id`, disponível via
+* **Logging** — structured logger (`slog`), enriched with
+  `request_id`/`real_ip`/`trace_id`/`span_id` when the corresponding
+  middlewares are installed.
+* **RealIP** — extracts the client IP, checking in this order:
+  `Forwarded` (RFC 7239, the IETF standard) → `X-Forwarded-For` →
+  `X-Real-IP` → `RemoteAddr`. Available via `RealIPFromContext`.
+* **RequestID** — generates/propagates `X-Request-Id`, available via
   `RequestIDFromContext`.
-* **Recover** — recupera de panics, converte em Problem Details 500
-  (`problem.NewInternal("")`, detail genérico) e loga o valor do
-  panic via `observability.LoggerFromContext` — nunca inclui o valor
-  bruto do panic na resposta (RFC 9457 §3.1.5).
-* **Timeout** — timeout de requisição; implementação própria (não usa
-  mais `http.TimeoutHandler` da stdlib) que responde com Problem
-  Details em vez de texto puro no timeout.
-* **StripSlashes** / **RedirectSlashes** — duas formas de lidar com
-  barra final no path: `StripSlashes` normaliza em silêncio (sem round
-  trip), `RedirectSlashes` redireciona (308, preserva método e body).
-  Ambos precisam rodar como middleware *global* (pré-roteamento) pra
-  funcionar — ver nota em "Decisões Importantes" sobre
-  `Router.ServeHTTP`. Não instalar os dois ao mesmo tempo.
-* **Compress** — `Compress(level int, types ...string)`, portado do
-  `middleware.Compress` do chi. Só comprime quando o `Content-Type` da
-  *resposta* (não da request) bate com `types` (ou a lista padrão de
-  tipos textuais/JSON quando `types` é vazio; sufixo `/*` casa
-  subtipos, ex. `text/*`) — evita gastar CPU comprimindo conteúdo que
-  não se beneficia (imagens, etc). `level` inválido gera panic na
-  criação do middleware (erro de configuração, não de runtime). Remove
-  `Content-Length` da resposta quando compressão é aplicada.
-  `Accept-Encoding` é interpretado de verdade (`acceptsGzip`,
-  parseando `;q=` e o coringa `*`, RFC 9110 §12.5.3), não com um
-  simples `strings.Contains` — um `gzip;q=0` explícito é recusa, não
-  aceite. Ausência do header continua significando "não comprime"
-  (default conservador que já existia, não muda com essa precisão).
-* **NoCache** — portado do `middleware.NoCache` do chi: além dos
-  headers de resposta (`Cache-Control` completo, `Pragma`,
-  `X-Accel-Expires`, `Expires` no epoch Unix), também remove da
-  *request* os headers condicionais (`ETag`, `If-Modified-Since`,
-  `If-Match`, `If-None-Match`, `If-Range`, `If-Unmodified-Since`) antes
-  de chamar o handler — evita que qualquer código downstream responda
-  de forma condicional/cacheada, contradizendo a intenção do
-  middleware.
-* **AllowContentType** — allow-list de `Content-Type` aceito na
-  request, 415 caso contrário. Requests sem `Content-Type` passam
-  (binding já tolera corpo ausente).
-* **MaxBodyBytes** — limite de tamanho de request body. Quando
-  `Content-Length` é conhecido e já excede o limite, rejeita
-  imediatamente com 413. Quando não (chunked, ou client mentindo sobre
-  o tamanho), usa `http.MaxBytesReader` como segunda linha de defesa;
-  o estouro só é percebido durante a leitura (dentro do binding JSON),
-  mas ainda assim vira 413 corretamente, via
-  `problem.ValidationErrorCode.StatusOverride()` — ver "Erros de
-  binding não carregam status HTTP" em "Decisões Importantes".
+* **Recover** — recovers from panics, converts them into a 500 Problem
+  Details (`problem.NewInternal("")`, generic detail) and logs the
+  panic value via `observability.LoggerFromContext` — never includes
+  the raw panic value in the response (RFC 9457 §3.1.5).
+* **Timeout** — request timeout; a custom implementation (no longer
+  uses stdlib's `http.TimeoutHandler`) that responds with Problem
+  Details instead of plain text on timeout.
+* **StripSlashes** / **RedirectSlashes** — two ways of handling a
+  trailing slash in the path: `StripSlashes` normalizes silently (no
+  round trip), `RedirectSlashes` redirects (308, preserves method and
+  body). Both need to run as *global* middleware (pre-routing) to work
+  — see the note in "Important Decisions" about `Router.ServeHTTP`. Do
+  not install both at the same time.
+* **Compress** — `Compress(level int, types ...string)`, ported from
+  chi's `middleware.Compress`. Only compresses when the *response's*
+  `Content-Type` (not the request's) matches `types` (or the default
+  list of textual/JSON types when `types` is empty; a `/*` suffix
+  matches subtypes, e.g. `text/*`) — this avoids spending CPU
+  compressing content that wouldn't benefit (images, etc). An invalid
+  `level` panics at middleware creation (a configuration error, not a
+  runtime one). Removes `Content-Length` from the response when
+  compression is applied. `Accept-Encoding` is parsed for real
+  (`acceptsGzip`, parsing `;q=` and the `*` wildcard, RFC 9110 §12.5.3),
+  not with a simple `strings.Contains` — an explicit `gzip;q=0` is a
+  refusal, not acceptance. Absence of the header still means "don't
+  compress" (the conservative default that already existed, unchanged
+  by this precision).
+* **NoCache** — ported from chi's `middleware.NoCache`: besides the
+  response headers (full `Cache-Control`, `Pragma`,
+  `X-Accel-Expires`, `Expires` at the Unix epoch), it also removes the
+  conditional headers from the *request* (`ETag`, `If-Modified-Since`,
+  `If-Match`, `If-None-Match`, `If-Range`, `If-Unmodified-Since`)
+  before calling the handler — this prevents any downstream code from
+  responding conditionally/cached, which would contradict the
+  middleware's intent.
+* **AllowContentType** — allow-list of accepted `Content-Type` on the
+  request, 415 otherwise. Requests without `Content-Type` pass
+  (binding already tolerates a missing body).
+* **MaxBodyBytes** — request body size limit. When `Content-Length` is
+  known and already exceeds the limit, rejects immediately with 413.
+  When it isn't (chunked, or a client lying about the size), it uses
+  `http.MaxBytesReader` as a second line of defense; the overflow is
+  only noticed during reading (inside JSON binding), but it still
+  correctly becomes a 413, via
+  `problem.ValidationErrorCode.StatusOverride()` — see "Binding errors
+  do not carry an HTTP status by default" in "Important Decisions".
 * **SecureHeaders** — `X-Content-Type-Options`, `X-Frame-Options`,
-  `Referrer-Policy` sempre; `Strict-Transport-Security` só se
-  configurado explicitamente (HSTS quebra desenvolvimento local em
-  HTTP puro se ligado por padrão).
-* **Throttle** — limite de requisições *concorrentes* (semáforo), com
-  backlog opcional (`BacklogLimit`/`BacklogTimeout`) pra enfileirar em
-  vez de rejeitar na hora. Não é rate limiting por tempo — ver
-  `RateLimit` pra isso.
-* **RateLimit** — rate limiting de verdade
-  (`RequestLimit`/`WindowLength` por chave de cliente, `KeyFunc` com
-  default `RealIPFromContext` → `RemoteAddr`, canonicalizada via
-  `CanonicalizeIP`). Algoritmo sliding-window-counter adaptado do
-  `go-chi/httprate`: duas janelas fixas (atual e anterior) por chave,
-  com a contagem da janela anterior ponderada pela sobreposição com a
-  janela deslizante atual. O algoritmo (`checkRateLimit`) é separado do
-  storage pela interface `LimitCounter`
-  (`Config`/`Increment`/`IncrementBy`/`Get`), espelhando de propósito a
-  interface homônima de `go-chi/httprate` — um backend já escrito pra
-  httprate (ex. `go-chi/httprate-redis`) precisa de mudanças triviais
-  pra servir o arnon. `RateLimitConfig.Counter` nil usa o default em
-  memória (`NewLocalLimitCounter`, exportada): memória fica limitada
-  sozinha, janelas antigas são descartadas em bloco (não chave por
-  chave) sempre que o tempo avança pra uma nova janela, então chaves
-  inativas são removidas automaticamente em até duas janelas, sem
-  precisar de eviction/TTL manual — mas só é correto pra uma instância
-  única; deployments com múltiplas instâncias precisam de um
-  `LimitCounter` com storage compartilhado (Redis, Valkey, Memcached,
-  ...), implementado como módulo Go separado (o núcleo do arnon nunca
-  depende de um backend de storage específico). Erro do `Counter`
-  (`Get`/`IncrementBy`) vira `problem.Problem` via
-  `RateLimitConfig.OnCounterError` (default: 503 Service Unavailable,
-  sem vazar a mensagem do erro; configurável). `CanonicalizeIP` reduz
-  endereços IPv6 ao prefixo /64 (um cliente IPv6 controla um /64 inteiro
-  via SLAAC; sem isso ele rotacionaria endereço dentro do próprio
-  bloco pra escapar do limite). Response inclui
-  `X-RateLimit-Limit`/`X-RateLimit-Remaining`/`X-RateLimit-Reset`
-  sempre, e `Retry-After` (RFC 6585) no 429. Implementação em
-  `httpx/middleware/rate_limit.go`, sem dependência externa (só
-  `sync`/`time`/`net`/`math` da stdlib no core; adaptadores de storage
-  externo ficam fora do módulo).
-* **ETag** — conditional GET (RFC 9111/9110 §13). Só atua em
-  `GET`/`HEAD` e em respostas 2xx; bufferiza o corpo inteiro do
-  handler (precisa do corpo completo pra hashear), calcula um ETag
-  forte via FNV-1a 64-bit (`hash/fnv` da stdlib) e compara contra
-  `If-None-Match` usando comparação fraca (ignora prefixo `W/` de
-  qualquer lado, conforme RFC 9110 §13.1.2). Em caso de match (ou
-  `If-None-Match: *`), responde `304 Not Modified` sem corpo; senão,
-  responde o corpo completo com o header `ETag`. Um `ETag` já setado
-  pelo handler é respeitado em vez de recalculado. Combinar com
-  `Compress`: instale `ETag` antes (mais externo), pra hashear os
-  bytes já comprimidos, consistente com o `Vary: Accept-Encoding` que
-  `Compress` já seta. Combinar com `NoCache` na mesma rota anula o
-  propósito dos dois. Implementação em `httpx/middleware/etag.go`.
-* **ServiceDesc** — adiciona `Link: <path>; rel="service-desc"`
-  (RFC 8631) em toda resposta, apontando pro documento OpenAPI (ex.
-  `/openapi.json`), permitindo descoberta automática por um
-  cliente/ferramenta genérico que já entende `Link` headers. Usa
-  `header.Add`, não `Set`, então soma a outros `Link` que já existam
-  em vez de substituí-los. Implementação em
+  `Referrer-Policy` always; `Strict-Transport-Security` only if
+  explicitly configured (HSTS breaks local development over plain HTTP
+  if enabled by default).
+* **Throttle** — limit on *concurrent* requests (semaphore), with
+  optional backlog (`BacklogLimit`/`BacklogTimeout`) to queue instead
+  of rejecting immediately. Not time-based rate limiting — see
+  `RateLimit` for that.
+* **RateLimit** — real rate limiting
+  (`RequestLimit`/`WindowLength` per client key, `KeyFunc` defaulting
+  to `RealIPFromContext` → `RemoteAddr`, canonicalized via
+  `CanonicalizeIP`). A sliding-window-counter algorithm adapted from
+  `go-chi/httprate`: two fixed windows (current and previous) per key,
+  with the previous window's count weighted by its overlap with the
+  current sliding window. The algorithm (`checkRateLimit`) is separated
+  from storage via the `LimitCounter` interface
+  (`Config`/`Increment`/`IncrementBy`/`Get`), deliberately mirroring the
+  interface of the same name in `go-chi/httprate` — a backend already
+  written for httprate (e.g. `go-chi/httprate-redis`) needs only
+  trivial changes to serve arnon. A nil `RateLimitConfig.Counter` uses
+  the in-memory default (`NewLocalLimitCounter`, exported): memory is
+  self-limited, old windows are discarded in bulk (not key by key)
+  whenever time advances into a new window, so inactive keys are
+  automatically removed within two windows, with no need for manual
+  eviction/TTL — but this is only correct for a single instance;
+  deployments with multiple instances need a `LimitCounter` with shared
+  storage (Redis, Valkey, Memcached, ...), implemented as a separate Go
+  module (arnon's core never depends on a specific storage backend).
+  A `Counter` error (`Get`/`IncrementBy`) becomes a `problem.Problem`
+  via `RateLimitConfig.OnCounterError` (default: 503 Service
+  Unavailable, without leaking the error message; configurable).
+  `CanonicalizeIP` reduces IPv6 addresses to their /64 prefix (an IPv6
+  client controls an entire /64 via SLAAC; without this it could
+  rotate addresses within its own block to dodge the limit). The
+  response always includes
+  `X-RateLimit-Limit`/`X-RateLimit-Remaining`/`X-RateLimit-Reset`, and
+  `Retry-After` (RFC 6585) on 429. Implemented in
+  `httpx/middleware/rate_limit.go`, with no external dependency (only
+  `sync`/`time`/`net`/`math` from the stdlib in the core; external
+  storage adapters live outside the module).
+* **ETag** — conditional GET (RFC 9111/9110 §13). Only acts on
+  `GET`/`HEAD` and on 2xx responses; buffers the handler's entire body
+  (needs the complete body to hash it), computes a strong ETag via
+  FNV-1a 64-bit (stdlib `hash/fnv`) and compares it against
+  `If-None-Match` using weak comparison (ignores a `W/` prefix on
+  either side, per RFC 9110 §13.1.2). On a match (or
+  `If-None-Match: *`), responds `304 Not Modified` with no body;
+  otherwise, responds with the full body plus the `ETag` header. An
+  `ETag` already set by the handler is respected instead of
+  recalculated. When combined with `Compress`: install `ETag` first
+  (more external), to hash the already-compressed bytes, consistent
+  with the `Vary: Accept-Encoding` that `Compress` already sets.
+  Combining with `NoCache` on the same route defeats the purpose of
+  both. Implemented in `httpx/middleware/etag.go`.
+* **ServiceDesc** — adds a `Link: <path>; rel="service-desc"`
+  (RFC 8631) header to every response, pointing to the OpenAPI document
+  (e.g. `/openapi.json`), enabling automatic discovery by a
+  generic client/tool that already understands `Link` headers. Uses
+  `header.Add`, not `Set`, so it adds to any other existing `Link`
+  headers instead of replacing them. Implemented in
   `httpx/middleware/service_desc.go`.
 
-## Ordem dos middlewares
+## Middleware order
 
-A ordem relativa das middlewares globais (`Router.Use`) importa —
-várias têm dependências reais umas nas outras (contexto que uma
-popula e outra lê, bytes que uma precisa ver antes da outra
-transformar). Duas formas de aplicar isso, por ordem de preferência:
+The relative order of global middlewares (`Router.Use`) matters —
+several have real dependencies on each other (context that one
+populates and another reads, bytes that one needs to see before
+another transforms them). Two ways to enforce this, in order of
+preference:
 
-### `middleware.BuildChain` — ordem garantida por código, não por disciplina
+### `middleware.BuildChain` — order guaranteed by code, not by discipline
 
 `middleware.BuildChain(config middleware.ChainConfig) []routing.Middleware`
-(`httpx/middleware/chain.go`) monta a cadeia global recomendada na
-ordem certa, sempre — cada campo de `ChainConfig` é
-opcional/independente (nil ou `false` = "não mencionado", não
-"desabilitado"), mas a posição relativa de quem for incluído nunca
-muda, porque quem decide a ordem é o código do `BuildChain`, não quem
-chama `router.Use(...)`. Uso:
+(`httpx/middleware/chain.go`) always assembles the recommended global
+chain in the right order — each `ChainConfig` field is
+optional/independent (nil or `false` = "not mentioned", not
+"disabled"), but the relative position of whichever ones are included
+never changes, because the order is decided by `BuildChain`'s code, not
+by whoever calls `router.Use(...)`. Usage:
 
 ```go
 router.Use(middleware.BuildChain(middleware.ChainConfig{
@@ -722,47 +729,46 @@ router.Use(middleware.BuildChain(middleware.ChainConfig{
 })...)
 ```
 
-`BuildChain` também **impede em runtime** a única combinação
-mutuamente exclusiva que existe hoje: setar `StripSlashes` e
-`RedirectSlashes` juntos causa panic imediato (na criação da cadeia,
-não no meio de uma request).
+`BuildChain` also **prevents at runtime** the only mutually exclusive
+combination that exists today: setting `StripSlashes` and
+`RedirectSlashes` together causes an immediate panic (at chain
+creation, not in the middle of a request).
 
-O que `BuildChain` garante e o que não garante: qualquer chamada com
-o mesmo subconjunto de campos preenchidos sempre produz a mesma ordem
-relativa entre eles — isso é testado de verdade em
-`httpx/middleware/chain_test.go` (não só documentado), verificando
-comportamento observável (`RequestID` aparecendo no log do
-`Logging`, `ETag` hasheando bytes já comprimidos pelo `Compress`,
-`Recover` pegando panic de qualquer lugar da cadeia, `SecureHeaders`
-aparecendo mesmo numa resposta `429` do `RateLimit`). O que não é
-garantido: uma cadeia montada manualmente com `router.Use(mw1, mw2,
-...)`, totalmente fora do `BuildChain`, continua sendo
-responsabilidade de quem escreve — não existe (nem seria razoável
-construir, dado que `routing.Middleware` é só
-`func(http.Handler) http.Handler`, sem identidade própria em runtime)
-uma validação estática que barre qualquer chamada manual malformada.
-`BuildChain` (incluindo `Extra`, abaixo) é o caminho recomendado
-justamente para não precisar disso na maioria dos casos.
+What `BuildChain` does and does not guarantee: any call with the same
+subset of fields populated always produces the same relative order
+between them — this is genuinely tested in
+`httpx/middleware/chain_test.go` (not just documented), verifying
+observable behavior (`RequestID` appearing in `Logging`'s log, `ETag`
+hashing bytes already compressed by `Compress`, `Recover` catching a
+panic from anywhere in the chain, `SecureHeaders` appearing even on a
+`429` response from `RateLimit`). What is not guaranteed: a chain
+assembled manually with `router.Use(mw1, mw2, ...)`, entirely outside
+`BuildChain`, remains the responsibility of whoever writes it — there
+is no (nor would it be reasonable to build, given that
+`routing.Middleware` is just `func(http.Handler) http.Handler`, with no
+runtime identity of its own) static validation that blocks a malformed
+manual call. `BuildChain` (including `Extra`, below) is the recommended
+path precisely so this isn't needed in most cases.
 
-Middlewares de grupo (`AllowContentType`, `MaxBodyBytes`, `NoCache`)
-ficam de fora do `BuildChain` de propósito: são escopados a um grupo
-específico (ex. só `/api`, não `/openapi.json`/`/docs`) por design,
-não fazem sentido como parte da cadeia global. Não há ordem relevante
-entre eles (são independentes), então não precisam de um builder
-próprio — use `group.Use(...)` diretamente.
+Group middlewares (`AllowContentType`, `MaxBodyBytes`, `NoCache`) are
+deliberately left out of `BuildChain`: they're scoped to a specific
+group (e.g. only `/api`, not `/openapi.json`/`/docs`) by design, and
+don't make sense as part of the global chain. There's no relevant order
+between them (they're independent), so they don't need their own
+builder — use `group.Use(...)` directly.
 
-### Middleware customizada com requisito de ordem — `ChainConfig.Extra`
+### Custom middleware with an order requirement — `ChainConfig.Extra`
 
-`BuildChain` só conhece os middlewares embutidos do `arnon` — se uma
-middleware customizada ou de terceiros precisar rodar numa posição
-específica relativa a um embutido (ex. "depois do `RateLimit`, antes
-do `ETag`"), isso dá pra fazer de dois jeitos:
+`BuildChain` only knows about arnon's built-in middlewares — if a
+custom or third-party middleware needs to run at a specific position
+relative to a built-in one (e.g. "after `RateLimit`, before `ETag`"),
+that can be done in two ways:
 
-**1. Dividir a chamada.** Como `Router.Use(...)` acumula a cada
-chamada (a ordem de chamada é preservada) e cada campo do
-`ChainConfig` é independente dos outros, dá pra chamar `BuildChain`
-duas vezes com subconjuntos complementares de campos, com a
-middleware customizada entre elas:
+**1. Split the call.** Since `Router.Use(...)` accumulates on every
+call (call order is preserved) and each `ChainConfig` field is
+independent of the others, you can call `BuildChain` twice with
+complementary subsets of fields, with the custom middleware in
+between:
 
 ```go
 router.Use(middleware.BuildChain(middleware.ChainConfig{
@@ -774,16 +780,16 @@ router.Use(middleware.BuildChain(middleware.ChainConfig{
 })...)
 ```
 
-**2. `ChainConfig.Extra` — mesmo resultado, numa chamada só.** Cada
-posição no `BuildChain` tem um `ChainAnchor` nomeado
+**2. `ChainConfig.Extra` — same result, in a single call.** Each
+position in `BuildChain` has a named `ChainAnchor`
 (`AnchorRecover`, `AnchorTimeout`, `AnchorStripSlashes`,
 `AnchorRedirectSlashes`, `AnchorRealIP`, `AnchorRequestID`,
 `AnchorSecureHeaders`, `AnchorRateLimit`, `AnchorThrottle`,
 `AnchorETag`, `AnchorCompress`, `AnchorCORS`, `AnchorServiceDesc`,
-`AnchorLogging`, na mesma ordem da lista abaixo). Um
-`ExtraMiddleware{Middleware: ..., Before: Anchor...}` ou `{...,
-After: Anchor...}` insere a middleware customizada logo antes/depois
-daquele ponto:
+`AnchorLogging`, in the same order as the list below). An
+`ExtraMiddleware{Middleware: ..., Before: Anchor...}` or `{...,
+After: Anchor...}` inserts the custom middleware right before/after
+that point:
 
 ```go
 router.Use(middleware.BuildChain(middleware.ChainConfig{
@@ -796,175 +802,174 @@ router.Use(middleware.BuildChain(middleware.ChainConfig{
 })...)
 ```
 
-Um `ChainAnchor` nomeia uma *posição*, não a presença de uma
-middleware específica — `Extra` ancorado em `AnchorETag` continua
-caindo no lugar certo mesmo que `ChainConfig.ETag` seja `false`
-naquela chamada. `BuildChain` valida cada `ExtraMiddleware` e entra
-em panic (na criação da cadeia, não no meio de uma request) se: nem
-`Before` nem `After` forem setados, os dois forem setados ao mesmo
-tempo, ou a âncora referenciada não for uma das constantes
-`AnchorXxx` — esse último caso existe porque um typo no nome da
-âncora, sem essa validação, simplesmente descartaria a middleware
-customizada da cadeia em silêncio. Múltiplas entradas de `Extra`
-ancoradas no mesmo ponto empilham na ordem em que aparecem no slice.
+A `ChainAnchor` names a *position*, not the presence of a specific
+middleware — `Extra` anchored at `AnchorETag` still lands in the right
+place even if `ChainConfig.ETag` is `false` on that call. `BuildChain`
+validates each `ExtraMiddleware` and panics (at chain creation, not in
+the middle of a request) if: neither `Before` nor `After` is set, both
+are set at the same time, or the referenced anchor isn't one of the
+`AnchorXxx` constants — this last case exists because a typo in the
+anchor name, without this validation, would simply drop the custom
+middleware from the chain silently. Multiple `Extra` entries anchored
+at the same point stack in the order they appear in the slice.
 
-As duas formas produzem o mesmo resultado; `Extra` só evita ter que
-dividir a chamada e decorar quais campos vão em cada metade. Ambas
-continuam sendo, no fim, "onde no código a middleware é chamada" —
-`Extra` não adiciona nenhuma verificação além de "essa âncora existe
-e está bem formada", não valida se a middleware customizada em si é
-segura para rodar naquela posição (isso continua sendo julgamento de
-quem escreve, como em qualquer outra linguagem sem sistema de tipos
-que modele "ordem de execução").
+Both approaches produce the same result; `Extra` just avoids having to
+split the call and remember which fields go in each half. Both remain,
+ultimately, "where in the code the middleware gets called" — `Extra`
+adds no verification beyond "this anchor exists and is well-formed",
+it does not validate whether the custom middleware itself is safe to
+run at that position (that remains the judgment of whoever writes it,
+as in any other language without a type system that can model
+"execution order").
 
-### A ordem em si, e por quê
+### The order itself, and why
 
-Da mais externa (roda primeiro, envolve tudo) pra mais interna (roda
-por último, mais perto do handler):
+From the most external (runs first, wraps everything) to the most
+internal (runs last, closest to the handler):
 
-1. **`Recover`** — precisa envolver literalmente tudo abaixo pra
-   pegar panic de qualquer middleware, não só do handler final.
-   Trade-off aceito: por rodar antes de `RequestID`/`Logging`, não
-   tem `request_id`/`trace_id` no log do panic, a menos que seja
-   reposicionado pra depois desses dois (ver nota em `Recover`,
-   abaixo).
-2. **`Timeout`** — o prazo deve valer pra cadeia inteira abaixo, e o
-   próprio `Timeout` relança (`panic`) o panic do handler pra fora,
-   esperando um `Recover` mais externo pra capturar.
-3. **`StripSlashes`/`RedirectSlashes`** (mutuamente exclusivos) —
-   precisa normalizar o path antes de qualquer coisa que dependa
-   dele, incluindo o próprio roteamento do `mux`.
-4. **`RealIP`** — popula contexto que `RateLimit` (chave por IP) e
-   `Logging` (`real_ip` no log) leem depois.
-5. **`RequestID`** — popula contexto que `Logging` (`request_id` no
-   log) lê depois.
-6. **`SecureHeaders`** — barato, quer aparecer em toda resposta,
-   incluindo erros gerados por qualquer middleware abaixo (um `429`
-   do `RateLimit`, um `404` do `mux`).
-7. **`RateLimit`**/**`Throttle`** — rejeitar cedo, antes de qualquer
-   trabalho real (inclusive antes de `ETag`/`Compress` gastarem CPU
-   numa resposta que nem vai ser aceita).
-8. **`ETag`** — precisa vir antes de `Compress` pra hashear os bytes
-   que de fato saem na rede (já comprimidos), não a versão anterior à
-   compressão — consistente com o `Vary: Accept-Encoding` que o
-   `Compress` seta.
+1. **`Recover`** — needs to wrap literally everything below it to
+   catch a panic from any middleware, not just the final handler.
+   Accepted trade-off: since it runs before `RequestID`/`Logging`, it
+   doesn't have `request_id`/`trace_id` in the panic log, unless
+   repositioned to after those two (see the note under `Recover`,
+   below).
+2. **`Timeout`** — the deadline must apply to the entire chain below
+   it, and `Timeout` itself re-raises (`panic`) the handler's panic
+   outward, expecting a more external `Recover` to catch it.
+3. **`StripSlashes`/`RedirectSlashes`** (mutually exclusive) — needs
+   to normalize the path before anything that depends on it,
+   including the `mux`'s own routing.
+4. **`RealIP`** — populates context that `RateLimit` (keyed by IP) and
+   `Logging` (`real_ip` in the log) read later.
+5. **`RequestID`** — populates context that `Logging` (`request_id` in
+   the log) reads later.
+6. **`SecureHeaders`** — cheap, wants to appear on every response,
+   including errors generated by any middleware below it (a `429`
+   from `RateLimit`, a `404` from the `mux`).
+7. **`RateLimit`**/**`Throttle`** — reject early, before any real work
+   (including before `ETag`/`Compress` spend CPU on a response that
+   won't even be accepted).
+8. **`ETag`** — needs to come before `Compress` to hash the bytes that
+   actually go out on the wire (already compressed), not the
+   pre-compression version — consistent with the
+   `Vary: Accept-Encoding` that `Compress` sets.
 9. **`Compress`**.
-10. **`CORS`** — intercepta preflight (`OPTIONS` com
-    `Access-Control-Request-Method`) antes do `mux`; um `OPTIONS` que
-    não é preflight cai pro `mux`, então a posição aqui não bloqueia
-    o `405`+`Allow` real discutido em `docs/architecture/rfc-compliance.md`.
-11. **`ServiceDesc`** — só adiciona um header, sem dependência de
-    posição forte; fica perto do fim por convenção.
-12. **`Logging`** — mais interna do grupo acima de propósito: só
-    monta os atributos do log (incluindo o que `RealIP`/`RequestID`
-    populararam) uma vez, antes de chamar `next`, então precisa ser a
-    última pra já ver tudo que as outras deixaram no contexto.
+10. **`CORS`** — intercepts preflight (`OPTIONS` with
+    `Access-Control-Request-Method`) before the `mux`; an `OPTIONS`
+    that isn't a preflight falls through to the `mux`, so this
+    position doesn't block the real `405`+`Allow` discussed in
+    `docs/architecture/rfc-compliance.md`.
+11. **`ServiceDesc`** — only adds a header, with no strong position
+    dependency; sits near the end by convention.
+12. **`Logging`** — deliberately the most internal of the group above:
+    it only assembles its log attributes (including what
+    `RealIP`/`RequestID` populated) once, before calling `next`, so it
+    needs to be last to already see everything the others left in the
+    context.
 
-Nota sobre `Recover` + correlação: como ele é o mais externo (item 1),
-ele *não* enxerga o `request_id`/`trace_id` que `RequestID`/`Logging`
-(itens 5 e 12) só populam depois dele já ter rodado sua lógica de
-pré-processamento. Quem precisar disso tem que abrir mão de
-`BuildChain` pra essa parte específica e montar `Recover` manualmente
-depois de `RequestID` — uma troca real (perde a garantia de capturar
-panic de tudo, ganha correlação no log do panic), não uma
-configuração que dê pra ter dos dois jeitos ao mesmo tempo.
+Note on `Recover` + correlation: since it's the most external (item
+1), it *cannot* see the `request_id`/`trace_id` that
+`RequestID`/`Logging` (items 5 and 12) only populate after it has
+already run its pre-processing logic. Anyone who needs this must give
+up `BuildChain` for this specific part and assemble `Recover` manually
+after `RequestID` — a real trade-off (loses the guarantee of catching
+a panic from anywhere, gains correlation in the panic log), not a
+configuration that can have it both ways at once.
 
-**Manutenção**: toda middleware global nova precisa ganhar um campo
-em `ChainConfig`, um `ChainAnchor` correspondente (adicionado em
-`validChainAnchors` também) e uma chamada `appendStage(...)` na
-posição certa dentro de `BuildChain` — senão ela fica inacessível via
-`BuildChain`/`Extra` e essa seção de doc fica desatualizada. Middleware
-de grupo (`AllowContentType`-like) não precisa disso.
+**Maintenance**: every new global middleware needs to gain a field in
+`ChainConfig`, a corresponding `ChainAnchor` (also added to
+`validChainAnchors`), and an `appendStage(...)` call at the right
+position inside `BuildChain` — otherwise it becomes inaccessible via
+`BuildChain`/`Extra` and this doc section becomes outdated. Group
+middleware (`AllowContentType`-like) doesn't need this.
 
-## Planejado / adiado
+## Planned / deferred
 
-* **Autenticação (Bearer/Basic)** — adiado, ver "Segurança" abaixo.
+* **Authentication (Bearer/Basic)** — deferred, see "Security" below.
 
 ---
 
-# Decisões Importantes
+# Important Decisions
 
-## Middleware global envolve o mux inteiro, não cada rota
+## Global middleware wraps the entire mux, not each route
 
-`Router.Use` (middleware global) é aplicado em `Router.ServeHTTP`,
-envolvendo o `mux` inteiro — não em `router.register`, por rota. Isso é
-o que permite middleware pré-roteamento (`StripSlashes`,
-`RedirectSlashes`) funcionar, e faz com que rotas não encontradas
-(404) também passem por `RequestID`/`Logging`/`RateLimit`/etc.
-Middleware de grupo (`Group.Use`) continua aplicado por-rota em
-`router.register`, já que `net/http.ServeMux` não tem noção de
-prefixo. Não volte a mesclar `router.middlewares` dentro de
-`register()` — duplicaria a execução.
+`Router.Use` (global middleware) is applied in `Router.ServeHTTP`,
+wrapping the entire `mux` — not in `router.register`, per route. This
+is what allows pre-routing middleware (`StripSlashes`,
+`RedirectSlashes`) to work, and makes routes not found (404) also pass
+through `RequestID`/`Logging`/`RateLimit`/etc. Group middleware
+(`Group.Use`) continues to be applied per-route in `router.register`,
+since `net/http.ServeMux` has no notion of prefix. Do not go back to
+merging `router.middlewares` inside `register()` — that would
+duplicate execution.
 
-## Erros de binding não carregam status HTTP por padrão
+## Binding errors do not carry an HTTP status by default
 
-`httpx.Endpoint` mapeia todo erro de `binding.Decode` pra 400
-(`writeValidationProblem`, em `httpx/endpoint.go`), independente do
-código específico do `problem.ValidationError`. A exceção é
+`httpx.Endpoint` maps every `binding.Decode` error to 400
+(`writeValidationProblem`, in `httpx/endpoint.go`), regardless of the
+specific `problem.ValidationError` code. The exception is
 `problem.ValidationErrorCode.StatusOverride()`
-(`problem/validation_code.go`): se qualquer erro tiver um código com
-override (hoje só `ValidationCodePayloadTooLarge` → 413), esse status
-substitui o 400 padrão. É o que faz `MaxBodyBytes` conseguir devolver
-413 mesmo quando o corpo estoura durante a leitura (chunked), sem
-precisar mudar a assinatura de `binding.Decode`. Ao adicionar um novo
-código de validação que deveria implicar um status diferente de 400,
-adicione o caso em `StatusOverride()` em vez de inventar outro
-mecanismo.
+(`problem/validation_code.go`): if any error has a code with an
+override (today only `ValidationCodePayloadTooLarge` → 413), that
+status replaces the default 400. This is what lets `MaxBodyBytes`
+return 413 even when the body overflows during reading (chunked),
+without needing to change `binding.Decode`'s signature. When adding a
+new validation code that should imply a status other than 400, add the
+case in `StatusOverride()` instead of inventing another mechanism.
 
-## `WriteProblem` exige `*http.Request` para auto-popular `Problem.Instance`
+## `WriteProblem` requires `*http.Request` to auto-populate `Problem.Instance`
 
-`httpx.WriteProblem(writer, request, problemInstance)` recebe a
-request desde 2026-07-15 (mudança de assinatura — aceitável porque o
-framework ainda não teve release pública). Se `problemInstance.Instance`
-estiver vazio, é preenchido com `request.URL.Path` antes de
-serializar, nunca sobrescrevendo um valor setado via
-`.WithInstance(...)`. `httpx` não pode depender de
-`httpx/middleware`/`observability` (ver grafo de dependências acima),
-então não dá pra usar `request_id`/`trace_id` aqui — path é o que dá
-pra fazer sem alargar essa fronteira. Todo novo call site de
-`WriteProblem` precisa passar a request.
+`httpx.WriteProblem(writer, request, problemInstance)` has taken the
+request since 2026-07-15 (a signature change — acceptable because the
+framework hasn't had a public release yet). If
+`problemInstance.Instance` is empty, it gets filled with
+`request.URL.Path` before serializing, never overwriting a value
+already set via `.WithInstance(...)`. `httpx` cannot depend on
+`httpx/middleware`/`observability` (see the dependency graph above),
+so `request_id`/`trace_id` can't be used here — path is what's
+achievable without widening that boundary. Every new `WriteProblem`
+call site must pass the request.
 
-## `httpx.Endpoint` é JSON-only por design; negociação de `Accept` formaliza isso
+## `httpx.Endpoint` is JSON-only by design; `Accept` negotiation formalizes this
 
-`Endpoint()` checa o header `Accept` (`httpx/accept.go`, `acceptsJSON`)
-antes de fazer qualquer binding e responde `406 Not Acceptable`
-(Problem Details) quando o cliente exclui explicitamente
-`application/json` (ex. `Accept: application/xml` sozinho, ou
-`application/json;q=0`). Um `Accept` ausente, vazio, ou que inclua
-`application/json`/`application/*`/`*/*` com `q > 0` passa normal —
-RFC 9110 §12.5.1 diz que header ausente significa "aceita qualquer
-coisa". O parser segue a regra "match mais específico decide": uma
-entrada exata bate antes de `application/*`, que bate antes de `*/*`.
+`Endpoint()` checks the `Accept` header (`httpx/accept.go`,
+`acceptsJSON`) before doing any binding and responds `406 Not
+Acceptable` (Problem Details) when the client explicitly excludes
+`application/json` (e.g. `Accept: application/xml` alone, or
+`application/json;q=0`). A missing, empty `Accept`, or one that
+includes `application/json`/`application/*`/`*/*` with `q > 0` passes
+normally — RFC 9110 §12.5.1 says a missing header means "accepts
+anything". The parser follows the "most specific match wins" rule: an
+exact entry beats `application/*`, which beats `*/*`.
 
-Isso não é (nem deveria virar) negociação de múltiplas representações
-do mesmo endpoint — `Endpoint()` continua só produzindo JSON, sempre.
-Quem precisa servir XML, PDF, CSV ou qualquer outro
-formato/arquivo monta um `http.Handler` comum via
-`Router.GET`/`POST`/etc, exatamente como qualquer outra rota; nenhuma
-middleware do framework (`Compress`, `ETag`, `SecureHeaders`, ...) é
-acoplada a JSON. Não crie uma segunda abstração de endpoint tipado
-"genérico em formato" pra cobrir esse caso — o padrão já é usar
-`http.Handler` puro.
+This is not (and should not become) negotiation of multiple
+representations of the same endpoint — `Endpoint()` still only ever
+produces JSON. Anyone who needs to serve XML, PDF, CSV, or any other
+format/file builds a plain `http.Handler` via `Router.GET`/`POST`/etc,
+exactly like any other route; no framework middleware (`Compress`,
+`ETag`, `SecureHeaders`, ...) is coupled to JSON. Don't create a second
+"format-generic" typed endpoint abstraction to cover this case — the
+pattern is already to use a plain `http.Handler`.
 
-## Ponteiros em Schemas
+## Pointers in Schemas
 
-Properties utilizam ponteiros.
+Properties use pointers.
 
-Exemplo:
+Example:
 
 ```go
 Properties map[string]*Schema
 ```
 
-Motivo:
+Reason:
 
-Evitar cópias desnecessárias e permitir estruturas recursivas.
+Avoid unnecessary copies and allow recursive structures.
 
 ---
 
 ## AdditionalProperties
 
-Utiliza:
+Uses:
 
 ```go
 AdditionalProperties *Schema
@@ -974,53 +979,54 @@ AdditionalProperties *Schema
 
 ## Receivers
 
-Preferência por receivers de ponteiro.
+Preference for pointer receivers.
 
-Motivos:
+Reasons:
 
-* evitar cópias
-* consistência
-* compatibilidade com linter recvcheck
+* avoid copies
+* consistency
+* compatibility with the recvcheck linter
 
-Exceção deliberada: tipos-valor pequenos e imutáveis, sem identidade
-própria (ex. `openapi.Tag`, que é fluente e retorna novos valores a cada
-`With*`; `problem.ValidationErrorCode`, um enum) usam receiver por
-**valor** de propósito — não é inconsistência a corrigir. A heurística:
-tipo com identidade/mutação/builder → ponteiro; tipo pequeno,
-imutável, comportando-se como valor → valor.
+Deliberate exception: small, immutable value-types with no identity of
+their own (e.g. `openapi.Tag`, which is fluent and returns new values
+on every `With*`; `problem.ValidationErrorCode`, an enum) use a
+**value** receiver on purpose — this is not an inconsistency to fix.
+The heuristic: a type with identity/mutation/builder → pointer; a
+small, immutable type that behaves like a value → value.
 
 ---
 
 ## Stoplight
 
-Foi escolhido Stoplight Elements ao invés de Swagger UI — encaixa melhor
-com a proposta de "fundação" pouco opinativa (visual mais neutro,
-apresentação em formato de doc/portal em vez de console de teste).
+Stoplight Elements was chosen over Swagger UI — it fits better with the
+"lightly opinionated foundation" premise (more neutral visuals,
+presented as a doc/portal rather than a test console).
 
-Ponto de atenção revisado em 2026-07-16: Swagger UI (a partir da
-`swagger-ui-dist@5.32.0`, fev/2026) passou a ter suporte a OpenAPI 3.2.0;
-o Stoplight Elements, até a mesma data, documenta suporte oficial só até
-3.1. Como o `arnon` gera documentos `"openapi": "3.2.0"`
-(`openapi.OpenAPIVersion3_2`), isso pode significar que o Stoplight
-Elements não reconheça recursos novos da 3.2 (a maior parte das mudanças
-de 3.2 sobre 3.1 é aditiva, então a renderização geral deve continuar
-funcionando). Não verificado empiricamente num navegador real ainda —
-antes de trocar o padrão ou expor a UI como configurável (`NOTES.md`),
-vale essa validação.
-
----
-
-## OpenAPI híbrida
-
-A geração automática continua sendo a principal estratégia.
-
-Customizações devem complementar a geração automática, nunca exigir repetição de configuração.
+Point revisited on 2026-07-16: Swagger UI (starting with
+`swagger-ui-dist@5.32.0`, Feb/2026) gained support for OpenAPI 3.2.0;
+Stoplight Elements, as of the same date, documents official support
+only up to 3.1. Since `arnon` generates documents with
+`"openapi": "3.2.0"` (`openapi.OpenAPIVersion3_2`), this may mean
+Stoplight Elements doesn't recognize new 3.2 features (most of the 3.2
+changes over 3.1 are additive, so overall rendering should keep
+working). Not yet verified empirically in a real browser — before
+switching the default or exposing the UI as configurable (`NOTES.md`),
+this validation is worth doing.
 
 ---
 
-# Recursos Planejados
+## Hybrid OpenAPI
 
-## Observabilidade (Prioridade Máxima)
+Automatic generation remains the primary strategy.
+
+Customizations should complement automatic generation, never require
+repeating configuration.
+
+---
+
+# Planned Features
+
+## Observability (Highest Priority)
 
 ### OpenTelemetry
 
@@ -1037,26 +1043,26 @@ Metrics:
 * Request Duration
 * Active Requests
 
-Contexto:
+Context:
 
 * Trace ID
 * Span ID
 * Request ID
 
-**Nota**: apesar do título da seção, tudo acima já está implementado
-(`observability`/`observability/otel`), não é mais "planejado" —
-`routing.WithInstrumentation(otel.NewHandler)` dá tracing HTTP
-automático (via `otelhttp`, com atribuição de rota e propagação de
-contexto), `otel.Initialize` com `MetricsEnabled: true` habilita
-métricas HTTP automáticas mais métricas de runtime do Go, e
-`observability.TraceID`/`SpanID` correlacionam trace_id/span_id nos
-logs estruturados (`httpx/middleware/logging.go`). Demonstrado e
-validado fim a fim (trace exportado batendo com o log da aplicação,
-métricas customizadas com exemplars apontando pro trace exato) em
-`examples/cmd/observability`, incluindo um OTel Collector local via
-Docker Compose. O que falta de verdade é cobertura de teste
-automatizado de `observability`/`observability/otel` (0% hoje, ver
-NOTES.md), não a funcionalidade em si.
+**Note**: despite the section title, everything above is already
+implemented (`observability`/`observability/otel`), it's no longer
+"planned" — `routing.WithInstrumentation(otel.NewHandler)` gives
+automatic HTTP tracing (via `otelhttp`, with route attribution and
+context propagation), `otel.Initialize` with `MetricsEnabled: true`
+enables automatic HTTP metrics plus Go runtime metrics, and
+`observability.TraceID`/`SpanID` correlate trace_id/span_id in
+structured logs (`httpx/middleware/logging.go`). Demonstrated and
+validated end to end (exported trace matching the application log,
+custom metrics with exemplars pointing to the exact trace) in
+`examples/cmd/observability`, including a local OTel Collector via
+Docker Compose. What's genuinely still missing is automated test
+coverage for `observability`/`observability/otel` (0% today, see
+NOTES.md), not the functionality itself.
 
 ---
 
@@ -1066,116 +1072,117 @@ NOTES.md), não a funcionalidade em si.
 * /ready
 * /live
 
-Compatíveis com Kubernetes.
+Kubernetes-compatible.
 
 ---
 
-## Segurança
+## Security
 
-Autenticação:
+Authentication:
 
 * Bearer Token
 * Basic Auth
 
-Autorização:
+Authorization:
 
-* abstração de policies
+* policy abstraction
 
 ---
 
-## Configuração
+## Configuration
 
-* leitura de env vars
+* env var reading
 * defaults
-* validação de configuração
+* configuration validation
 
 ---
 
-## Testes
+## Tests
 
-Implementado:
+Implemented:
 
-### Unitários
+### Unit
 
-* cobertura dos pacotes centrais: `validation`, `openapi`, `problem`,
-  `httpx` e `httpx/binding`.
-* `httpx`: testes fim-a-fim via `httptest`, cobrindo binding, validação,
-  mapeamento de erro (default e customizado) e o caminho de sucesso.
+* coverage of the core packages: `validation`, `openapi`, `problem`,
+  `httpx` and `httpx/binding`.
+* `httpx`: end-to-end tests via `httptest`, covering binding,
+  validation, error mapping (default and custom), and the success
+  path.
 
-Planejado:
+Planned:
 
 ### OpenAPI (Golden Tests)
 
 * Golden Tests
 
-### Unitários (pendente)
+### Unit (pending)
 
-* cobertura de `httpx/middleware` e `observability`/`observability/otel`
+* coverage of `httpx/middleware` and `observability`/`observability/otel`
 
-### Mutação
+### Mutation
 
-* validação de robustez
+* robustness validation
 
 ---
 
-## Qualidade e Ferramentas
+## Quality and Tooling
 
-Implementado:
+Implemented:
 
-* `.golangci.yml`: conjunto curado de linters (não `--enable-all`),
-  ajustado ao estilo do projeto (ex.: `funlen`/`cyclop` com limites
-  compatíveis com o formato vertical adotado; `ireturn` permitindo os
-  retornos de interface que são decisão de design, como
+* `.golangci.yml`: a curated set of linters (not `--enable-all`),
+  tuned to the project's style (e.g. `funlen`/`cyclop` with limits
+  compatible with the adopted vertical format; `ireturn` allowing the
+  interface returns that are a design decision, like
   `validation.Validator`).
-* `.go-arch-lint.yml`: modela o grafo de dependências real entre os
-  pacotes do `arnon` e falha o build se uma dependência não permitida
-  for introduzida.
-* `examples/`: exemplos executáveis organizados como `cmd`+`internal`.
-  `examples/cmd/basic` (`go run ./examples/cmd/basic`) é o mínimo
-  possível — endpoint tipado, validação, OpenAPI, zero middleware.
-  `examples/cmd/middleware` (`go run ./examples/cmd/middleware`) é o
-  mesmo endpoint com o stack completo de middlewares (CORS, rate
-  limit, compressão, security headers, etc).
+* `.go-arch-lint.yml`: models arnon's actual dependency graph between
+  packages and fails the build if a disallowed dependency is
+  introduced.
+* `examples/`: executable examples organized as `cmd`+`internal`.
+  `examples/cmd/basic` (`go run ./examples/cmd/basic`) is the bare
+  minimum — typed endpoint, validation, OpenAPI, zero middleware.
+  `examples/cmd/middleware` (`go run ./examples/cmd/middleware`) is
+  the same endpoint with the full middleware stack (CORS, rate limit,
+  compression, security headers, etc).
   `examples/cmd/observability` (`go run ./examples/cmd/observability`)
-  é o mesmo endpoint com `routing.WithInstrumentation(otel.NewHandler)`,
-  métricas customizadas (`observability.Counter`/`Histogram`) e logs
-  correlacionados por trace_id/span_id, exportando de verdade via
-  OTLP/gRPC pra um OTel Collector local subido por
+  is the same endpoint with `routing.WithInstrumentation(otel.NewHandler)`,
+  custom metrics (`observability.Counter`/`Histogram`) and logs
+  correlated by trace_id/span_id, genuinely exporting via OTLP/gRPC to
+  a local OTel Collector brought up by
   `docker compose -f examples/cmd/observability/docker-compose.yml up`
-  (config em `otel-collector-config.yaml`, exporter `debug` — imprime
-  cada trace/métrica recebido no próprio log do collector, sem precisar
-  de Jaeger/Prometheus pra validar a integração). Também trata
-  shutdown gracioso (`SIGINT`/`SIGTERM`) explicitamente, ao contrário
-  dos outros dois exemplos: é o que garante o flush de spans/métricas
-  pendentes no SDK antes do processo sair. Código comum aos três
-  exemplos (logger, registro de custom validators, o handler de
-  exemplo) mora em `examples/internal/*`, não importável de fora de
-  `examples/` pela regra do Go. Todos compilados e exercitados via
-  `hurl --test` como parte da validação do projeto; o
-  `examples/cmd/observability` foi validado também com o collector de
-  verdade rodando (trace exportado batendo bit a bit com o trace_id/
-  span_id logado pela aplicação, métricas customizadas com exemplars
-  apontando pro trace exato).
-* [docs/architecture/rfc-compliance.md](rfc-compliance.md): revisão
-  completa (2026-07-15) de conformidade com as RFCs relevantes pra uma
-  fundação HTTP (RFC 9457, RFC 9110, RFC 9111, RFC 7239, RFC 6585,
-  RFC 8288/8631/8615, RFC 8259), separando o que já é conforme, o que
-  é uma decisão de escopo deliberada e o que é lacuna real — incluindo
-  dois achados que quebram a própria garantia "RFC 9457 é o único
-  formato de erro" (`Recover()` vazando detail de panic, `Timeout`
-  respondendo em texto puro) e um bug de parsing de `X-Forwarded-For`
-  multi-hop encontrado no processo.
+  (config in `otel-collector-config.yaml`, `debug` exporter — prints
+  every trace/metric received right in the collector's own log,
+  without needing Jaeger/Prometheus to validate the integration). It
+  also explicitly handles graceful shutdown (`SIGINT`/`SIGTERM`),
+  unlike the other two examples: that's what guarantees the flush of
+  pending spans/metrics in the SDK before the process exits. Code
+  shared across all three examples (logger, custom validator
+  registration, the example handler) lives in `examples/internal/*`,
+  which cannot be imported from outside `examples/` per Go's rule. All
+  are built and exercised via `hurl --test` as part of the project's
+  validation; `examples/cmd/observability` was also validated with a
+  real collector running (exported trace matching bit-for-bit the
+  trace_id/span_id logged by the application, custom metrics with
+  exemplars pointing to the exact trace).
+* [docs/architecture/rfc-compliance.md](rfc-compliance.md): a full
+  review (2026-07-15) of compliance with the RFCs relevant to an HTTP
+  foundation (RFC 9457, RFC 9110, RFC 9111, RFC 7239, RFC 6585,
+  RFC 8288/8631/8615, RFC 8259), separating what's already compliant,
+  what's a deliberate scope decision, and what's a real gap —
+  including two findings that break the "RFC 9457 is the only error
+  format" guarantee itself (`Recover()` leaking panic detail,
+  `Timeout` responding in plain text) and a multi-hop
+  `X-Forwarded-For` parsing bug found along the way.
 
 ---
 
-# Melhorias Futuras OpenAPI
+# Future OpenAPI Improvements
 
-Ainda não prioritárias.
+Not yet a priority.
 
 * operationId
-* examples múltiplos
+* multiple examples
 * discriminator
-* pattern automático
+* automatic pattern
 * security schemes
 * callbacks
 * webhooks
@@ -1186,35 +1193,36 @@ Ainda não prioritárias.
 
 ---
 
-# Objetivo de Curto Prazo
+# Short-Term Goal
 
-Implementar observabilidade baseada em OpenTelemetry.
+Implement OpenTelemetry-based observability.
 
-Escopo inicial:
+Initial scope:
 
-* tracing HTTP
-* propagação de contexto
+* HTTP tracing
+* context propagation
 * trace id
 * span id
-* associação automática de rotas
-* marcação automática de erros
+* automatic route attribution
+* automatic error marking
 
-Após tracing:
+After tracing:
 
-* métricas
+* metrics
 * health endpoints
 
 ---
 
-# Objetivo de Longo Prazo
+# Long-Term Goal
 
-Tornar a foundation uma alternativa moderna para construção de APIs e microsserviços em Go, oferecendo:
+Make the foundation a modern alternative for building APIs and
+microservices in Go, offering:
 
-* OpenAPI de primeira classe
-* observabilidade nativa
-* baixo boilerplate
-* excelente experiência de desenvolvimento
-* componentes independentes
-* forte integração com arquiteturas modernas
-* preparação para produção desde o início
+* first-class OpenAPI
+* native observability
+* low boilerplate
+* excellent developer experience
+* independent components
+* strong integration with modern architectures
+* production readiness from the start
   """

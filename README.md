@@ -1,111 +1,124 @@
 <div align="center">
-  <img src="./static/arnon.svg" height="105" alt="Arnon Logo" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./static/arnon-dark.svg" />
+    <img src="./static/arnon-light.svg" height="105" alt="Arnon Logo" />
+  </picture>
 </div>
 
 <div align="center">
   <strong>
-    Uma fundação minimalista, conceitual e baseada em padrões para a borda.
+    A minimalist, conceptual, standards-based foundation for the edge.
   </strong>
+</div>
+
+<div align="center">
+
+[![CI](https://github.com/Casara/arnon/actions/workflows/ci.yml/badge.svg)](https://github.com/Casara/arnon/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/Casara/arnon.svg)](https://pkg.go.dev/github.com/Casara/arnon)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 </div>
 
 ---
 
-## Por que Arnon
+*[Leia em português](README.pt-BR.md)*
 
-`arnon` não começou como "vamos construir um framework". Começou como
-uma API de um sistema financeiro real, sobre o fuego. Em algum ponto
-ficou difícil aplicar RFC 9457 (Problem Details) junto com RFC 6901
-(JSON Pointer, pra apontar o campo com erro) do jeito que a spec
-realmente define — o framework brigava com o padrão em vez de seguir
-ele. Testar outro framework provavelmente só adiaria o mesmo tipo de
-atrito pra depois, então a solução foi descer pra stdlib (`net/http`)
-direto. A estrutura resultante cresceu reaproveitável o bastante pra
-virar lib, depois framework.
+## Why Arnon
 
-O objetivo declarado é ser o menos opinativo possível — quem usa deve
-conseguir manter as escolhas padrão do `arnon` ou trocá-las pelas
-próprias, sem muita complexidade pra isso. Não achamos isso
-inteiramente alcançável: no momento em que qualquer decisão de
-composição é tomada (ex. `Endpoint()` juntar binding, validação, erro
-e OpenAPI numa peça só), isso já é opinião. O critério que fica, então,
-não é "opinativo ou não", é **de onde vem cada opinião** e **quão caro
-é trocá-la**:
+`arnon` didn't start as "let's build a framework." It started as an
+API for a real financial system, on top of fuego. At some point it
+got hard to apply RFC 9457 (Problem Details) together with RFC 6901
+(JSON Pointer, to point at the field with the error) the way the spec
+actually defines it — the framework was fighting the standard instead
+of following it. Trying another framework would probably just defer
+the same kind of friction, so the fix was to drop down to the stdlib
+(`net/http`) directly. The resulting structure grew reusable enough to
+become a lib, then a framework.
 
-* **Opinião vem de RFC quando existe uma, não de gosto.** O campo que
-  aponta a origem de um erro de validação usa RFC 6901 (JSON Pointer)
-  de verdade, escaping de `~`/`/` incluído (RFC 6901 §3) — não uma
-  notação própria inventada pro `arnon`. A conformidade também não
-  para no formato de erro (RFC 9457): `Forwarded` (RFC 7239) em vez de
-  só `X-Forwarded-For`, ETag/conditional GET de verdade (RFC 9111),
-  negociação de `Accept`/`Accept-Encoding` com parsing real de `q=`
-  (RFC 9110), semântica exata de preflight em `CORS`, OpenAPI 3.2.0
-  desde o design inicial. Detalhe completo, RFC por RFC — incluindo o
-  que ainda não está 100% conforme — em
+The stated goal is to be as unopinionated as possible — whoever uses
+it should be able to keep `arnon`'s default choices or swap them for
+their own without much complexity. We don't consider that fully
+achievable: the moment any composition decision is made (e.g.
+`Endpoint()` bundling binding, validation, error, and OpenAPI into one
+piece), that's already an opinion. The criterion that remains, then,
+isn't "opinionated or not," it's **where each opinion comes from** and
+**how cheap it is to change**:
+
+* **Opinion comes from an RFC when one exists, not from taste.** The
+  field that points at the origin of a validation error uses real RFC
+  6901 (JSON Pointer), `~`/`/` escaping included (RFC 6901 §3) — not a
+  notation invented for `arnon`. Compliance doesn't stop at the error
+  format (RFC 9457) either: `Forwarded` (RFC 7239) instead of just
+  `X-Forwarded-For`, real ETag/conditional GET (RFC 9111), real
+  `q=`-parsing `Accept`/`Accept-Encoding` negotiation (RFC 9110), exact
+  preflight semantics in `CORS`, OpenAPI 3.2.0 since the initial
+  design. Full detail, RFC by RFC — including what isn't 100% compliant
+  yet — in
   [docs/architecture/rfc-compliance.md](docs/architecture/rfc-compliance.md).
-* **Onde não existe RFC, ainda assim o padrão da linguagem — não algo
-  reinventado.** `arnon` roda em cima de `net/http.Server` direto:
-  `Router` implementa `http.Handler`, então é só
-  `&http.Server{Handler: router}` (ver o "Início rápido" acima) — sem
-  motor HTTP próprio substituindo o da stdlib. Isso herda de graça
-  manutenção/patch de segurança do próprio time do Go, compatibilidade
-  com qualquer middleware `http.Handler` já existente, `httptest`,
-  `net/http/pprof`, HTTP/2 automático com TLS.
-* **Toda opinião embutida vem com uma forma barata de trocar.** Ordem
-  de middleware: `middleware.BuildChain` garante a ordem recomendada
-  por código, mas `ChainConfig.Extra`/`ChainAnchor` deixa inserir
-  middleware customizada numa posição específica sem editar a cadeia
-  embutida (detalhe em
+* **Where no RFC exists, still the language's own standard — not
+  something reinvented.** `arnon` runs directly on top of
+  `net/http.Server`: `Router` implements `http.Handler`, so it's just
+  `&http.Server{Handler: router}` (see "Quick start" above) — no
+  custom HTTP engine replacing the stdlib's. That inherits, for free,
+  maintenance/security patches from the Go team itself, compatibility
+  with any existing `http.Handler` middleware, `httptest`,
+  `net/http/pprof`, automatic HTTP/2 with TLS.
+* **Every built-in opinion comes with a cheap way to change it.**
+  Middleware order: `middleware.BuildChain` guarantees the recommended
+  order by code, but `ChainConfig.Extra`/`ChainAnchor` lets you insert
+  custom middleware at a specific position without editing the
+  built-in chain (detail in
   [docs/architecture/project-context.md](docs/architecture/project-context.md),
-  seção "Ordem dos middlewares"). Validação: `validation.RegisterCustomRule`
-  é o único mecanismo — não existe um segundo caminho paralelo pra
-  registrar regra customizada. Rate limit: o algoritmo (janela
-  deslizante) é separado do storage via a interface `LimitCounter`,
-  trocável por um backend compartilhado (Redis etc.) sem tocar no
-  algoritmo.
+  "Middleware order" section). Validation:
+  `validation.RegisterCustomRule` is the only mechanism — there's no
+  second, parallel path to register a custom rule. Rate limit: the
+  algorithm (sliding window) is separated from storage via the
+  `LimitCounter` interface, swappable for a shared backend (Redis
+  etc.) without touching the algorithm.
 
-### Comparado a huma e fuego, especificamente
+### Compared to huma and fuego, specifically
 
-huma e fuego **não são os frameworks Go mais usados** — Gin domina a
-adoção real (~48%, ~88k stars), seguido de Echo e Fiber, ordens de
-grandeza à frente de huma (~4.2k stars) e fuego (~1.8k). A comparação
-abaixo não é com eles porque são os mais populares, e sim porque são os
-únicos dois com a mesma proposta central do `arnon` (handler tipado →
-OpenAPI gerado automaticamente por reflection, sem passo de anotação
-ou geração à parte). Gin/Echo/Fiber resolvem outro problema — roteamento
-e middleware de baixo nível, binding manual (`c.ShouldBindJSON`), sem
-RFC 9457 nativo, e OpenAPI (quando usado) vem de comentário-anotação no
-código via `swaggo/swag`, não do tipo Go em si — então uma comparação
-direta nos pontos abaixo não seria justa nem informativa pra eles;
-comparar o `arnon` com o Gin nesses termos seria como comparar bicicleta
-e carro pelo motor.
+huma and fuego **are not the most-used Go frameworks** — Gin dominates
+real-world adoption (~48%, ~88k stars), followed by Echo and Fiber,
+orders of magnitude ahead of huma (~4.2k stars) and fuego (~1.8k). The
+comparison below isn't with them because they're the most popular,
+it's because they're the only two with the same core pitch as `arnon`
+(typed handler → OpenAPI generated automatically by reflection, no
+annotation or separate generation step). Gin/Echo/Fiber solve a
+different problem — low-level routing and middleware, manual binding
+(`c.ShouldBindJSON`), no native RFC 9457, and OpenAPI (when used) comes
+from comment annotations in the code via `swaggo/swag`, not from the
+Go type itself — so a direct comparison on the points below wouldn't
+be fair or informative for them; comparing `arnon` to Gin on these
+terms would be like comparing a bicycle and a car by their engine.
 
-| Aspecto | [huma](https://github.com/danielgtaylor/huma) | [fuego](https://github.com/go-fuego/fuego) | `arnon` |
+| Aspect | [huma](https://github.com/danielgtaylor/huma) | [fuego](https://github.com/go-fuego/fuego) | `arnon` |
 | --- | --- | --- | --- |
-| Formato de erro | RFC 9457 nativo | RFC 9457 nativo | RFC 9457 nativo — **não é diferencial**, é piso esperado hoje |
-| Campo do erro de validação | notação de ponto ad-hoc (`"body.title"`) | namespace interno do `validator/v10` (`err.StructNamespace()`, nome de tipo/campo Go, não a tag `json`) | RFC 6901 (JSON Pointer), com escaping |
-| Versão OpenAPI gerada | 3.1 (`kin-openapi`, sem 3.2 ainda) | ~3.0 (3.1/3.2 não confirmado) | 3.2.0 — vantagem com prazo de validade curto, é questão de tempo até o resto do ecossistema alcançar |
-| Servidor/router | bring-your-own — `net/http` via `humago`, mas também `fasthttp` via `humafiber` (aí perde a compatibilidade com o ecossistema `net/http`) | `net/http` direto, mesma escolha do `arnon` | `net/http` direto, mas router próprio — não plugável num `gin.Engine`/`echo.Echo` já existente |
+| Error format | Native RFC 9457 | Native RFC 9457 | Native RFC 9457 — **not a differentiator**, it's today's expected floor |
+| Validation error field | Ad-hoc dot notation (`"body.title"`) | `validator/v10`'s internal namespace (`err.StructNamespace()`, Go type/field name, not the `json` tag) | RFC 6901 (JSON Pointer), with escaping |
+| Generated OpenAPI version | 3.1 (`kin-openapi`, no 3.2 yet) | ~3.0 (3.1/3.2 unconfirmed) | 3.2.0 — an advantage with a short shelf life, it's a matter of time until the rest of the ecosystem catches up |
+| Server/router | Bring-your-own — `net/http` via `humago`, but also `fasthttp` via `humafiber` (which loses compatibility with the `net/http` ecosystem) | `net/http` directly, same choice as `arnon` | `net/http` directly, but its own router — not pluggable into an existing `gin.Engine`/`echo.Echo` |
 
-### Onde o `arnon` não é a escolha certa hoje
+### Where `arnon` isn't the right choice today
 
-* **Sem histórico de produção.** É um projeto novo, sem track record —
-  diferente de huma (mais maduro, comunidade maior) ou fuego. Se
-  maturidade/battle-testing pesa mais que as diferenças acima, considere
-  as alternativas.
-* **Router próprio é a opinião mais cara de trocar hoje.** Diferente
-  das outras opiniões desta seção, essa não veio de RFC nenhuma (é
-  arquitetura pura) e ainda não tem um caminho de baixo atrito pra
-  evitá-la — ver tabela acima.
+* **No production track record.** It's a new project, no track
+  record — unlike huma (more mature, bigger community) or fuego. If
+  maturity/battle-testing outweighs the differences above, consider
+  the alternatives.
+* **Its own router is today's most expensive opinion to change.**
+  Unlike the other opinions in this section, this one didn't come from
+  any RFC (it's pure architecture) and doesn't yet have a low-friction
+  way around it — see the table above.
 
-## Instalação
+## Installation
 
 ```sh
 go get github.com/Casara/arnon
 ```
 
-Requer Go 1.26 ou superior.
+Requires Go 1.26 or later.
 
-## Início rápido
+## Quick start
 
 ```go
 package main
@@ -175,67 +188,66 @@ func main() {
 }
 ```
 
-Esse handler, sem nenhum código adicional, ganha automaticamente:
+With no extra code, this handler automatically gets:
 
-* binding de path, query, header e JSON body;
-* validação da request (`validate:"required,email"`) com resposta
-  `400 application/problem+json` no formato RFC 9457;
-* mapeamento de erros do handler para Problem Details;
-* schema OpenAPI 3.2 gerado por reflection para request e response;
-* respostas padrão `400`/`500` documentadas automaticamente;
-* UI de documentação (Stoplight Elements) em `/docs`.
+* path, query, header, and JSON body binding;
+* request validation (`validate:"required,email"`) with a
+  `400 application/problem+json` response in RFC 9457 format;
+* handler error mapping to Problem Details;
+* an OpenAPI 3.2 schema generated by reflection for request and
+  response;
+* default `400`/`500` responses documented automatically;
+* a documentation UI (Stoplight Elements) at `/docs`.
 
-Exemplos completos e executáveis estão em `examples/cmd`:
+Complete, runnable examples live in `examples/cmd`:
 
-* [examples/cmd/basic](examples/cmd/basic/main.go) — exatamente o
-  handler acima, sem nenhum middleware.
-* [examples/cmd/middleware](examples/cmd/middleware/main.go) — o
-  mesmo handler com o stack completo de middlewares do arnon (CORS,
-  rate limiting, compressão, security headers, etc).
+* [examples/cmd/basic](examples/cmd/basic/main.go) — exactly the
+  handler above, with no middleware at all.
+* [examples/cmd/middleware](examples/cmd/middleware/main.go) — the
+  same handler with arnon's full middleware stack (CORS, rate
+  limiting, compression, security headers, etc).
 * [examples/cmd/observability](examples/cmd/observability/main.go) —
-  o mesmo handler com tracing e métricas via OpenTelemetry, exportando
-  de verdade para um OTel Collector local (subido com
+  the same handler with tracing and metrics via OpenTelemetry,
+  actually exporting to a local OTel Collector (started with
   `docker compose`).
 
 ```sh
 go run ./examples/cmd/basic
-# ou
+# or
 go run ./examples/cmd/middleware
-# ou (requer docker compose -f examples/cmd/observability/docker-compose.yml up)
+# or (requires docker compose -f examples/cmd/observability/docker-compose.yml up)
 go run ./examples/cmd/observability
 ```
 
-## Visão geral
+## Overview
 
-O `arnon` é composto por pacotes independentes, cada um com uma
-responsabilidade única:
+`arnon` is made up of independent packages, each with a single
+responsibility:
 
-| Pacote                | Responsabilidade                                                                                                       |
+| Package                | Responsibility                                                                                                       |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `problem`             | Erros HTTP no formato RFC 9457 (Problem Details).                                                                      |
-| `validation`          | Validação de requests, com registro de regras customizadas.                                                            |
-| `openapi`             | Geração de schemas e do documento OpenAPI a partir de tipos Go.                                                        |
-| `httpx`               | Endpoint tipado: binding, validação, serialização e erros.                                                             |
-| `httpx/binding`       | Binding de path, query, header e JSON body.                                                                            |
-| `httpx/routing`       | Router baseado em `net/http.ServeMux`, com grupos e middleware.                                                        |
-| `httpx/middleware`    | Middlewares padrão (CORS, recovery, request ID, logging, rate limiting, throttle, compressão, security headers, etc). |
-| `observability`       | Abstrações finas sobre a API do OpenTelemetry.                                                                         |
-| `observability/otel`  | Configuração e inicialização do SDK do OpenTelemetry.                                                                  |
+| `problem`             | HTTP errors in RFC 9457 (Problem Details) format.                                                                      |
+| `validation`          | Request validation, with custom rule registration.                                                            |
+| `openapi`             | Schema and OpenAPI document generation from Go types.                                                        |
+| `httpx`               | Typed endpoint: binding, validation, serialization, and errors.                                                             |
+| `httpx/binding`       | Path, query, header, and JSON body binding.                                                                            |
+| `httpx/routing`       | Router based on `net/http.ServeMux`, with groups and middleware.                                                        |
+| `httpx/middleware`    | Standard middleware (CORS, recovery, request ID, logging, rate limiting, throttle, compression, security headers, etc). |
+| `observability`       | Thin abstractions over the OpenTelemetry API.                                                                         |
+| `observability/otel`  | OpenTelemetry SDK configuration and initialization.                                                                  |
 
-O grafo de dependências permitido entre esses pacotes está documentado
-em [.go-arch-lint.yml](.go-arch-lint.yml) (diagrama em
-[CLAUDE.md](CLAUDE.md#grafo-de-dependências-entre-pacotes)) e é
-verificado em CI.
+The allowed dependency graph between these packages is documented in
+[.go-arch-lint.yml](.go-arch-lint.yml) (diagram in
+[CLAUDE.md](CLAUDE.md#package-dependency-graph)) and is checked in CI.
 
-Mais contexto sobre decisões arquiteturais está em
+More context on architectural decisions is in
 [docs/architecture/project-context.md](docs/architecture/project-context.md).
 
-## Validação customizada
+## Custom validation
 
-Regras de validação customizadas são registradas uma única vez, em
-qualquer ponto de bootstrap da aplicação, e passam a valer para todo
-validador criado a partir daí — tanto em runtime quanto na geração do
-schema OpenAPI:
+Custom validation rules are registered once, at any point during
+application bootstrap, and take effect for every validator created
+from then on — both at runtime and in OpenAPI schema generation:
 
 ```go
 validation.RegisterCustomRule(validation.CustomRule{
@@ -252,38 +264,41 @@ validation.RegisterCustomRule(validation.CustomRule{
 })
 ```
 
-## Skill para assistentes de IA
+## Skill for AI assistants
 
-[skills/using-arnon/SKILL.md](skills/using-arnon/SKILL.md) documenta,
-num formato que ferramentas de IA conseguem carregar sob demanda
-(Claude Skill), como usar o `arnon` idiomaticamente: padrão de
-endpoint, binding, validação, erros RFC 9457 e ordem de middleware.
-Pra usar num projeto que depende do `arnon`, copie o diretório pra
-dentro dele:
-
-```sh
-cp -r skills/using-arnon <seu-projeto>/.claude/skills/using-arnon
-```
-
-## Desenvolvimento
+[skills/using-arnon/SKILL.md](skills/using-arnon/SKILL.md) documents,
+in a format AI tools can load on demand (Claude Skill), how to use
+`arnon` idiomatically: endpoint pattern, binding, validation, RFC 9457
+errors, and middleware order. To use it in a project that depends on
+`arnon`, copy the directory into it:
 
 ```sh
-make help              # lista todos os comandos
-make test              # testes
-make test-race         # testes com detector de race conditions
-make coverage          # gera coverage.html
-make lint              # golangci-lint (v2, versão fixa)
-make arch-lint         # valida o grafo de dependências entre pacotes
-make test-mutation     # testes de mutação (gremlins), grava mutation.json
-make check             # lint + arch-lint + testes com race (mínimo esperado antes de um PR)
+cp -r skills/using-arnon <your-project>/.claude/skills/using-arnon
 ```
 
-As versões das ferramentas (`golangci-lint`, `go-arch-lint`, `gremlins`)
-são fixas no `Makefile` via `go run pkg@versão`, para não precisar de
-instalação global nem poluir o `go.mod` do módulo com dependências que
-só existem em tempo de desenvolvimento.
+## Development
 
-Convenções de estilo estão documentadas em
-[docs/coding-style.md](docs/coding-style.md); fluxo de branch e
-convenção de commit (Conventional Commits) em
+```sh
+make help              # lists every command
+make test              # tests
+make test-race         # tests with the race detector
+make coverage          # generates coverage.html
+make lint              # golangci-lint (v2, version pinned)
+make arch-lint         # validates the package dependency graph
+make test-mutation     # mutation testing (gremlins), writes mutation.json
+make check             # lint + arch-lint + tests with race (minimum expected before a PR)
+```
+
+Tool versions (`golangci-lint`, `go-arch-lint`, `gremlins`) are pinned
+in the `Makefile` via `go run pkg@version`, so there's no global
+install needed and no dev-only dependencies polluting the module's
+`go.mod`.
+
+Style conventions are documented in
+[docs/coding-style.md](docs/coding-style.md); branch workflow and
+commit convention (Conventional Commits) in
 [CONTRIBUTING.md](CONTRIBUTING.md).
+
+Change history in [CHANGELOG.md](CHANGELOG.md). To report a
+vulnerability, follow [SECURITY.md](SECURITY.md) (don't open a public
+issue).

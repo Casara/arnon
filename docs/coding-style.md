@@ -1,35 +1,37 @@
-# Guia de Estilo Go
+# Go Style Guide
 
-## Objetivo
+*[Leia em português](coding-style.pt-BR.md)*
 
-Este documento define convenções adicionais adotadas pelo projeto além das regras já aplicadas automaticamente por
-ferramentas como `gofmt`, `goimports` e `golangci-lint`.
+## Purpose
 
-Sempre que possível, as decisões devem priorizar:
+This document defines additional conventions adopted by the project beyond the rules already enforced automatically
+by tools such as `gofmt`, `goimports`, and `golangci-lint`.
 
-* legibilidade;
-* consistência;
-* facilidade de manutenção;
-* qualidade dos diffs.
+Whenever possible, decisions should prioritize:
+
+* readability;
+* consistency;
+* maintainability;
+* diff quality.
 
 ---
 
-## Formatação
+## Formatting
 
-Todo código deve ser formatado com:
+All code must be formatted with:
 
 * gofmt
 * goimports
 
-Não devem ser realizadas alterações manuais para contrariar a formatação produzida por essas ferramentas.
+Manual changes that go against the formatting produced by these tools must not be made.
 
 ---
 
-## Legibilidade acima da concisão
+## Readability over conciseness
 
-Prefira código explícito e fácil de entender em vez de versões excessivamente compactas.
+Prefer explicit, easy-to-understand code over excessively compact versions.
 
-Preferível:
+Preferred:
 
 ```go
 if err != nil {
@@ -37,7 +39,7 @@ if err != nil {
 }
 ```
 
-Evite:
+Avoid:
 
 ```go
 if err != nil { return err }
@@ -45,9 +47,9 @@ if err != nil { return err }
 
 ---
 
-## Chamadas de função
+## Function calls
 
-Chamadas simples devem permanecer em uma única linha.
+Simple calls should stay on a single line.
 
 ```go
 logger := slog.Default()
@@ -55,7 +57,7 @@ logger := slog.Default()
 responseRecorder := newResponseWriter(writer)
 ```
 
-Chamadas com múltiplos argumentos, opções ou estruturas aninhadas devem utilizar o formato vertical.
+Calls with multiple arguments, options, or nested structures should use the vertical format.
 
 ```go
 requestLogger.Info(
@@ -77,11 +79,11 @@ return otelhttp.NewHandler(
 
 ---
 
-## Qualidade dos diffs
+## Diff quality
 
-Sempre que uma construção possuir tendência natural de crescimento, prefira o formato vertical.
+Whenever a construct has a natural tendency to grow, prefer the vertical format.
 
-Exemplo:
+Example:
 
 ```go
 attrs := []any{
@@ -90,28 +92,28 @@ attrs := []any{
 }
 ```
 
-Esse formato reduz conflitos de merge e produz diffs menores quando novos elementos são adicionados.
+This format reduces merge conflicts and produces smaller diffs when new elements are added.
 
 ---
 
-## Comentários
+## Comments
 
-Comentários devem explicar:
+Comments should explain:
 
-* propósito;
-* comportamento;
-* limitações;
-* decisões de projeto.
+* purpose;
+* behavior;
+* limitations;
+* design decisions.
 
-Comentários que apenas repetem o nome da função devem ser evitados.
+Comments that merely repeat the function name should be avoided.
 
-Ruim:
+Bad:
 
 ```go
 // NewLogger creates a logger.
 ```
 
-Melhor:
+Better:
 
 ```go
 // NewLogger creates the application logger.
@@ -122,18 +124,18 @@ Melhor:
 
 ---
 
-## Tratamento de Erros (wrapcheck)
+## Error Handling (wrapcheck)
 
-Erros retornados por dependências externas ou por camadas inferiores devem receber contexto adicional antes de
-serem propagados.
+Errors returned by external dependencies or lower layers should receive additional context before being
+propagated.
 
-O objetivo é tornar a origem da falha evidente nos logs e facilitar o diagnóstico em produção.
+The goal is to make the origin of the failure evident in the logs and ease diagnosis in production.
 
-### Regra
+### Rule
 
-Ao retornar um erro recebido de outra função, adicione contexto usando `fmt.Errorf` e `%w`.
+When returning an error received from another function, add context using `fmt.Errorf` and `%w`.
 
-Correto:
+Correct:
 
 ```go
 return fmt.Errorf(
@@ -149,7 +151,7 @@ return fmt.Errorf(
 )
 ```
 
-Evite:
+Avoid:
 
 ```go
 return err
@@ -157,11 +159,11 @@ return err
 
 ---
 
-### Mensagem de erro
+### Error message
 
-A mensagem deve descrever a operação que falhou, não repetir o texto do erro original.
+The message should describe the operation that failed, not repeat the original error's text.
 
-Correto:
+Correct:
 
 ```go
 return fmt.Errorf(
@@ -177,7 +179,7 @@ return fmt.Errorf(
 )
 ```
 
-Evite:
+Avoid:
 
 ```go
 return fmt.Errorf(
@@ -202,18 +204,18 @@ return fmt.Errorf(
 
 ---
 
-### Nível de detalhe
+### Level of detail
 
-Adicione apenas o contexto novo introduzido pela camada atual.
+Add only the new context introduced by the current layer.
 
-Exemplo:
+Example:
 
 ```go
 create counter "categories_created_total":
 invalid instrument name
 ```
 
-e depois:
+and afterward:
 
 ```go
 initialize metrics:
@@ -221,19 +223,19 @@ create counter "categories_created_total":
 invalid instrument name
 ```
 
-Cada camada adiciona informação relevante sem repetir contexto já presente.
+Each layer adds relevant information without repeating context that's already present.
 
 ---
 
-### Quando o wrap não é necessário
+### When wrapping is not necessary
 
-Não faça wrap quando:
+Do not wrap when:
 
-* estiver criando um erro novo;
-* estiver retornando um erro sentinela;
-* o erro já contém contexto suficiente e a camada atual não adiciona informação relevante.
+* creating a new error;
+* returning a sentinel error;
+* the error already contains sufficient context and the current layer adds no relevant information.
 
-Exemplos:
+Examples:
 
 ```go
 return ErrNotFound
@@ -247,20 +249,20 @@ return errors.New(
 
 ---
 
-### Orientação para IAs
+### Guidance for AIs
 
-Ao corrigir violações de `wrapcheck`:
+When fixing `wrapcheck` violations:
 
-1. Preserve a cadeia de erro usando `%w`.
-2. Descreva a operação que falhou.
-3. Não utilize mensagens genéricas como:
+1. Preserve the error chain using `%w`.
+2. Describe the operation that failed.
+3. Do not use generic messages such as:
 
    * "error"
    * "failed"
    * "unexpected error"
-4. Não repita contexto já presente em camadas inferiores.
-5. Prefira mensagens curtas em minúsculas.
-6. Inclua identificadores relevantes quando agregarem valor:
+4. Do not repeat context already present in lower layers.
+5. Prefer short, lowercase messages.
+6. Include relevant identifiers when they add value:
 
 ```go
 return fmt.Errorf(
@@ -272,11 +274,11 @@ return fmt.Errorf(
 
 ---
 
-## Dependências
+## Dependencies
 
-Prefira dependências explícitas por injeção de dependência em vez de variáveis globais.
+Prefer explicit dependencies via dependency injection over global variables.
 
-Preferível:
+Preferred:
 
 ```go
 type CategoryHandler struct {
@@ -284,10 +286,10 @@ type CategoryHandler struct {
 }
 ```
 
-Evite:
+Avoid:
 
 ```go
 var categoriesCreatedCounter ...
 ```
 
-Salvo quando a natureza do componente justificar claramente um singleton compartilhado.
+Unless the nature of the component clearly justifies a shared singleton.

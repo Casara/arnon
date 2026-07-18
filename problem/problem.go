@@ -92,21 +92,28 @@ func (problemInstance *Problem) StatusCode() int {
 	return problemInstance.Status
 }
 
-// WithType sets the problem type.
+// WithType sets Type and returns problemInstance for chaining -
+// unlike openapi.Tag's WithX methods, this mutates in place (pointer
+// receiver) rather than returning a copy.
 func (problemInstance *Problem) WithType(value string) *Problem {
 	problemInstance.Type = value
 
 	return problemInstance
 }
 
-// WithInstance sets the problem instance.
+// WithInstance sets Instance and returns problemInstance for chaining
+// (see WithType). httpx.WriteProblem auto-populates Instance from the
+// request path when it's still empty at write time, so an explicit
+// WithInstance call always wins over that default.
 func (problemInstance *Problem) WithInstance(value string) *Problem {
 	problemInstance.Instance = value
 
 	return problemInstance
 }
 
-// WithError sets the problem internal wrapped error.
+// WithError attaches an internal error for local logging/debugging -
+// Err is tagged `json:"-"`, so it never reaches the client, regardless
+// of what a ProblemMapper sets here.
 func (problemInstance *Problem) WithError(err error) *Problem {
 	problemInstance.Err = err
 

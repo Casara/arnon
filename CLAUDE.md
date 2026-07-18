@@ -1,48 +1,51 @@
 # arnon
 
-Fundação HTTP minimalista para Go, com endpoint tipado, validação, geração
-automática de OpenAPI 3.2 e erros no formato RFC 9457 (Problem Details).
+Minimalist HTTP foundation for Go, with typed endpoints, validation,
+automatic OpenAPI 3.2 generation, and errors in RFC 9457 (Problem
+Details) format.
 
-Leia primeiro, nesta ordem:
+Read first, in this order:
 
 1. [docs/architecture/project-context.md](docs/architecture/project-context.md) —
-   especificação funcional/arquitetural e estado atual do projeto.
-2. [docs/coding-style.md](docs/coding-style.md) — convenções de código
-   (formatação, tratamento de erro/wrapcheck, dependências explícitas).
-3. [CONTRIBUTING.md](CONTRIBUTING.md) — fluxo de branch (rebase) e
-   convenção de commit (Conventional Commits, em inglês, modo
-   imperativo), obrigatória em `main`. Numa branch de trabalho que vai
-   passar por squash ao ser mesclada, o histórico intermediário não
-   precisa seguir à risca.
+   the project's functional/architectural spec and current state.
+2. [docs/coding-style.md](docs/coding-style.md) — code conventions
+   (formatting, error handling/wrapcheck, explicit dependencies).
+3. [CONTRIBUTING.md](CONTRIBUTING.md) — branch workflow (rebase) and
+   commit convention (Conventional Commits, in English, imperative
+   mood), mandatory on `main`. A work branch that will be squashed on
+   merge doesn't need to follow it strictly for its intermediate
+   history.
 
-## Comandos
+## Commands
 
-`make help` lista tudo. Os principais:
+`make help` lists everything. The main ones:
 
 ```sh
 make test          # go test ./...
-make test-race     # com detector de race conditions
-make coverage      # gera coverage.html
-make lint          # golangci-lint v2, versão fixa no Makefile
+make test-race     # with the race detector
+make coverage      # generates coverage.html
+make lint          # golangci-lint v2, version pinned in the Makefile
 make arch-lint     # go-arch-lint check
-make test-mutation # gremlins, grava mutation.json
-make check         # lint + arch-lint + test-race (mínimo antes de commit)
-make run           # go run ./examples/cmd/basic (outro: make run EXAMPLE=nome)
+make test-mutation # gremlins, writes mutation.json
+make check         # lint + arch-lint + test-race (minimum before a commit)
+make run           # go run ./examples/cmd/basic (or: make run EXAMPLE=name)
 ```
 
-`golangci-lint` precisa da v2 (`.golangci.yml` usa `version: "2"`); a v1
-falha ao carregar o config. O Makefile já usa `go run pkg@versão` fixa
-para golangci-lint/go-arch-lint/gremlins, sem exigir instalação global.
+`golangci-lint` needs v2 (`.golangci.yml` uses `version: "2"`); v1
+fails to load the config. The Makefile already uses a pinned
+`go run pkg@version` for golangci-lint/go-arch-lint/gremlins, with no
+global install required.
 
-`gremlins` (mutation testing) não lida com o padrão `./...` do Go —
-silenciosamente reporta "No results to report" para múltiplos pacotes.
-O Makefile já contorna isso passando `.` (ele recursa sozinho no módulo
-inteiro); não troque para `./...` achando que é equivalente.
+`gremlins` (mutation testing) doesn't handle Go's `./...` pattern —
+it silently reports "No results to report" for multiple packages. The
+Makefile already works around this by passing `.` (it recurses through
+the whole module on its own); don't switch back to `./...` thinking
+it's equivalent.
 
-## Grafo de dependências entre pacotes
+## Package dependency graph
 
-Documentado e verificado por `.go-arch-lint.yml`. Direção das setas =
-"pode depender de":
+Documented and enforced by `.go-arch-lint.yml`. Arrow direction =
+"may depend on":
 
 ```mermaid
 flowchart TD
@@ -63,222 +66,226 @@ flowchart TD
     observabilityOtel["observability/otel"] --> observability
 ```
 
-`httpx/routing` é a única aresta "de baixo pra cima" do grafo: routing
-depende de `httpx` por causa da interface `httpx.OpenAPIProvider`.
+`httpx/routing` is the only "bottom-up" edge in the graph: routing
+depends on `httpx` because of the `httpx.OpenAPIProvider` interface.
 
-Antes de adicionar um import entre pacotes internos, rode
-`go-arch-lint check` — ele falha o build se a aresta não estiver
-permitida em `.go-arch-lint.yml`.
+Before adding an import between internal packages, run
+`go-arch-lint check` — it fails the build if the edge isn't allowed in
+`.go-arch-lint.yml`.
 
-## Decisões não óbvias
+## Non-obvious decisions
 
-* **Middleware global (`Router.Use`) envolve o `mux` inteiro em
-  `ServeHTTP`, não cada rota individualmente.** É o que faz middleware
-  pré-roteamento (`StripSlashes`) funcionar e faz 404s passarem por
-  `RequestID`/`Logging`/etc. Middleware de grupo (`Group.Use`) continua
-  aplicado por-rota em `router.register`, já que `net/http.ServeMux`
-  não tem noção de prefixo. Não volte a mesclar `router.middlewares`
-  dentro de `register()` — duplicaria a execução.
-* **A ordem relativa das middlewares globais importa, e
-  `middleware.BuildChain` é o jeito de garantir isso por código, não
-  por disciplina.** `httpx/middleware/chain.go`:
-  `BuildChain(ChainConfig{...})` monta a cadeia recomendada
-  (`Recover` → `Timeout` → `StripSlashes`/`RedirectSlashes` → `RealIP`
-  → `RequestID` → `SecureHeaders` → `RateLimit`/`Throttle` → `ETag` →
-  `Compress` → `CORS` → `ServiceDesc` → `Logging`) sempre na mesma
-  ordem relativa, testado de verdade em
-  `httpx/middleware/chain_test.go` (comportamento observável, não só
-  doc). Detalhe completo do porquê de cada posição em
-  `docs/architecture/project-context.md`, seção "Ordem dos
-  middlewares" — não duplique essa explicação aqui, só o ponteiro. Uma
-  cadeia montada manualmente com `router.Use(mw1, mw2, ...)` continua
-  sendo responsabilidade de quem escreve; não existe validação
-  estática pra isso (`routing.Middleware` é só
-  `func(http.Handler) http.Handler`, sem identidade própria em
-  runtime) — é exatamente por isso que `BuildChain` existe.
-  `AllowContentType`/`MaxBodyBytes`/`NoCache` ficam de fora de
-  propósito: são middlewares de grupo, não globais.
-* **Middleware customizada com requisito de ordem usa
-  `ChainConfig.Extra` (`ChainAnchor` + `ExtraMiddleware`), não uma
-  segunda API paralela.** Cada posição do `BuildChain` tem uma
-  constante `AnchorXxx`; `ExtraMiddleware{Middleware: ..., Before:
-  AnchorY}` ou `{..., After: AnchorY}` insere ali. `BuildChain` valida
-  (panic se não validar) que cada entrada seta exatamente um de
-  Before/After e que a âncora é uma constante conhecida — um typo
-  nunca deve descartar a middleware em silêncio. Alternativa
-  equivalente sem `Extra`: dividir a chamada de `BuildChain` em duas
-  (`Router.Use` acumula entre chamadas). Ao adicionar uma middleware
-  global nova: precisa de campo em `ChainConfig` **e** `ChainAnchor`
-  (com entrada em `validChainAnchors`) **e** chamada
-  `appendStage(...)` no lugar certo — as três coisas, ou ela fica de
-  fora do `BuildChain`/`Extra` e a doc de ordem em
-  `project-context.md` fica desatualizada.
-* **RFC 9457 é o único formato de erro.** Todo erro HTTP vira
-  `problem.Problem`. `httpx.WriteProblem`/`httpx.WriteJSON` sempre
-  codificam a resposta num buffer antes de escrever qualquer header —
-  não inverta essa ordem, é o que evita corromper a resposta quando a
-  serialização falha.
-* **`Endpoint()` sempre chama `EndpointConfig.WithDefaults()`.** Não
-  reintroduza os `if config.Validator != nil` / `if config.ProblemMapper
-  != nil` que existiam antes — depois de `WithDefaults()`, esses campos
-  nunca são nil.
-* **Registro no OpenAPI é opt-in por endpoint.** Uma rota só aparece no
-  documento gerado se `EndpointConfig.OpenAPI` for preenchido (mesmo que
-  com `&openapi.Operation{}` vazio).
-* **`EndpointConfig.SuccessStatus` e `openapi.Operation.SuccessStatus`
-  são campos independentes.** Nada sincroniza os dois hoje; ao mudar um,
-  cheque o outro (ver `examples/cmd/basic/main.go`).
-* **`examples/` segue o padrão `cmd/`+`internal/`.** Cada exemplo
-  executável mora em `examples/cmd/<nome>` (`basic`: endpoint tipado +
-  validação + OpenAPI, zero middleware; `middleware`: o mesmo endpoint
-  com o stack completo de middlewares; `observability`: o mesmo
-  endpoint com tracing/métricas via OpenTelemetry). Código
-  compartilhado entre eles (logger, registro de custom validators, o
-  handler de exemplo) mora em `examples/internal/*` — não importável
-  de fora de `examples/` pela regra do Go, e por isso também precisou
-  de `examples` na própria `mayDependOn` em `.go-arch-lint.yml` (senão
-  o cross-import `cmd/* -> internal/*` é barrado mesmo os dois lados
-  sendo o mesmo componente). Novo exemplo: crie `examples/cmd/<nome>`,
-  reaproveite o que já existe em `examples/internal`, só duplique o
-  que for específico daquele exemplo.
-* **`examples/cmd/observability` precisa de shutdown gracioso pra
-  fazer sentido.** É o único dos três exemplos que trata
-  `SIGINT`/`SIGTERM` explicitamente (`signal.NotifyContext` +
-  `server.Shutdown` + a função de shutdown que `otel.Initialize`
-  devolve) — sem isso, spans e métricas ainda no buffer do SDK (o
-  batch processor de trace, o periodic reader de métrica) se perdem
-  quando o processo morre. `otel.Initialize` só devolve OTLP/gRPC como
-  exporter (sem opção stdout), então o exemplo sobe um OTel Collector
-  local via `docker compose` com exporter `debug` (imprime cada
-  trace/métrica recebido no próprio log do collector) — validado de
-  verdade rodando o collector, batendo o trace_id/span_id exportado
-  contra o que a aplicação logou, e conferindo os exemplars das
-  métricas customizadas apontando pro trace exato.
-* **`middleware.Logging` só correlaciona trace_id/span_id se registrado
-  depois do `routing.WithInstrumentation`.** `router.register` aplica
-  `instrumentHandler` (que cria o span) por cima das middlewares de
-  grupo/rota, mas só *dentro* do dispatch do mux — uma middleware
-  *global* (`router.Use`) roda antes desse dispatch. `Logging`
-  monta seus atributos (incluindo `observability.TraceID`/`SpanID`)
-  antes de chamar `next`, então se ele for global, o contexto ainda não
-  tem span nenhum. Por isso `examples/cmd/observability` registra
-  `Logging` via `api.Use(...)` (grupo), não `router.Use(...)`.
-* **Custom validators passam por um registry único
-  (`validation.RegisterCustomRule`)**, não por configuração direta do
-  `*validatorv10.Validate`. Um registro alimenta runtime, mapeamento de
-  erro e geração de schema OpenAPI ao mesmo tempo — não adicione um
-  novo mecanismo paralelo de registro de tags customizadas sem plugar
-  nos três pontos (`validation/playground.go`, `validation/mapper.go`,
-  `openapi/validation.go`).
-* **`openapi/reflection_field.go` prioriza a tag `format` explícita**
-  sobre o que `applyValidationTags` já inferiu, que por sua vez tem
-  prioridade sobre o fallback de `inferFormatFromValidator`. Essa ordem
-  é intencional (a mesma tag pode ser reconhecida nos dois lugares);
-  não inverta.
-* **Sem variáveis globais além de singletons deliberados**
-  (`validation.Default()`, o registry de custom rules). Prefira
-  injeção de dependência explícita para tudo o mais, conforme
+* **Global middleware (`Router.Use`) wraps the entire `mux` in
+  `ServeHTTP`, not each route individually.** This is what makes
+  pre-routing middleware (`StripSlashes`) work, and what makes 404s
+  pass through `RequestID`/`Logging`/etc. Group middleware
+  (`Group.Use`) is still applied per-route in `router.register`, since
+  `net/http.ServeMux` has no notion of a prefix. Don't merge
+  `router.middlewares` back into `register()` — that would duplicate
+  execution.
+* **The relative order of global middleware matters, and
+  `middleware.BuildChain` is how that's guaranteed by code, not
+  discipline.** `httpx/middleware/chain.go`:
+  `BuildChain(ChainConfig{...})` always assembles the recommended
+  chain (`Recover` → `Timeout` → `StripSlashes`/`RedirectSlashes` →
+  `RealIP` → `RequestID` → `SecureHeaders` → `RateLimit`/`Throttle` →
+  `ETag` → `Compress` → `CORS` → `ServiceDesc` → `Logging`) in the
+  same relative order, actually tested in
+  `httpx/middleware/chain_test.go` (observable behavior, not just
+  docs). Full detail on why each position exists in
+  `docs/architecture/project-context.md`, "Middleware order" section —
+  don't duplicate that explanation here, just the pointer. A chain
+  assembled by hand with `router.Use(mw1, mw2, ...)` is still the
+  caller's responsibility; there's no static validation for that
+  (`routing.Middleware` is just `func(http.Handler) http.Handler`,
+  with no identity of its own at runtime) — that's exactly why
+  `BuildChain` exists. `AllowContentType`/`MaxBodyBytes`/`NoCache` are
+  deliberately left out: they're group middleware, not global.
+* **Custom middleware with an ordering requirement uses
+  `ChainConfig.Extra` (`ChainAnchor` + `ExtraMiddleware`), not a
+  second parallel API.** Every position in `BuildChain` has an
+  `AnchorXxx` constant; `ExtraMiddleware{Middleware: ..., Before:
+  AnchorY}` or `{..., After: AnchorY}` inserts there. `BuildChain`
+  validates (panics if invalid) that each entry sets exactly one of
+  Before/After and that the anchor is a known constant — a typo should
+  never silently drop the middleware. Equivalent alternative without
+  `Extra`: split the `BuildChain` call in two (`Router.Use`
+  accumulates across calls). When adding a new global middleware: it
+  needs a field in `ChainConfig` **and** a `ChainAnchor` (with an entry
+  in `validChainAnchors`) **and** an `appendStage(...)` call in the
+  right place — all three, or it becomes unreachable via
+  `BuildChain`/`Extra` and the order doc in `project-context.md` goes
+  stale.
+* **RFC 9457 is the only error format.** Every HTTP error becomes a
+  `problem.Problem`. `httpx.WriteProblem`/`httpx.WriteJSON` always
+  encode the response into a buffer before writing any header — don't
+  reverse that order, it's what prevents a corrupted response when
+  serialization fails.
+* **`Endpoint()` always calls `EndpointConfig.WithDefaults()`.** Don't
+  reintroduce the `if config.Validator != nil` / `if
+  config.ProblemMapper != nil` checks that used to exist — after
+  `WithDefaults()`, those fields are never nil.
+* **OpenAPI registration is opt-in per endpoint.** A route only shows
+  up in the generated document if `EndpointConfig.OpenAPI` is set
+  (even to an empty `&openapi.Operation{}`).
+* **`EndpointConfig.SuccessStatus` and `openapi.Operation.SuccessStatus`
+  are independent fields.** Nothing syncs the two today; when you
+  change one, check the other (see `examples/cmd/basic/main.go`).
+* **`examples/` follows the `cmd/`+`internal/` pattern.** Each
+  runnable example lives in `examples/cmd/<name>` (`basic`: typed
+  endpoint + validation + OpenAPI, zero middleware; `middleware`: the
+  same endpoint with the full middleware stack; `observability`: the
+  same endpoint with tracing/metrics via OpenTelemetry). Code shared
+  between them (logger, custom validator registration, the example
+  handler) lives in `examples/internal/*` — not importable from
+  outside `examples/` per Go's own rule, which is also why `examples`
+  had to be added to its own `mayDependOn` in `.go-arch-lint.yml`
+  (otherwise the `cmd/* -> internal/*` cross-import is blocked even
+  though both sides are the same component). New example: create
+  `examples/cmd/<name>`, reuse what already exists in
+  `examples/internal`, only duplicate what's specific to that example.
+* **`examples/cmd/observability` needs graceful shutdown to make
+  sense.** It's the only one of the three examples that handles
+  `SIGINT`/`SIGTERM` explicitly (`signal.NotifyContext` +
+  `server.Shutdown` + the shutdown function `otel.Initialize`
+  returns) — without it, spans and metrics still sitting in the SDK's
+  buffer (the trace batch processor, the metric periodic reader) are
+  lost when the process dies. `otel.Initialize` only returns an
+  OTLP/gRPC exporter (no stdout option), so the example spins up a
+  local OTel Collector via `docker compose` with the `debug` exporter
+  (prints every trace/metric it receives to the collector's own log) —
+  actually validated by running the collector, matching the exported
+  trace_id/span_id against what the application logged, and checking
+  the custom metrics' exemplars pointing at the exact trace.
+* **`middleware.Logging` only correlates trace_id/span_id if
+  registered after `routing.WithInstrumentation`.** `router.register`
+  applies `instrumentHandler` (which creates the span) on top of
+  group/route middleware, but only *inside* the mux's dispatch — a
+  *global* middleware (`router.Use`) runs before that dispatch.
+  `Logging` builds its attributes (including
+  `observability.TraceID`/`SpanID`) before calling `next`, so if it's
+  global, the context doesn't have a span yet. That's why
+  `examples/cmd/observability` registers `Logging` via `api.Use(...)`
+  (group), not `router.Use(...)`.
+* **Custom validators go through a single registry
+  (`validation.RegisterCustomRule`)**, not direct configuration of the
+  underlying `*validatorv10.Validate`. One registration feeds runtime,
+  error mapping, and OpenAPI schema generation at the same time — don't
+  add a new parallel mechanism for registering custom tags without
+  wiring into all three places (`validation/playground.go`,
+  `validation/mapper.go`, `openapi/validation.go`).
+* **`openapi/reflection_field.go` gives the explicit `format` tag
+  priority** over what `applyValidationTags` already inferred, which
+  in turn takes priority over the `inferFormatFromValidator` fallback.
+  That order is intentional (the same tag can be recognized in both
+  places) — don't reverse it.
+* **No global variables besides deliberate singletons**
+  (`validation.Default()`, the custom rule registry). Prefer explicit
+  dependency injection for everything else, per
   `docs/coding-style.md`.
-* **Erros de binding não carregam status HTTP por padrão — mas podem
-  ter override.** `httpx.Endpoint` (`writeValidationProblem`) fixa 400
-  pra qualquer erro de `binding.Decode`, *exceto* quando algum
-  `problem.ValidationError.Code` tem
-  `StatusOverride() != 0` (`problem/validation_code.go`) — hoje só
-  `ValidationCodePayloadTooLarge` → 413. É assim que `MaxBodyBytes`
-  consegue devolver 413 mesmo quando o corpo estoura durante a leitura
-  (chunked, tamanho desconhecido), sem mudar a assinatura de
-  `binding.Decode`. Novo código que deveria implicar status diferente
-  de 400: adicione o caso em `StatusOverride()`, não invente outro
-  mecanismo paralelo.
-* **`RateLimit` usa um sliding-window-counter (2 janelas), não um
-  limiter por chave sem eviction.** Adaptado do `go-chi/httprate`,
-  implementado do zero em `httpx/middleware/rate_limit.go` sem
-  dependência externa (só `sync`/`time`). Janelas antigas são
-  descartadas em bloco quando o tempo avança, então chaves inativas são
-  removidas automaticamente em até duas janelas — não reintroduza a
-  versão com `golang.org/x/time/rate` + `sync.Map` sem eviction que
-  existiu brevemente aqui, tinha crescimento de memória sem limite.
-* **`RateLimit` separa o algoritmo (janela deslizante) do storage via a
-  interface `LimitCounter`.** Espelha de propósito a interface
-  `LimitCounter` de `go-chi/httprate`, para que um backend já escrito
-  pra httprate (ex. `go-chi/httprate-redis`) precise de mudanças
-  triviais pra servir o arnon, e vice-versa. `RateLimitConfig.Counter`
-  nil usa o default em memória (`NewLocalLimitCounter`, exportada —
-  correto só pra instância única). Backends externos (Redis, Valkey,
-  Memcached, ...) devem ser módulos Go separados, nunca dependência do
-  módulo `arnon` em si — é por isso que só a interface + doc entraram
-  aqui, sem nenhuma implementação de backend externo incluída. Erro do
-  `Counter` vira `problem.Problem` via `RateLimitConfig.OnCounterError`
-  (default: 503 Service Unavailable, configurável). Não reintroduza um
-  segundo mecanismo de storage paralelo a `LimitCounter`.
-* **`httpx.WriteProblem` recebe `*http.Request` e auto-popula
-  `Problem.Instance`.** Se `Instance` estiver vazio, é preenchido com
-  `request.URL.Path` antes de serializar (nunca sobrescreve um valor
-  já setado via `.WithInstance(...)`). Não dá pra usar
-  `request_id`/`trace_id` aqui em vez do path porque `httpx` não pode
-  depender de `httpx/middleware`/`observability` no grafo de
-  `.go-arch-lint.yml` — quem quiser isso, chama `.WithInstance(...)`
-  no próprio `ProblemMapper`. Todo call site interno de `WriteProblem`
-  passa `request`; novo call site não pode esquecer esse parâmetro.
-* **`ETag` bufferiza a resposta inteira antes de decidir 200 ou 304.**
-  Ao contrário de `Compress` (que consegue transformar em streaming
-  via `gzip.Writer`), gerar um hash do corpo exige o corpo completo
-  primeiro — por isso `httpx/middleware/etag.go` usa o mesmo padrão de
-  "bufferiza tudo, decide no fim" que `Timeout` já usa. Só atua em
-  `GET`/`HEAD` e só em respostas 2xx. A supressão de corpo pra `HEAD` e
-  o cálculo de `Content-Length` acontecem na camada de conexão do
-  `net/http.Server`, *abaixo* de qualquer `ResponseWriter` de
-  middleware — então `ETag` não precisa (nem deveria) tratar `HEAD`
-  como caso especial, o buffer já vê o corpo completo de qualquer
-  jeito (confirmado empiricamente, não por suposição, ao desenhar essa
-  middleware). Se usado com `Compress`, instale `ETag` antes (mais
-  externo), pra hashear os bytes já comprimidos — consistente com o
-  `Vary: Accept-Encoding` que `Compress` já seta.
-* **`CORS` só intercepta `OPTIONS` quando for preflight de verdade.**
-  A condição é `request.Method == http.MethodOptions &&
-  request.Header.Get("Access-Control-Request-Method") != ""` — essa é
-  a definição exata de "CORS-preflight request" na Fetch spec §4.1. Um
-  `OPTIONS` sem esse header cai pra `next.ServeHTTP`, chegando no
-  `mux`, que devolve `405`+`Allow` real (refletindo os métodos
-  registrados pra aquele path) ou aciona um handler `OPTIONS` explícito
-  do usuário, se houver. Não volte a interceptar todo `OPTIONS`
-  incondicionalmente — isso mascarava o `Allow` real do `ServeMux` e
-  tornava um `Router.OPTIONS(...)` explícito inalcançável.
-* **`RealIP` checa `Forwarded` (RFC 7239) antes de
-  `X-Forwarded-For`/`X-Real-IP`/`RemoteAddr`.** `Forwarded` é o
-  substituto padronizado pelo IETF; os outros dois continuam como
-  fallback pela mesma ordem de antes. `parseForwardedFor`
-  (`httpx/middleware/real_ip.go`) só usa o primeiro hop (mesma lógica
-  de "leftmost = cliente original" do `X-Forwarded-For`), trata
-  `for=unknown` como "sem informação" (cai pro próximo header) e
-  mantém um identificador ofuscado (`for=_algumacoisa`) como está, já
-  que ainda serve de chave estável de rate limit mesmo não sendo um IP.
-* **`httpx.Endpoint` é JSON-only por design, mas o `Router` não é.**
-  `Endpoint()` sempre checa `Accept` (`httpx/accept.go`,
-  `acceptsJSON`) e responde `406` se o cliente excluir explicitamente
-  `application/json` — mas isso não vira negociação de múltiplas
-  representações (JSON vs. XML vs. o que for) pro mesmo endpoint, e
-  não deveria: quem precisa devolver XML, PDF, ou qualquer outro
-  formato/arquivo monta um `http.Handler` comum via
-  `Router.GET`/`POST`/etc, igual a qualquer outra rota — nenhuma
-  middleware do framework é acoplada a JSON (`Compress`, `ETag`, etc.
-  funcionam com qualquer `Content-Type`). Não invente uma segunda
-  abstração de endpoint tipado pra "endpoint não-JSON": o padrão já é
-  usar `http.Handler` puro pra esse caso.
-* **Binding de header (`[]string`) trata múltiplas linhas e valor
-  único separado por vírgula como equivalentes.** RFC 9110 §5.3 diz
-  que as duas formas são semanticamente iguais pra headers, então
-  `httpx/binding/header.go` (`headerValues`) junta as duas. Binding de
-  query (`[]string`) só coleta chave repetida (`?tag=a&tag=b`), **não**
-  faz split por vírgula — não existe RFC definindo essa semântica pra
-  query string, e separar arbitrariamente quebraria um valor de busca
-  legítimo tipo `?q=cats,dogs`. Não unifique os dois comportamentos.
-* **`Compress`/`Endpoint` fazem parsing de verdade de
-  `Accept-Encoding`/`Accept`, não `strings.Contains`.** Ambos
-  precisam decidir "o cliente aceita X" considerando o parâmetro `q`
-  (RFC 9110 §12.5.1/§12.5.3) — um `q=0` explícito significa recusa,
-  algo que um simples `strings.Contains(header, "gzip")` (o jeito
-  antigo do `Compress`) não conseguia enxergar. Qualquer novo código
-  que precise checar um header de negociação de conteúdo deve seguir
-  esse padrão (parsear `;q=`, achar o match mais específico), não
-  voltar a um substring check.
+* **Binding errors don't carry an HTTP status by default — but can
+  override it.** `httpx.Endpoint` (`writeValidationProblem`) defaults
+  to 400 for any `binding.Decode` error, *except* when a
+  `problem.ValidationError.Code` has `StatusOverride() != 0`
+  (`problem/validation_code.go`) — today only
+  `ValidationCodePayloadTooLarge` → 413. This is how `MaxBodyBytes`
+  manages to return 413 even when the body overflows mid-read
+  (chunked, unknown size), without changing `binding.Decode`'s
+  signature. New code that should imply a status other than 400: add
+  the case to `StatusOverride()`, don't invent another parallel
+  mechanism.
+* **`RateLimit` uses a sliding-window counter (2 windows), not a
+  per-key limiter with no eviction.** Adapted from `go-chi/httprate`,
+  implemented from scratch in `httpx/middleware/rate_limit.go` with no
+  external dependency (just `sync`/`time`). Old windows are discarded
+  in bulk as time advances, so inactive keys are automatically removed
+  within at most two windows — don't reintroduce the
+  `golang.org/x/time/rate` + `sync.Map`-with-no-eviction version that
+  briefly existed here, it had unbounded memory growth.
+* **`RateLimit` separates the algorithm (sliding window) from storage
+  via the `LimitCounter` interface.** Deliberately mirrors
+  `go-chi/httprate`'s own `LimitCounter` interface, so a backend
+  already written for httprate (e.g. `go-chi/httprate-redis`) needs
+  only trivial changes to serve arnon too, and vice versa. A nil
+  `RateLimitConfig.Counter` uses the in-memory default
+  (`NewLocalLimitCounter`, exported — correct only for a single
+  instance). External backends (Redis, Valkey, Memcached, ...) should
+  be separate Go modules, never a dependency of the `arnon` module
+  itself — that's why only the interface + docs are included here,
+  with no external backend implementation. A `Counter` error becomes a
+  `problem.Problem` via `RateLimitConfig.OnCounterError` (default: 503
+  Service Unavailable, configurable). Don't reintroduce a second
+  storage mechanism parallel to `LimitCounter`.
+* **`httpx.WriteProblem` takes `*http.Request` and auto-populates
+  `Problem.Instance`.** If `Instance` is empty, it's filled with
+  `request.URL.Path` before serializing (never overwriting a value
+  already set via `.WithInstance(...)`). `request_id`/`trace_id` can't
+  be used here instead of the path because `httpx` can't depend on
+  `httpx/middleware`/`observability` in the `.go-arch-lint.yml` graph —
+  whoever wants that calls `.WithInstance(...)` in their own
+  `ProblemMapper`. Every internal call site of `WriteProblem` passes
+  `request`; a new call site can't forget that parameter.
+* **`ETag` buffers the entire response before deciding 200 or 304.**
+  Unlike `Compress` (which can stream via `gzip.Writer`), hashing the
+  body requires the complete body first — that's why
+  `httpx/middleware/etag.go` uses the same "buffer everything, decide
+  at the end" pattern `Timeout` already uses. Only acts on `GET`/`HEAD`
+  and only on 2xx responses. Body suppression for `HEAD` and
+  `Content-Length` calculation happen at the connection layer of
+  `net/http.Server`, *below* any middleware `ResponseWriter` — so
+  `ETag` doesn't need (and shouldn't) special-case `HEAD`, the buffer
+  already sees the full body either way (confirmed empirically, not
+  assumed, while designing this middleware). If used with `Compress`,
+  install `ETag` first (more outer), to hash the already-compressed
+  bytes — consistent with the `Vary: Accept-Encoding` `Compress`
+  already sets.
+* **`CORS` only intercepts `OPTIONS` when it's a genuine preflight.**
+  The condition is `request.Method == http.MethodOptions &&
+  request.Header.Get("Access-Control-Request-Method") != ""` — that's
+  the exact definition of a "CORS-preflight request" in the Fetch spec
+  §4.1. An `OPTIONS` without that header falls through to
+  `next.ServeHTTP`, reaching the `mux`, which returns a real
+  `405`+`Allow` (reflecting the methods actually registered for that
+  path) or triggers an explicit user `OPTIONS` handler, if any. Don't
+  go back to intercepting every `OPTIONS` unconditionally — that
+  masked the `ServeMux`'s real `Allow` and made an explicit
+  `Router.OPTIONS(...)` unreachable.
+* **`RealIP` checks `Forwarded` (RFC 7239) before
+  `X-Forwarded-For`/`X-Real-IP`/`RemoteAddr`.** `Forwarded` is the
+  IETF-standardized replacement; the other two remain as fallbacks in
+  the same order as before. `parseForwardedFor`
+  (`httpx/middleware/real_ip.go`) only uses the first hop (same
+  "leftmost = original client" logic as `X-Forwarded-For`), treats
+  `for=unknown` as "no information" (falls through to the next
+  header), and keeps an obfuscated identifier (`for=_something`) as-is,
+  since it still works as a stable rate-limit key even though it isn't
+  an IP.
+* **`httpx.Endpoint` is JSON-only by design, but `Router` isn't.**
+  `Endpoint()` always checks `Accept` (`httpx/accept.go`,
+  `acceptsJSON`) and returns `406` if the client explicitly excludes
+  `application/json` — but that doesn't turn into negotiation between
+  multiple representations (JSON vs. XML vs. whatever) for the same
+  endpoint, and it shouldn't: whoever needs to return XML, PDF, or any
+  other format/file mounts a plain `http.Handler` via
+  `Router.GET`/`POST`/etc., just like any other route — no middleware
+  in the framework is coupled to JSON (`Compress`, `ETag`, etc. work
+  with any `Content-Type`). Don't invent a second typed-endpoint
+  abstraction for a "non-JSON endpoint": the existing pattern already
+  is to use a plain `http.Handler` for that case.
+* **Header binding (`[]string`) treats multiple lines and a single
+  comma-separated value as equivalent.** RFC 9110 §5.3 says the two
+  forms are semantically the same for headers, so
+  `httpx/binding/header.go` (`headerValues`) merges the two. Query
+  binding (`[]string`) only collects a repeated key
+  (`?tag=a&tag=b`), it does **not** split on commas — there's no RFC
+  defining that semantics for query strings, and splitting arbitrarily
+  would break a legitimate search value like `?q=cats,dogs`. Don't
+  unify the two behaviors.
+* **`Compress`/`Endpoint` do real parsing of `Accept-Encoding`/`Accept`,
+  not `strings.Contains`.** Both need to decide "does the client
+  accept X" while accounting for the `q` parameter (RFC 9110
+  §12.5.1/§12.5.3) — an explicit `q=0` means refusal, something a
+  plain `strings.Contains(header, "gzip")` (`Compress`'s old approach)
+  couldn't see. Any new code that needs to check a content-negotiation
+  header should follow this pattern (parse `;q=`, find the most
+  specific match), not go back to a substring check.

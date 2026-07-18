@@ -8,7 +8,8 @@ import (
 	"github.com/Casara/arnon/httpx/routing"
 )
 
-// SecureHeadersConfig configures the SecureHeaders middleware.
+// SecureHeadersConfig configures SecureHeaders. The zero value is
+// safe to use as-is - every field has a working default.
 type SecureHeadersConfig struct {
 	// FrameOptions sets X-Frame-Options. Defaults to "DENY".
 	FrameOptions string

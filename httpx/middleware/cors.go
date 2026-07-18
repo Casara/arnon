@@ -7,18 +7,33 @@ import (
 	"time"
 )
 
-// CORSConfig configures CORS middleware.
+// CORSConfig configures CORS. AllowedOrigins is the only field
+// without a safe default - an empty/unset list allows no origin at
+// all, there's no implicit wildcard.
 type CORSConfig struct {
+	// AllowedOrigins is checked against the request's Origin header
+	// (case-insensitive exact match), or "*" to allow any origin.
 	AllowedOrigins []string
 
+	// AllowedMethods defaults to GET, POST, PUT, PATCH, DELETE,
+	// OPTIONS when empty.
 	AllowedMethods []string
 
+	// AllowedHeaders defaults to Accept, Authorization, Content-Type,
+	// Origin when empty.
 	AllowedHeaders []string
 
+	// ExposedHeaders sets Access-Control-Expose-Headers when non-empty.
+	// Left unset, only the CORS-safelisted response headers are
+	// readable by client-side JavaScript.
 	ExposedHeaders []string
 
+	// AllowCredentials sets Access-Control-Allow-Credentials: true,
+	// permitting cookies/credentials on cross-origin requests.
 	AllowCredentials bool
 
+	// MaxAge sets Access-Control-Max-Age (in seconds) on a preflight
+	// response, controlling how long the browser may cache it.
 	MaxAge time.Duration
 }
 

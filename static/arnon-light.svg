@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg viewBox="0 0 340 110" width="340" height="105" version="1.1" xmlns="http://www.w3.org/2000/svg" xml:space="preserve">
+  <!--
+    Light-mode variant. Kept as a separate file (rather than a
+    prefers-color-scheme media query inside a single SVG) because an
+    SVG loaded via an <img> tag doesn't reliably respond to that media
+    query on Safari with dark mode enabled - README.md instead
+    switches between this and arnon-dark.svg via <picture>.
+  -->
+  <line x1="14" y1="80" x2="28" y2="56" stroke="#c1622d" stroke-width="7" stroke-linecap="round"/>
+  <line x1="38" y1="80" x2="52" y2="40" stroke="#c1622d" stroke-width="7" stroke-linecap="round"/>
+  <line x1="62" y1="80" x2="76" y2="52" stroke="#c1622d" stroke-width="7" stroke-linecap="round"/>
+  <line x1="86" y1="80" x2="100" y2="62" stroke="#c1622d" stroke-width="7" stroke-linecap="round"/>
+  <line x1="8" y1="80" x2="104" y2="80" stroke="#123a41" stroke-width="8" stroke-linecap="round"/>
+  <text x="140" y="90" style="font-family: ui-monospace, &apos;SF Mono&apos;, &apos;Cascadia Code&apos;, &apos;JetBrains Mono&apos;, Consolas, monospace; font-weight: 700; font-size: 46px; fill: #123a41; letter-spacing: 3px;">ARNON</text>
+</svg>

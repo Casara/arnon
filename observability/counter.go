@@ -34,7 +34,9 @@ func NewCounter(
 	}, nil
 }
 
-// Add increments the counter.
+// Add records value against the counter, tagged with attributes for
+// this call only - Counter itself carries no base attributes to merge
+// with.
 func (counter *Counter) Add(
 	ctx context.Context,
 	value int64,

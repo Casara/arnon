@@ -45,7 +45,11 @@ func (config EndpointConfig) WithDefaults() EndpointConfig {
 	return config
 }
 
-// Endpoint creates an HTTP endpoint.
+// Endpoint wraps a typed handler into an http.Handler: it binds the
+// request (path/query/header/JSON body), validates it, calls handler,
+// and writes the result - a success response on the happy path, or an
+// RFC 9457 Problem (via config.ProblemMapper) if binding, validation,
+// or handler itself returns an error.
 func Endpoint[
 	TRequest any,
 	TResponse any,

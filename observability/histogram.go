@@ -34,7 +34,9 @@ func NewHistogram(
 	}, nil
 }
 
-// Record records a value.
+// Record adds value as an observation in the histogram, tagged with
+// attributes for this call only - Histogram itself carries no base
+// attributes to merge with.
 func (histogram *Histogram) Record(
 	ctx context.Context,
 	value float64,

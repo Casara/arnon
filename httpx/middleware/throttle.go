@@ -9,7 +9,8 @@ import (
 	"github.com/Casara/arnon/problem"
 )
 
-// ThrottleConfig configures the Throttle middleware.
+// ThrottleConfig configures Throttle. Limit is the only required
+// field; BacklogLimit/BacklogTimeout are opt-in.
 type ThrottleConfig struct {
 	// Limit is the maximum number of requests processed concurrently.
 	// Must be positive.

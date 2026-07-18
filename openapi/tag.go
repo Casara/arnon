@@ -64,35 +64,40 @@ type Tag struct {
 	Kind TagKind `json:"kind,omitempty"`
 }
 
-// WithSummary sets the tag summary.
+// WithSummary returns a copy of tag with Summary set - Tag uses a
+// value receiver here on purpose (see "Receivers" in
+// docs/architecture/project-context.md), so this never mutates the
+// original.
 func (tag Tag) WithSummary(summary string) Tag {
 	tag.Summary = summary
 
 	return tag
 }
 
-// WithDescription sets the tag description.
+// WithDescription returns a copy of tag with Description set (see
+// WithSummary).
 func (tag Tag) WithDescription(description string) Tag {
 	tag.Description = description
 
 	return tag
 }
 
-// WithParent sets the tag parent.
+// WithParent returns a copy of tag with Parent set (see WithSummary).
 func (tag Tag) WithParent(parent string) Tag {
 	tag.Parent = parent
 
 	return tag
 }
 
-// WithExternalDocs sets the tag external docs.
+// WithExternalDocs returns a copy of tag with ExternalDocs set (see
+// WithSummary).
 func (tag Tag) WithExternalDocs(docs *ExternalDocs) Tag {
 	tag.ExternalDocs = docs
 
 	return tag
 }
 
-// WithKind sets the tag kind.
+// WithKind returns a copy of tag with Kind set (see WithSummary).
 func (tag Tag) WithKind(kind TagKind) Tag {
 	tag.Kind = kind
 
