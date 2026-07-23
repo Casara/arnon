@@ -172,6 +172,8 @@ linters:
         - '.*/openapi\.RequestBody$'
         - '.*/openapi\.Response$'
         - '.*/openapi\.Schema$'
+        - '.*/openapi\.Server$'
+        - '.*/openapi\.ServerVariable$'
         - '.*/openapi\.Tag$'
         - '.*/otel\.Config$'
         - '.*/routing\.(Group|Router)$'

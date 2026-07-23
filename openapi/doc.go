@@ -1,5 +1,5 @@
 /*
-Package openapi provides OpenAPI 3.1 schema generation for HTTP endpoints.
+Package openapi provides OpenAPI 3.2 schema generation for HTTP endpoints.
 
 The package follows a code-first approach and automatically infers schemas
 from Go request/response types using struct tags such as:
@@ -9,6 +9,13 @@ from Go request/response types using struct tags such as:
 	query
 	header
 	validate
+	description
+	format
+	example
+	default
+	deprecated
+	readonly
+	writeonly
 
 It supports optional overrides through Operation definitions while keeping
 the generated specification as automatic as possible.

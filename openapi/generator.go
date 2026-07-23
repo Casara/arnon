@@ -20,9 +20,11 @@ type Generator struct {
 }
 
 // NewGenerator creates a Generator that will produce a Document
-// carrying the given API metadata.
-func NewGenerator(info Info) *Generator {
-	return &Generator{
+// carrying the given API metadata. opts can set additional
+// document-level fields (e.g. WithServers, WithExternalDocs) that
+// have no dedicated constructor parameter of their own.
+func NewGenerator(info Info, opts ...GeneratorOption) *Generator {
+	generator := &Generator{
 		document: Document{
 			OpenAPI: OpenAPIVersion3_2,
 
@@ -45,6 +47,12 @@ func NewGenerator(info Info) *Generator {
 			map[string]Tag,
 		),
 	}
+
+	for _, opt := range opts {
+		opt(generator)
+	}
+
+	return generator
 }
 
 // Register registers an endpoint.

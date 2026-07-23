@@ -35,18 +35,23 @@ type Document struct {
 	// REQUIRED. Provides metadata about the API. The metadata MAY be used by tooling as required.
 	Info Info `json:"info"`
 
-	// jsonSchemaDialect string
-	// servers []Server
+	// An array of Server Objects, which provide connectivity information to a
+	// target server. Set via WithServers when constructing the Generator.
+	Servers []Server `json:"servers,omitempty"`
 
 	// The available paths and operations for the API.
 	Paths map[string]PathItem `json:"paths"`
 
-	// webhooks map[string]PathItem
-
 	// An element to hold various Objects for the OpenAPI Description.
 	Components Components `json:"components,omitzero"`
 
-	// security []map[string][]string
+	// Not implemented yet - see "Not Yet Implemented" in
+	// docs/architecture/project-context.md for why and what each would
+	// need: JSONSchemaDialect (3.1+), Webhooks (3.1+, top-level
+	// webhook registration), Security (global security requirement -
+	// depends on Components.SecuritySchemes, which doesn't exist
+	// either, which in turn depends on auth support arnon doesn't have
+	// yet).
 
 	// A list of tags used by the OpenAPI Description with additional metadata. The order of the
 	// tags can be used to reflect on their order by the parsing tools. Not all tags that are used

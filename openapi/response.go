@@ -37,7 +37,10 @@ type Header struct {
 	Description string `json:"description"`
 
 	// Determines whether this header is mandatory. The default value is `false`.
-	Required []string `json:"required,omitempty"`
+	Required bool `json:"required,omitempty"`
+
+	// The schema defining the type used for the header.
+	Schema *Schema `json:"schema,omitempty"`
 
 	// Specifies that the header is deprecated and SHOULD be transitioned out of
 	// usage. Default value is `false`.

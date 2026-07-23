@@ -38,13 +38,9 @@ type Operation struct {
 	// The list of possible responses as they are returned from executing this operation.
 	Responses Responses `json:"responses,omitempty"`
 
-	// Callbacks
-
 	// Declares this operation to be deprecated. Consumers SHOULD refrain from usage of the
 	// declared operation. Default value is `false`.
 	Deprecated bool `json:"deprecated,omitempty"`
-
-	// Security
 
 	SuccessStatus int `json:"-"`
 }

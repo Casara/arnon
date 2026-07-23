@@ -7,8 +7,11 @@ type Parameter struct {
 	// REQUIRED. The name of the parameter. Parameter names are case-sensitive.
 	Name string `json:"name"`
 
-	// REQUIRED. The location of the parameter. Possible values are
-	// `"body"`, `"path"`, `"query"`, `"header"`.
+	// REQUIRED. The location of the parameter: `"path"`, `"query"`, or
+	// `"header"` (arnon's binding never produces `"cookie"` - cookie
+	// binding isn't implemented - or `"body"`, which isn't a valid
+	// Parameter Object location per the spec; body fields go into
+	// RequestBody instead, see Generator.Register).
 	In string `json:"in"`
 
 	// A brief description of the parameter. This could contain examples of use.

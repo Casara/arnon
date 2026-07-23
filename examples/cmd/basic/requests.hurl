@@ -149,6 +149,8 @@ jsonpath "$.paths['/users/{id}'].get" exists
 # (minItems) - the schema must match the runtime constraint above.
 jsonpath "$.components.schemas.CreateUserRequest.properties.tags.items.minLength" == 2
 jsonpath "$.components.schemas.CreateUserRequest.properties.tags.minItems" not exists
+# Set via openapi.WithServers in main.go.
+jsonpath "$.servers[0].url" == "http://localhost:8080"
 
 # --- GET /docs ----------------------------------------------------------
 

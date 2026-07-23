@@ -25,10 +25,22 @@ func main() {
 
 	customvalidators.RegisterCustomValidators()
 
-	generator := openapi.NewGenerator(openapi.Info{
-		Title:   "Example API",
-		Version: "1.0.0",
-	})
+	generator := openapi.NewGenerator(
+		openapi.Info{
+			Title:   "Example API",
+			Version: "1.0.0",
+		},
+		// WithServers has no dedicated Info field of its own - Server
+		// is a separate, repeatable top-level object (a real API
+		// commonly documents more than one, e.g. staging vs
+		// production).
+		openapi.WithServers(
+			openapi.Server{
+				URL:         "http://localhost:8080",
+				Description: "Local",
+			},
+		),
+	)
 
 	router := routing.NewRouter(
 		routing.WithOpenAPI(openapi.NewRegistry(generator)),
