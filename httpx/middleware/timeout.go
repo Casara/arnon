@@ -23,9 +23,21 @@ import (
 // writes, so nothing reaches the real http.ResponseWriter until we
 // know which side won the race - the handler finishing, or the
 // deadline. Unlike http.TimeoutHandler, the timeout response itself
-// is Problem Details (via httpx.WriteProblem), not plain text: that
-// stdlib helper is the one place in the framework that used to bypass
-// RFC 9457, the only error format arnon otherwise guarantees.
+// is Problem Details (via httpx.WriteProblem), not plain text: the
+// stdlib helper responds in plain text, which would be the one place
+// in the framework that bypasses RFC 9457, the only error format
+// arnon otherwise guarantees.
+//
+// A panic in the handler goroutine is re-raised (panic(recovered)) in
+// the goroutine running Timeout itself, instead of being swallowed
+// here, so an outer Recover still sees it and produces a proper
+// Problem Details 500 with the panic logged. Without a Recover
+// anywhere in the chain, this repanic is still caught by net/http's
+// own per-connection recover (net/http.conn.serve): the stack trace
+// is logged to the server's error log and that connection is closed,
+// but the process and every other in-flight connection are
+// unaffected - the client just sees the connection drop instead of a
+// Problem Details response.
 func Timeout(
 	timeout time.Duration,
 ) routing.Middleware {

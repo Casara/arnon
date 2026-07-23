@@ -4,19 +4,20 @@
 
 ## Overview
 
-The goal of this project is to build a modern foundation for APIs and microservices in Go, focused on:
+`arnon` is a modern foundation for APIs and microservices in Go, focused on:
 
 * Excellent developer experience.
 * Strong OpenAPI integration.
 * First-class observability.
-* Compatibility with Clean Architecture, DDD, and Hexagonal Architecture.
 * Little boilerplate.
 * Sensible conventions.
 * Independent, decoupled components.
 * Ease of testing.
-* Production readiness.
 
-The future intent is for the foundation to be distributed as an open source library for the Go community.
+Distributed as an open source library for the Go community. This is
+its first public release, with no production track record yet — see
+README.md for a detailed comparison against more mature alternatives
+before adopting it for anything business-critical.
 
 ---
 
@@ -72,9 +73,11 @@ The adopted version is OpenAPI 3.2.0.
 
 Reasons:
 
-* The project is not yet public.
+* It's arnon's first public version, with no previous consumers to migrate.
 * It's possible to adopt more modern features of the specification.
-* By the time the foundation matures, the version should be more broadly supported.
+* Tooling support for 3.2 (parsers, client generators, documentation UIs)
+  should grow over time — see the note under "Stoplight" below for where
+  it currently stands.
 
 ---
 
@@ -155,7 +158,7 @@ Validator information is reused in OpenAPI generation.
 Custom validation rules (tags that `validator/v10` doesn't know
 natively) are registered once, via `validation.RegisterCustomRule(rule)`,
 typically during application bootstrap. A single registration feeds
-three points at once, which used to be disconnected:
+three points at once:
 
 1. **Runtime**: the rule's `Func` is automatically applied to every
    validator created by `validation.New()`/`validation.Default()` from
@@ -168,11 +171,12 @@ three points at once, which used to be disconnected:
    the tag, the same way it already happens today for
    `email`/`uuid`/`url`.
 
-Before this change, there was no access to the internal
-`validator.Validate` instance used by `PlaygroundValidator`, so there
-was no way to register a custom rule at the application level; and even
-if there were, OpenAPI generation (which reprocesses the `validate` tag
-independently) would have no way to know about the new rule.
+The internal `validator.Validate` instance used by `PlaygroundValidator`
+is deliberately not exposed for direct registration: OpenAPI generation
+reprocesses the `validate` tag independently of the runtime validator,
+so a rule registered only on the raw instance would apply at request
+time while staying invisible to the generated schema.
+`RegisterCustomRule` is the single point that keeps all three in sync.
 
 ### Why `ValidationError` has `detail` + `code` + `source` + `meta`
 
@@ -343,6 +347,19 @@ zero-value").
 
 ---
 
+### Not automatically inferred: `Pattern` and `Tags`
+
+`Schema.Pattern` is only set when a custom rule explicitly declares one
+via `RegisterCustomRule`'s `SchemaEffect.Pattern` (see "Custom
+Validators" above) — a built-in tag like
+`validate:"regexp=^[a-z]+$"` has no dedicated case in
+`applyValidationTags` and produces no schema constraint on its own.
+`Operation.Tags` works the same way: always set explicitly per
+operation (see "OpenAPI Tags" below), never derived automatically from
+a route group, path prefix, or handler name.
+
+---
+
 ## Examples
 
 Examples are converted to the correct type.
@@ -424,6 +441,20 @@ Supported kinds:
 
 ---
 
+## Document-Level Fields
+
+`openapi.NewGenerator(info, opts...)` takes `GeneratorOption`s (mirrors
+`routing.Option`/`routing.WithOpenAPI`) to set document-level fields
+beyond `Info`:
+
+* `WithServers(...Server)` — sets `Document.Servers`, the API's base
+  URL(s).
+* `WithExternalDocs(*ExternalDocs)` — sets `Document.ExternalDocs`.
+
+See `examples/cmd/basic` for `WithServers` in use.
+
+---
+
 ## Documentation UI
 
 Adopted tool:
@@ -445,6 +476,84 @@ Reasons:
 * customizable favicon
 * embed mode
 * CDN mode
+
+---
+
+## Not Yet Implemented
+
+Audited against the OpenAPI 3.2 Object Model; grouped by how much each
+gap matters:
+
+### Real gaps, worth closing (not done yet)
+
+* **`Components`** only implements `Schemas` — which is genuinely used
+  (registered per type and referenced via `$ref`, see
+  `Generator.registerSchema`). The spec's Components Object also
+  covers `responses`, `parameters`, `examples`, `requestBodies`,
+  `headers`, `securitySchemes`, `links`, `callbacks`, `pathItems` —
+  none of those exist at all, not even as unused types.
+* **`Response.Headers`/`Header`/`Link` are never populated by the
+  generator.** `Header` (`Description`, `Required bool`, `Schema
+  *Schema`) is usable on its own — a caller can hand-author
+  `Operation.Responses["200"].Headers[...]` today — but nothing in
+  `generator.go`/`reflection.go` ever fills it automatically.
+  `RateLimit`, `ETag`, `ServiceDesc`, `CORS`, and others all add real
+  response headers (`X-RateLimit-*`, `ETag`, `Link`,
+  `Access-Control-Allow-Origin`, ...), and none of that shows up in the
+  generated document. Not a quick field-add: the reflection-based
+  generator only looks at the Go request/response struct for a given
+  endpoint, with no visibility into which middleware are active on
+  that route — closing this needs a real design decision on how a
+  middleware would declare "I add this response header" to the
+  generator.
+
+### Depend on Auth, which is already deferred
+
+* **`Operation.Security`/`Document.Security`** (per-operation and
+  global security requirements) and **`Components.SecuritySchemes`**
+  (no `SecurityScheme` type exists at all) — all three only become
+  useful together, and only once arnon has *some* notion of an auth
+  scheme, which doesn't exist yet (Bearer/Basic auth is already
+  tracked as deferred elsewhere). Implementing just the
+  `Operation`-level field without the rest would produce a schema that
+  always looks unauthenticated, which is worse than not having the
+  field at all.
+* **`Document.Webhooks`** (3.1+) and **`Operation`/`Components.Callbacks`**
+  (out-of-band, webhook-style callbacks tied to an operation) — no
+  registration mechanism for either exists, and there's been no
+  discussion of arnon exposing webhook/callback endpoints at all —
+  lower priority than Security, since at least one real user-facing
+  feature (auth) already motivates fixing that gap, while nothing
+  today motivates callbacks.
+* **`Document.JSONSchemaDialect`** (3.1+, declares which JSON Schema
+  version the document's schemas follow) — unused, since arnon doesn't
+  yet emit schema keywords specific to a dialect (see below).
+
+### Accepted, not planned
+
+* **Full JSON Schema 2020-12 dialect** (`oneOf`/`anyOf`/`allOf`/`not`,
+  `const`, `discriminator`, `xml`, `prefixItems`,
+  `contentEncoding`/`contentMediaType`, schema-level `title`) —
+  `Schema` only covers the "plain struct/slice/map/primitive" shape a
+  reflection-based, code-first generator naturally produces. Go has no
+  native sum type to map to `oneOf`, so this gap tracks a real
+  limitation of the code-first approach itself, not an oversight —
+  revisit only if a concrete use case needs it.
+* **`Parameter` `style`/`explode`/`allowReserved`/`allowEmptyValue`/
+  `content`** (OpenAPI's own array/object query-serialization rules) —
+  arnon's binding (`httpx/binding`) never consults these; it binds
+  query/header values directly from Go struct tags, independent of
+  what the generated schema says. Implementing them would only affect
+  what the document *describes*, not what arnon actually accepts —
+  low value until arnon's binding itself grows style-aware parsing.
+  `Parameter.In` also never produces `"cookie"` (cookie binding isn't
+  implemented) or `"body"` (not a valid Parameter Object location per
+  the spec in the first place; body fields go into `RequestBody`).
+* **`Operation.Servers`/`Operation.ExternalDocs`** (per-operation
+  overrides of the document-level fields) — real gaps, but low
+  priority; `ExternalDocs` in particular would be cheap to add (the
+  type already exists, just isn't exposed on `Operation`) if a need
+  comes up.
 
 ---
 
@@ -835,7 +944,15 @@ internal (runs last, closest to the handler):
    below).
 2. **`Timeout`** — the deadline must apply to the entire chain below
    it, and `Timeout` itself re-raises (`panic`) the handler's panic
-   outward, expecting a more external `Recover` to catch it.
+   outward, expecting a more external `Recover` to catch it. Without a
+   `Recover` anywhere in the chain, that repanic still doesn't crash
+   the process: `net/http`'s own per-connection recovery
+   (`net/http.conn.serve`) catches it, logs the stack trace to the
+   server's error log, and closes that one connection - every other
+   in-flight request is unaffected, but the client sees the connection
+   drop instead of a Problem Details response, and the log entry has
+   no `request_id`/`trace_id` correlation. Installing `Recover` is what
+   turns that into a proper 500.
 3. **`StripSlashes`/`RedirectSlashes`** (mutually exclusive) — needs
    to normalize the path before anything that depends on it,
    including the `mux`'s own routing.
@@ -1010,8 +1127,8 @@ only up to 3.1. Since `arnon` generates documents with
 Stoplight Elements doesn't recognize new 3.2 features (most of the 3.2
 changes over 3.1 are additive, so overall rendering should keep
 working). Not yet verified empirically in a real browser — before
-switching the default or exposing the UI as configurable (`NOTES.md`),
-this validation is worth doing.
+switching the default or exposing the UI as configurable, this
+validation is worth doing.
 
 ---
 
@@ -1061,8 +1178,8 @@ validated end to end (exported trace matching the application log,
 custom metrics with exemplars pointing to the exact trace) in
 `examples/cmd/observability`, including a local OTel Collector via
 Docker Compose. What's genuinely still missing is automated test
-coverage for `observability`/`observability/otel` (0% today, see
-NOTES.md), not the functionality itself.
+coverage for `observability`/`observability/otel` (0% today), not the
+functionality itself.
 
 ---
 
@@ -1104,7 +1221,7 @@ Implemented:
 ### Unit
 
 * coverage of the core packages: `validation`, `openapi`, `problem`,
-  `httpx` and `httpx/binding`.
+  `httpx`, `httpx/binding`, `httpx/middleware`, and `httpx/routing`.
 * `httpx`: end-to-end tests via `httptest`, covering binding,
   validation, error mapping (default and custom), and the success
   path.
@@ -1113,15 +1230,23 @@ Planned:
 
 ### OpenAPI (Golden Tests)
 
-* Golden Tests
+* Golden tests: generate the OpenAPI document for a fixed set of
+  endpoints and compare it against a checked-in reference file, so any
+  unintended drift in the generator's output (a field disappearing, a
+  format change, ...) fails the test instead of only being caught by a
+  human reading a diff. Not implemented yet — `openapi`'s current
+  tests assert on individual fields of the generated document, not on
+  a full document snapshot.
 
 ### Unit (pending)
 
-* coverage of `httpx/middleware` and `observability`/`observability/otel`
+* coverage of `observability`/`observability/otel` (0% today)
 
 ### Mutation
 
-* robustness validation
+* `gremlins` is already wired up (`make test-mutation`, see
+  `CLAUDE.md`); a full pass across the codebase to find and address
+  surviving mutants hasn't been done yet.
 
 ---
 
@@ -1163,66 +1288,13 @@ Implemented:
   real collector running (exported trace matching bit-for-bit the
   trace_id/span_id logged by the application, custom metrics with
   exemplars pointing to the exact trace).
-* [docs/architecture/rfc-compliance.md](rfc-compliance.md): a full
-  review (2026-07-15) of compliance with the RFCs relevant to an HTTP
-  foundation (RFC 9457, RFC 9110, RFC 9111, RFC 7239, RFC 6585,
-  RFC 8288/8631/8615, RFC 8259), separating what's already compliant,
-  what's a deliberate scope decision, and what's a real gap —
-  including two findings that break the "RFC 9457 is the only error
-  format" guarantee itself (`Recover()` leaking panic detail,
-  `Timeout` responding in plain text) and a multi-hop
-  `X-Forwarded-For` parsing bug found along the way.
-
----
-
-# Future OpenAPI Improvements
-
-Not yet a priority.
-
-* operationId
-* multiple examples
-* discriminator
-* automatic pattern
-* security schemes
-* callbacks
-* webhooks
-* links
-* XML
-* const
-* automatic tags
-
----
-
-# Short-Term Goal
-
-Implement OpenTelemetry-based observability.
-
-Initial scope:
-
-* HTTP tracing
-* context propagation
-* trace id
-* span id
-* automatic route attribution
-* automatic error marking
-
-After tracing:
-
-* metrics
-* health endpoints
-
----
-
-# Long-Term Goal
-
-Make the foundation a modern alternative for building APIs and
-microservices in Go, offering:
-
-* first-class OpenAPI
-* native observability
-* low boilerplate
-* excellent developer experience
-* independent components
-* strong integration with modern architectures
-* production readiness from the start
-  """
+* [docs/architecture/rfc-compliance.md](rfc-compliance.md): compliance
+  reference against the RFCs relevant to an HTTP foundation (RFC 9457,
+  RFC 9110, RFC 9111, RFC 7239, RFC 6585, RFC 8288/8631/8615,
+  RFC 8259), separating what's already compliant, what's a deliberate
+  scope decision, and what's a real gap — including why `Recover()`
+  never lets a recovered panic's detail reach the response and why
+  `Timeout()` responds with Problem Details rather than plain text
+  (both paths that could otherwise silently break the "RFC 9457 is the
+  only error format" guarantee), and why `Forwarded`/
+  `X-Forwarded-For` parsing only takes the first hop.

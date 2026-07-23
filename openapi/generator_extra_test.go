@@ -62,10 +62,8 @@ func TestGenerator_PutPatchDeleteWireOperationIntoPathItem(t *testing.T) {
 
 // TestGenerator_AllPathItemMethodsWireIntoTheOperation covers every
 // method Generator.Register's switch knows how to wire into a
-// PathItem (GET/PUT/POST/PATCH/DELETE plus HEAD/OPTIONS/TRACE/QUERY,
-// the four PathItem exposes fields for but the switch used to have no
-// case for - a real gap found while writing this coverage, fixed in
-// generator.go).
+// PathItem: GET/PUT/POST/PATCH/DELETE plus HEAD/OPTIONS/TRACE/QUERY,
+// all eight fields PathItem exposes.
 func TestGenerator_AllPathItemMethodsWireIntoTheOperation(t *testing.T) {
 	t.Parallel()
 

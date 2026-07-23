@@ -4,19 +4,20 @@
 
 ## Visão Geral
 
-O objetivo deste projeto é criar uma foundation moderna para APIs e microsserviços em Go, com foco em:
+`arnon` é uma foundation moderna para APIs e microsserviços em Go, com foco em:
 
 * Excelente experiência para desenvolvedores.
 * Forte integração com OpenAPI.
 * Observabilidade de primeira classe.
-* Compatibilidade com Clean Architecture, DDD e Hexagonal Architecture.
 * Pouco boilerplate.
 * Convenções sensatas.
 * Componentes independentes e desacoplados.
 * Facilidade de testes.
-* Preparação para uso em produção.
 
-A intenção futura é que a foundation possa ser distribuída como biblioteca open source para a comunidade Go.
+Distribuída como biblioteca open source para a comunidade Go. Essa é a
+primeira versão pública, ainda sem histórico de uso em produção — ver
+README.md pra uma comparação detalhada com alternativas mais maduras
+antes de adotar pra algo crítico pro negócio.
 
 ---
 
@@ -72,9 +73,12 @@ A versão adotada é OpenAPI 3.2.0.
 
 Motivos:
 
-* O projeto ainda não é público.
+* É a primeira versão pública do `arnon`, sem consumidores anteriores
+  pra migrar.
 * É possível adotar recursos mais modernos da especificação.
-* Quando a foundation estiver madura, a versão deverá estar mais amplamente suportada.
+* O suporte de ferramentas à 3.2 (parsers, geradores de client, UIs de
+  documentação) deve crescer com o tempo — ver a nota em "Stoplight"
+  abaixo pra onde isso está hoje.
 
 ---
 
@@ -155,8 +159,7 @@ As informações dos validators são reutilizadas na geração OpenAPI.
 Regras de validação customizadas (tags que o `validator/v10` não conhece
 nativamente) são registradas uma única vez, via
 `validation.RegisterCustomRule(rule)`, tipicamente no bootstrap da
-aplicação. Um único registro alimenta três pontos ao mesmo tempo, que
-antes eram desconectados:
+aplicação. Um único registro alimenta três pontos ao mesmo tempo:
 
 1. **Runtime**: a `Func` da regra é aplicada automaticamente a todo
    validador criado por `validation.New()`/`validation.Default()` a
@@ -168,11 +171,13 @@ antes eram desconectados:
    `Pattern`) enriquece o schema gerado para campos que usam a tag,
    assim como acontece hoje para `email`/`uuid`/`url`.
 
-Antes dessa mudança, não havia acesso à instância interna do
-`validator.Validate` usada por `PlaygroundValidator`, então não existia
-forma de registrar uma regra customizada na aplicação; e mesmo que
-existisse, a geração de OpenAPI (que reprocessa a tag `validate` de forma
-independente) não teria como saber da nova regra.
+A instância interna de `validator.Validate` usada por
+`PlaygroundValidator` propositalmente não é exposta para registro
+direto: a geração de OpenAPI reprocessa a tag `validate` de forma
+independente do validador de runtime, então uma regra registrada
+apenas na instância crua valeria em tempo de requisição mas ficaria
+invisível pro schema gerado. `RegisterCustomRule` é o único ponto que
+mantém os três sincronizados.
 
 ### Por que `ValidationError` tem `detail` + `code` + `source` + `meta`
 
@@ -343,6 +348,20 @@ campo como obrigatório no schema (não tem equivalente OpenAPI pra
 
 ---
 
+### Não inferidos automaticamente: `Pattern` e `Tags`
+
+`Schema.Pattern` só é setado quando uma regra customizada declara isso
+explicitamente via `SchemaEffect.Pattern` de `RegisterCustomRule` (ver
+"Custom Validators" acima) — uma tag embutida como
+`validate:"regexp=^[a-z]+$"` não tem caso dedicado em
+`applyValidationTags` e não produz constraint nenhum de schema por
+conta própria. `Operation.Tags` funciona do mesmo jeito: sempre setado
+explicitamente por operação (ver "Tags OpenAPI" abaixo), nunca
+derivado automaticamente de um grupo de rota, prefixo de path ou nome
+de handler.
+
+---
+
 ## Examples
 
 Examples são convertidos para o tipo correto.
@@ -424,6 +443,20 @@ Kinds suportados:
 
 ---
 
+## Campos de Nível de Documento
+
+`openapi.NewGenerator(info, opts...)` recebe `GeneratorOption`s (espelha
+`routing.Option`/`routing.WithOpenAPI`) pra setar campos de nível de
+documento além de `Info`:
+
+* `WithServers(...Server)` — seta `Document.Servers`, a(s) URL(s) base
+  da API.
+* `WithExternalDocs(*ExternalDocs)` — seta `Document.ExternalDocs`.
+
+Veja `examples/cmd/basic` pra `WithServers` em uso.
+
+---
+
 ## UI da Documentação
 
 Ferramenta adotada:
@@ -445,6 +478,86 @@ Motivos:
 * favicon customizável
 * modo embed
 * modo CDN
+
+---
+
+## O que ainda não está implementado
+
+Auditado contra o Object Model do OpenAPI 3.2; agrupado por quanto cada
+gap importa:
+
+### Gaps reais, vale fechar (ainda não feito)
+
+* **`Components`** só implementa `Schemas` — que é genuinamente usado
+  (registrado por tipo e referenciado via `$ref`, ver
+  `Generator.registerSchema`). O Components Object da spec também
+  cobre `responses`, `parameters`, `examples`, `requestBodies`,
+  `headers`, `securitySchemes`, `links`, `callbacks`, `pathItems` —
+  nenhum desses existe, nem como tipo não usado.
+* **`Response.Headers`/`Header`/`Link` nunca são preenchidos pelo
+  gerador.** `Header` (`Description`, `Required bool`, `Schema
+  *Schema`) é usável por conta própria — um caller já pode preencher
+  `Operation.Responses["200"].Headers[...]` na mão hoje — mas nada em
+  `generator.go`/`reflection.go` o preenche automaticamente.
+  `RateLimit`, `ETag`, `ServiceDesc`, `CORS`, entre outros, adicionam
+  headers de resposta de verdade (`X-RateLimit-*`, `ETag`, `Link`,
+  `Access-Control-Allow-Origin`, ...), e nada disso aparece no
+  documento gerado. Não é um campo rápido de adicionar: o gerador
+  baseado em reflection só olha pro struct Go de request/response de
+  um endpoint, sem visibilidade de quais middlewares estão ativos
+  naquela rota — fechar isso precisa de uma decisão de design real
+  sobre como uma middleware declararia "eu adiciono esse header de
+  resposta" pro gerador.
+
+### Dependem de Auth, que já está adiado
+
+* **`Operation.Security`/`Document.Security`** (requisito de segurança
+  por operação e global) e **`Components.SecuritySchemes`** (não
+  existe tipo `SecurityScheme` nenhum) — os três só ficam úteis juntos,
+  e só quando o `arnon` tiver *algum* conceito de esquema de
+  autenticação, que ainda não existe (Bearer/Basic auth já está
+  rastreado como adiado em outro lugar). Implementar só o campo em
+  `Operation` sem o resto produziria um schema que sempre parece
+  não-autenticado, o que é pior que não ter o campo de jeito nenhum.
+* **`Document.Webhooks`** (3.1+) e **`Operation`/`Components.Callbacks`**
+  (callbacks fora de banda, estilo webhook, ligados a uma operação) —
+  não existe mecanismo de registro pra nenhum dos dois, e nunca se
+  discutiu o `arnon` expor endpoint/webhook de callback — prioridade
+  mais baixa que Security, já que pelo menos um recurso real pedido por
+  usuário (auth) já motiva fechar aquele gap, enquanto nada hoje motiva
+  callbacks.
+* **`Document.JSONSchemaDialect`** (3.1+, declara qual versão do JSON
+  Schema os schemas do documento seguem) — sem uso já que o `arnon`
+  ainda não emite palavra-chave de schema específica de um dialeto (ver
+  abaixo).
+
+### Aceito, não planejado
+
+* **Dialeto completo do JSON Schema 2020-12**
+  (`oneOf`/`anyOf`/`allOf`/`not`, `const`, `discriminator`, `xml`,
+  `prefixItems`, `contentEncoding`/`contentMediaType`, `title` no nível
+  do schema) — `Schema` só cobre a forma "struct/slice/map/primitivo
+  simples" que um gerador code-first baseado em reflection produz
+  naturalmente. Go não tem sum type nativo pra mapear pra `oneOf`,
+  então esse gap rastreia uma limitação real da própria abordagem
+  code-first, não um descuido — revisitar só se um caso de uso
+  concreto precisar.
+* **`Parameter` `style`/`explode`/`allowReserved`/`allowEmptyValue`/
+  `content`** (regras de serialização de array/objeto em query
+  próprias do OpenAPI) — o binding do `arnon` (`httpx/binding`) nunca
+  consulta isso; ele faz bind de valor de query/header direto a partir
+  da tag do struct Go, independente do que o schema gerado diz.
+  Implementar isso só afetaria o que o documento *descreve*, não o que
+  o `arnon` de fato aceita — baixo valor até o binding do `arnon`
+  ganhar parsing consciente de `style`. `Parameter.In` também nunca
+  produz `"cookie"` (binding de cookie não é implementado) nem
+  `"body"` (não é uma localização válida de Parameter Object pela
+  spec, pra começo de conversa; campo de body vai pra `RequestBody`).
+* **`Operation.Servers`/`Operation.ExternalDocs`** (override, por
+  operação, dos campos no nível do documento) — gaps reais, mas baixa
+  prioridade; `ExternalDocs` em particular seria barato de adicionar (o
+  tipo já existe, só não está exposto em `Operation`) se surgir a
+  necessidade.
 
 ---
 
@@ -832,7 +945,15 @@ por último, mais perto do handler):
    abaixo).
 2. **`Timeout`** — o prazo deve valer pra cadeia inteira abaixo, e o
    próprio `Timeout` relança (`panic`) o panic do handler pra fora,
-   esperando um `Recover` mais externo pra capturar.
+   esperando um `Recover` mais externo pra capturar. Sem nenhum
+   `Recover` na cadeia, esse repanic ainda assim não derruba o
+   processo: a recuperação própria do `net/http` por conexão
+   (`net/http.conn.serve`) captura, loga o stack trace no error log do
+   servidor e fecha só aquela conexão — o resto das requisições em
+   andamento não é afetado, mas o cliente vê a conexão cair em vez de
+   uma resposta Problem Details, e o log não tem correlação de
+   `request_id`/`trace_id`. Instalar `Recover` é o que transforma isso
+   num 500 de verdade.
 3. **`StripSlashes`/`RedirectSlashes`** (mutuamente exclusivos) —
    precisa normalizar o path antes de qualquer coisa que dependa
    dele, incluindo o próprio roteamento do `mux`.
@@ -1007,8 +1128,8 @@ o Stoplight Elements, até a mesma data, documenta suporte oficial só até
 Elements não reconheça recursos novos da 3.2 (a maior parte das mudanças
 de 3.2 sobre 3.1 é aditiva, então a renderização geral deve continuar
 funcionando). Não verificado empiricamente num navegador real ainda —
-antes de trocar o padrão ou expor a UI como configurável (`NOTES.md`),
-vale essa validação.
+antes de trocar o padrão ou expor a UI como configurável, vale essa
+validação.
 
 ---
 
@@ -1057,8 +1178,8 @@ validado fim a fim (trace exportado batendo com o log da aplicação,
 métricas customizadas com exemplars apontando pro trace exato) em
 `examples/cmd/observability`, incluindo um OTel Collector local via
 Docker Compose. O que falta de verdade é cobertura de teste
-automatizado de `observability`/`observability/otel` (0% hoje, ver
-NOTES.md), não a funcionalidade em si.
+automatizado de `observability`/`observability/otel` (0% hoje), não a
+funcionalidade em si.
 
 ---
 
@@ -1100,7 +1221,7 @@ Implementado:
 ### Unitários
 
 * cobertura dos pacotes centrais: `validation`, `openapi`, `problem`,
-  `httpx` e `httpx/binding`.
+  `httpx`, `httpx/binding`, `httpx/middleware` e `httpx/routing`.
 * `httpx`: testes fim-a-fim via `httptest`, cobrindo binding, validação,
   mapeamento de erro (default e customizado) e o caminho de sucesso.
 
@@ -1108,15 +1229,24 @@ Planejado:
 
 ### OpenAPI (Golden Tests)
 
-* Golden Tests
+* Golden tests: gerar o documento OpenAPI pra um conjunto fixo de
+  endpoints e comparar contra um arquivo de referência versionado no
+  repo, de forma que qualquer drift não intencional na saída do
+  gerador (um campo que sumiu, uma mudança de formato, ...) quebre o
+  teste em vez de só ser percebido por alguém lendo um diff à mão.
+  Ainda não implementado — os testes atuais de `openapi` fazem
+  assertion em campos individuais do documento gerado, não num
+  snapshot do documento completo.
 
 ### Unitários (pendente)
 
-* cobertura de `httpx/middleware` e `observability`/`observability/otel`
+* cobertura de `observability`/`observability/otel` (0% hoje)
 
 ### Mutação
 
-* validação de robustez
+* `gremlins` já está integrado (`make test-mutation`, ver
+  `CLAUDE.md`); falta uma rodada completa pelo código pra encontrar e
+  tratar os mutantes sobreviventes.
 
 ---
 
@@ -1158,65 +1288,14 @@ Implementado:
   verdade rodando (trace exportado batendo bit a bit com o trace_id/
   span_id logado pela aplicação, métricas customizadas com exemplars
   apontando pro trace exato).
-* [docs/architecture/rfc-compliance.md](rfc-compliance.md): revisão
-  completa (2026-07-15) de conformidade com as RFCs relevantes pra uma
-  fundação HTTP (RFC 9457, RFC 9110, RFC 9111, RFC 7239, RFC 6585,
+* [docs/architecture/rfc-compliance.md](rfc-compliance.md): referência
+  de conformidade com as RFCs relevantes pra uma fundação HTTP
+  (RFC 9457, RFC 9110, RFC 9111, RFC 7239, RFC 6585,
   RFC 8288/8631/8615, RFC 8259), separando o que já é conforme, o que
   é uma decisão de escopo deliberada e o que é lacuna real — incluindo
-  dois achados que quebram a própria garantia "RFC 9457 é o único
-  formato de erro" (`Recover()` vazando detail de panic, `Timeout`
-  respondendo em texto puro) e um bug de parsing de `X-Forwarded-For`
-  multi-hop encontrado no processo.
-
----
-
-# Melhorias Futuras OpenAPI
-
-Ainda não prioritárias.
-
-* operationId
-* examples múltiplos
-* discriminator
-* pattern automático
-* security schemes
-* callbacks
-* webhooks
-* links
-* XML
-* const
-* automatic tags
-
----
-
-# Objetivo de Curto Prazo
-
-Implementar observabilidade baseada em OpenTelemetry.
-
-Escopo inicial:
-
-* tracing HTTP
-* propagação de contexto
-* trace id
-* span id
-* associação automática de rotas
-* marcação automática de erros
-
-Após tracing:
-
-* métricas
-* health endpoints
-
----
-
-# Objetivo de Longo Prazo
-
-Tornar a foundation uma alternativa moderna para construção de APIs e microsserviços em Go, oferecendo:
-
-* OpenAPI de primeira classe
-* observabilidade nativa
-* baixo boilerplate
-* excelente experiência de desenvolvimento
-* componentes independentes
-* forte integração com arquiteturas modernas
-* preparação para produção desde o início
-  """
+  por que `Recover()` nunca deixa o detail de um panic recuperado
+  chegar na resposta e por que `Timeout()` responde em Problem Details
+  em vez de texto puro (os dois caminhos que, sem isso, quebrariam a
+  própria garantia "RFC 9457 é o único formato de erro"), e por que o
+  parsing de `Forwarded`/`X-Forwarded-For` só considera o primeiro
+  hop.

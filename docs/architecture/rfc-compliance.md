@@ -32,7 +32,7 @@ stdlib "should" do) — the results are noted where relevant.
 | RFC 6585 | Additional HTTP Status Codes | ✅ 429 with `Retry-After`; 431/428 out of the framework's reach (platform limit) |
 | RFC 8288 / RFC 8631 | Web Linking / service link relations | ✅ `Link: rel="service-desc"` opt-in |
 | RFC 8615 | Well-Known URIs | ❌ Out of scope |
-| RFC 6749 / RFC 6750 / RFC 7617 | OAuth2 / Bearer / Basic | ❌ Deferred (roadmap in `NOTES.md`) |
+| RFC 6749 / RFC 6750 / RFC 7617 | OAuth2 / Bearer / Basic | ❌ Deferred |
 | RFC 8259 | JSON | ✅ Compliant |
 | draft-ietf-httpapi-idempotency-key-header | Idempotency-Key (not yet an RFC) | ❌ Not implemented, worth tracking |
 
@@ -365,8 +365,8 @@ not a collection), so there would be nowhere to plug this in yet.
 
 ## RFC 6749 / RFC 6750 / RFC 7617 — OAuth 2.0 / Bearer Token / Basic Auth
 
-Not implemented — deferred decision, roadmap in `NOTES.md`. Bearer =
-RFC 6750, Basic = RFC 7617 (not the obsolete RFC 2617).
+Not implemented — deferred decision. Bearer = RFC 6750, Basic =
+RFC 7617 (not the obsolete RFC 2617).
 
 ---
 
@@ -402,10 +402,9 @@ serve as a model for an analogous "IdempotencyStore."
 
 Genuine future work, outside the scope already covered above:
 
-* Pluggable storage adapters for `RateLimit` (Redis, Valkey,
-  Memcached — already tracked in `NOTES.md`, the `LimitCounter`
-  interface is already ready for it).
-* Bearer/Basic Auth (deferred, separate roadmap in `NOTES.md`).
+* Pluggable storage adapters for `RateLimit` (Redis, Valkey, Memcached
+  — the `LimitCounter` interface is already ready for it).
+* Bearer/Basic Auth (deferred).
 * `/.well-known/` (RFC 8615) and pagination via `Link` — no concrete
   demand today, see notes above.
 * `428 Precondition Required` / `If-Match` — would only make sense

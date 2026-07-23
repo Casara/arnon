@@ -33,7 +33,7 @@ relevante.
 | RFC 6585 | Additional HTTP Status Codes | ✅ 429 com `Retry-After`; 431/428 fora do alcance do framework (limite de plataforma) |
 | RFC 8288 / RFC 8631 | Web Linking / service link relations | ✅ `Link: rel="service-desc"` opt-in |
 | RFC 8615 | Well-Known URIs | ❌ Fora de escopo |
-| RFC 6749 / RFC 6750 / RFC 7617 | OAuth2 / Bearer / Basic | ❌ Adiado (roadmap em `NOTES.md`) |
+| RFC 6749 / RFC 6750 / RFC 7617 | OAuth2 / Bearer / Basic | ❌ Adiado |
 | RFC 8259 | JSON | ✅ Conforme |
 | draft-ietf-httpapi-idempotency-key-header | Idempotency-Key (ainda não é RFC) | ❌ Não implementado, vale acompanhar |
 
@@ -364,8 +364,8 @@ ainda.
 
 ## RFC 6749 / RFC 6750 / RFC 7617 — OAuth 2.0 / Bearer Token / Basic Auth
 
-Não implementado — decisão adiada, roadmap em `NOTES.md`. Bearer =
-RFC 6750, Basic = RFC 7617 (não a RFC 2617 obsoleta).
+Não implementado — decisão adiada. Bearer = RFC 6750, Basic = RFC 7617
+(não a RFC 2617 obsoleta).
 
 ---
 
@@ -403,9 +403,8 @@ como precedente de "middleware com storage plugável"
 Trabalho futuro genuíno, fora do escopo já coberto acima:
 
 * Adaptadores de storage plugável pra `RateLimit` (Redis, Valkey,
-  Memcached — já rastreado em `NOTES.md`, interface `LimitCounter` já
-  pronta pra isso).
-* Bearer/Basic Auth (adiado, roadmap separado em `NOTES.md`).
+  Memcached — interface `LimitCounter` já pronta pra isso).
+* Bearer/Basic Auth (adiado).
 * `/.well-known/` (RFC 8615) e paginação via `Link` — sem demanda
   concreta hoje, ver notas acima.
 * `428 Precondition Required` / `If-Match` — só faria sentido junto
