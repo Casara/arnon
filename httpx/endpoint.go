@@ -1,12 +1,14 @@
 package httpx
 
 import (
+	"fmt"
 	"net/http"
 	"reflect"
 
 	"github.com/Casara/arnon/httpx/binding"
 	"github.com/Casara/arnon/openapi"
 	"github.com/Casara/arnon/problem"
+	"github.com/Casara/arnon/sanitize"
 	"github.com/Casara/arnon/validation"
 )
 
@@ -46,10 +48,10 @@ func (config EndpointConfig) WithDefaults() EndpointConfig {
 }
 
 // Endpoint wraps a typed handler into an http.Handler: it binds the
-// request (path/query/header/JSON body), validates it, calls handler,
-// and writes the result - a success response on the happy path, or an
-// RFC 9457 Problem (via config.ProblemMapper) if binding, validation,
-// or handler itself returns an error.
+// request (path/query/header/JSON body), sanitizes it, validates it,
+// calls handler, and writes the result - a success response on the
+// happy path, or an RFC 9457 Problem (via config.ProblemMapper) if
+// binding, validation, or handler itself returns an error.
 func Endpoint[
 	TRequest any,
 	TResponse any,
@@ -61,6 +63,13 @@ func Endpoint[
 	config EndpointConfig,
 ) http.Handler {
 	config = config.WithDefaults()
+
+	requestType := reflect.TypeFor[TRequest]()
+
+	err := sanitize.Prepare(requestType)
+	if err != nil {
+		panic(fmt.Errorf("prepare sanitize tags for %s: %w", requestType, err))
+	}
 
 	handlerFunc := func(
 		writer http.ResponseWriter,
@@ -91,6 +100,8 @@ func Endpoint[
 
 			return
 		}
+
+		sanitize.Apply(&dto)
 
 		validationErrors := config.Validator.Validate(dto)
 
@@ -139,7 +150,7 @@ func Endpoint[
 
 		operation: config.OpenAPI,
 
-		requestType: reflect.TypeFor[TRequest](),
+		requestType: requestType,
 
 		responseType: reflect.TypeFor[TResponse](),
 	}

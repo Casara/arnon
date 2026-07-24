@@ -227,6 +227,7 @@ responsibility:
 | Package                | Responsibility                                                                                                       |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | `problem`             | HTTP errors in RFC 9457 (Problem Details) format.                                                                      |
+| `sanitize`            | Struct-tag-driven data transforms (trim, custom funcs), applied before validation.                                     |
 | `validation`          | Request validation, with custom rule registration.                                                            |
 | `openapi`             | Schema and OpenAPI document generation from Go types.                                                        |
 | `httpx`               | Typed endpoint: binding, validation, serialization, and errors.                                                             |
@@ -263,6 +264,33 @@ validation.RegisterCustomRule(validation.CustomRule{
 	},
 })
 ```
+
+## Sanitization
+
+Struct tags transform request data before validation runs, so a check
+like `required`/`min` sees the value a client intends, not raw bytes
+that happen to satisfy it without meaning to (e.g. `"C "` passing
+`min=2` on its untrimmed length):
+
+```go
+type CreateUserRequest struct {
+	Email string `json:"email" validate:"required,email" sanitize:"email"`
+}
+```
+
+Built-in: `trim` and `email` (trim + lowercase). Register your own the
+same way as a custom validation rule:
+
+```go
+sanitize.RegisterFunc(
+	"digitsOnly",
+	sanitize.FromRegexp(regexp.MustCompile(`[^0-9]`)),
+)
+```
+
+A struct field is always recursed into; a slice/array/map field needs
+its tag to start with `dive` (`sanitize:"dive,trim"` on a `[]string`),
+matching `validate`'s own convention.
 
 ## Skill for AI assistants
 

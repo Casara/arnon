@@ -235,6 +235,28 @@ linters:
       ignored-functions:
         - "^len$"
         - "^make$"
+    tagalign:
+      # Explicit key order, matching openapi/doc.go's own documented
+      # tag list (with "sanitize" inserted right after "validate",
+      # since a sanitizer runs immediately before validation) - without
+      # this, tagalign's default alphabetical order disagrees with
+      # what the golines formatter (run via `make fmt`) produces for
+      # any tag combination it hasn't seen before, and the two fight
+      # over "sanitize" vs "validate" forever.
+      order:
+        - json
+        - path
+        - query
+        - header
+        - validate
+        - sanitize
+        - description
+        - format
+        - example
+        - default
+        - deprecated
+        - readonly
+        - writeonly
     tagliatelle:
       # Checks the struct tag name case.
       case:

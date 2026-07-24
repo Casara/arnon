@@ -50,12 +50,14 @@ Documented and enforced by `.go-arch-lint.yml`. Arrow direction =
 ```mermaid
 flowchart TD
     problem["problem"]
+    sanitize["sanitize"]
     validation["validation"] --> problem
     openapi["openapi"] --> validation
     httpxBinding["httpx/binding"] --> problem
     httpx["httpx"] --> httpxBinding
     httpx --> openapi
     httpx --> problem
+    httpx --> sanitize
     httpx --> validation
     httpxRouting["httpx/routing"] --> httpx
     httpxRouting --> openapi
@@ -174,15 +176,35 @@ Before adding an import between internal packages, run
   add a new parallel mechanism for registering custom tags without
   wiring into all three places (`validation/playground.go`,
   `validation/mapper.go`, `openapi/validation.go`).
+* **`sanitize` runs between binding and validation in `httpx.Endpoint`,
+  and is its own package, not part of `validation`.** A sanitizer is a
+  pure `func(string) string` with no error path and no OpenAPI
+  surface — trimming/normalizing doesn't change the wire contract,
+  only what the server does with the value — so `sanitize` depends on
+  nothing internal, not even `problem`. `RegisterFunc` mirrors
+  `validation.RegisterCustomRule`'s single-registry pattern; the
+  `sanitize:"trim,lower"` tag chains named transforms. A struct field
+  is always recursed into (matches `validator/v10`'s own automatic
+  dive into a nested struct); a slice/array/map field needs its tag to
+  start with `dive`, matching `validate`'s own convention — see
+  `docs/architecture/project-context.md`'s "Sanitization" section for
+  the full walker design, including why `Prepare` walks the
+  `reflect.Type` rather than a live value (so a typo'd tag behind a
+  nil pointer field still fails at `Endpoint` construction instead of
+  silently doing nothing on the one request that happens to populate
+  it). Deliberately has no fuego-style "Output Transformation"
+  counterpart: the handler already has full write access to the
+  response before `Endpoint` serializes it, so masking or computing a
+  field there is just Go code — no framework hook is missing.
 * **`openapi/reflection_field.go` gives the explicit `format` tag
   priority** over what `applyValidationTags` already inferred, which
   in turn takes priority over the `inferFormatFromValidator` fallback.
   That order is intentional (the same tag can be recognized in both
   places) — don't reverse it.
 * **No global variables besides deliberate singletons**
-  (`validation.Default()`, the custom rule registry). Prefer explicit
-  dependency injection for everything else, per
-  `docs/coding-style.md`.
+  (`validation.Default()`, the custom rule registry, the sanitize
+  registry). Prefer explicit dependency injection for everything else,
+  per `docs/coding-style.md`.
 * **Binding errors don't carry an HTTP status by default — but can
   override it.** `httpx.Endpoint` (`writeValidationProblem`) defaults
   to 400 for any `binding.Decode` error, *except* when a

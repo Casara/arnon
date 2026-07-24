@@ -216,6 +216,73 @@ guarantee that `code` is a stable vocabulary.
 
 ---
 
+# Sanitization
+
+`sanitize.Apply` runs between `binding.Decode` and validation inside
+`httpx.Endpoint`, so a validator like `required`/`min` sees the value a
+client actually intends, not raw bytes that happen to satisfy the
+check without meaning to (e.g. `"C "` passing `min=2` on its untrimmed
+length, even though the intended value is a single character).
+
+Scope is deliberately narrow: a sanitizer only does the cleanup a
+validator needs to make a correct decision. Anything that doesn't
+affect whether validation passes - display formatting, computed
+fields, masking sensitive data in a response - belongs in the handler,
+not here. This is also why there's no fuego-style "Output
+Transformation": the handler already has full write access to the
+response type before `Endpoint` serializes it, so masking or computing
+a field there is just Go code, no framework hook needed.
+
+## Tag syntax
+
+`sanitize:"trim,lower"` chains named transforms, resolved against the
+registry `sanitize.RegisterFunc` feeds - the same single-registry
+pattern as `validation.RegisterCustomRule`. Built-in: `trim`
+(`strings.TrimSpace`) and `email` (trim + lowercase). Deliberately
+minimal - no `lower`/`upper`/`title` etc. shipped by default, since
+those are business decisions (lowercasing a `Name` would be wrong),
+not universal normalization; register your own via `RegisterFunc`.
+
+`sanitize.FromRegexp(pattern)` returns a sanitizer that removes every
+substring matching a pre-compiled `*regexp.Regexp` - the equivalent of
+mrz1836/go-sanitize's `CustomCompiled`, minus embedding the pattern in
+the tag string itself (which would collide with the tag's own
+comma-separated syntax, and force a recompile on every request the way
+that library's own `Custom` does).
+
+## Recursion
+
+A struct field is always recursed into, matching how `validator/v10`
+dives into a nested struct automatically (no tag needed on the struct
+field itself). A slice/array/map field needs its tag to start with
+`dive` to apply the remaining tokens to each element, matching
+`validate`'s own convention (`sanitize:"dive,trim"` on `[]string`,
+`sanitize:"dive"` alone on `[]SomeStruct` to recurse into each
+element's own tagged fields). Bounded by the same kind of depth limit
+(`sanitize.maxDepth`, 16) as `validation.maxFieldMapDepth`, for the
+same reason: guarantee termination against a self-referential struct
+instead of recursing until the stack overflows.
+
+Scoped to `string` fields (and `*string`) for v1 - no numeric/bool
+directives like some sanitizer libraries offer (`max`/`min`/`def`):
+that overlaps with `validate:"gt/gte/lt/lte"` and would conflict with
+what the `default` OpenAPI tag already means.
+
+## Fail fast, not silently
+
+`httpx.Endpoint` calls `sanitize.Prepare(reflect.TypeFor[TRequest]())`
+once, at construction time, and panics if any `sanitize` tag reachable
+from the type references an unregistered function - mirroring
+`middleware.BuildChain`'s "panic at construction, not mid-request"
+discipline. `Prepare` walks the `reflect.Type` structurally rather than
+a live value specifically so a nested pointer-to-struct field is
+checked even when it would be nil at runtime - `Apply` (which runs per
+request, against the real, possibly-nil value) can't offer that
+guarantee, and silently skips an unrecognized tag instead of erroring
+on every request.
+
+---
+
 # OpenAPI
 
 ## Current State

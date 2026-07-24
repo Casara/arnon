@@ -25,10 +25,15 @@ type Address struct {
 // nesting case, `dive` into a slice of primitives: a validation error
 // on a specific element (e.g. Tags[1]) resolves to the RFC 6901
 // pointer "/tags/1", with the failing element's actual index, not a
-// single "/tags" segment.
+// single "/tags" segment. Email demonstrates sanitize:"email" (trim +
+// lowercase, applied before validation runs): validator's own "email"
+// tag rejects a value with surrounding whitespace outright (confirmed
+// empirically - a very common data-entry mistake, e.g. a copy-pasted
+// address), so without the sanitize tag " ada@example.com " would
+// fail validation instead of being accepted like any other email.
 type CreateUserRequest struct {
 	Name    string   `json:"name"    validate:"required,notblank"`
-	Email   string   `json:"email"   validate:"required,email"`
+	Email   string   `json:"email"   validate:"required,email"       sanitize:"email"`
 	Address *Address `json:"address"`
 	Tags    []string `json:"tags"    validate:"omitempty,dive,min=2"`
 }

@@ -36,6 +36,9 @@ Initial public release.
 - Custom validation rules through a single registry
   (`validation.RegisterCustomRule`) that feeds runtime validation,
   error mapping and OpenAPI schema generation together.
+- Struct-tag-driven request sanitization (`sanitize`), applied before
+  validation runs (`trim`/`email` built in, `sanitize.RegisterFunc` for
+  custom transforms, recursive into nested structs/slices/maps).
 - OpenTelemetry integration (`observability`, `observability/otel`):
   automatic HTTP tracing/metrics, custom counters/histograms,
   trace-correlated logging.

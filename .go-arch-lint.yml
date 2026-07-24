@@ -12,6 +12,7 @@ vendors:
 
 components:
   problem: { in: problem }
+  sanitize: { in: sanitize }
   validation: { in: validation }
   openapi: { in: openapi }
   httpx: { in: httpx }
@@ -30,6 +31,12 @@ deps:
   # Leaf package: RFC 9457 Problem Details types. Everything else may
   # depend on it, it depends on nothing internal or external (no entry
   # below means no allowed dependencies at all).
+
+  # Leaf package, same shape as problem above: struct-tag-driven data
+  # transforms (trim, lower, custom funcs) applied before validation
+  # runs. Depends on nothing internal - a sanitizer is a pure
+  # func(string) string, so it never needs to report a validation
+  # failure.
 
   # Wraps go-playground/validator/v10 behind the Validator interface
   # and the custom rule registry.
@@ -58,6 +65,7 @@ deps:
       - httpx-binding
       - openapi
       - problem
+      - sanitize
       - validation
 
   # The router registers OpenAPI operations contributed by handlers
@@ -106,6 +114,7 @@ deps:
       - httpx-middleware
       - openapi
       - problem
+      - sanitize
       - validation
       - observability
       - observability-otel

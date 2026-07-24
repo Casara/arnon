@@ -226,6 +226,7 @@ responsabilidade única:
 | Pacote                | Responsabilidade                                                                                                       |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | `problem`             | Erros HTTP no formato RFC 9457 (Problem Details).                                                                      |
+| `sanitize`            | Transformações de dados via struct tag (trim, funções customizadas), aplicadas antes da validação.                     |
 | `validation`          | Validação de requests, com registro de regras customizadas.                                                            |
 | `openapi`             | Geração de schemas e do documento OpenAPI a partir de tipos Go.                                                        |
 | `httpx`               | Endpoint tipado: binding, validação, serialização e erros.                                                             |
@@ -264,6 +265,33 @@ validation.RegisterCustomRule(validation.CustomRule{
 	},
 })
 ```
+
+## Sanitização
+
+Struct tags transformam o dado da request antes da validação rodar,
+pra que uma checagem tipo `required`/`min` veja o valor que o cliente
+pretende, não bytes crus que por acaso satisfazem sem ter esse sentido
+(ex.: `"C "` passando em `min=2` pelo comprimento sem trim):
+
+```go
+type CreateUserRequest struct {
+	Email string `json:"email" validate:"required,email" sanitize:"email"`
+}
+```
+
+Built-in: `trim` e `email` (trim + lowercase). Registre o seu do mesmo
+jeito que uma regra de validação customizada:
+
+```go
+sanitize.RegisterFunc(
+	"digitsOnly",
+	sanitize.FromRegexp(regexp.MustCompile(`[^0-9]`)),
+)
+```
+
+Um campo struct é sempre recursado; um campo slice/array/map precisa
+que a tag comece com `dive` (`sanitize:"dive,trim"` num `[]string`),
+seguindo a mesma convenção do `validate`.
 
 ## Skill para assistentes de IA
 

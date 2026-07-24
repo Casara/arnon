@@ -55,6 +55,20 @@ HTTP 400
 jsonpath "$.errors[0].code" == "invalid_email"
 jsonpath "$.errors[0].source.field" == "/email"
 
+# Email with surrounding whitespace: sanitize:"email" trims it before
+# validate:"email" runs, so this succeeds - without the sanitize tag,
+# validator's own "email" tag rejects surrounding whitespace outright
+# and this would instead fail with invalid_email.
+POST http://localhost:8080/users
+Content-Type: application/json
+{
+    "name": "Ada Lovelace",
+    "email": "  Ada@Example.com  "
+}
+HTTP 201
+[Asserts]
+jsonpath "$.id" exists
+
 # Nested field validation: Address is a nested struct (see
 # examples/internal/users), so a validation error inside it resolves
 # to a full RFC 6901 pointer ("/address/city"), not just "/city".

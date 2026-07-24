@@ -218,6 +218,77 @@ garantia de `code` ser vocabulário estável.
 
 ---
 
+# Sanitização
+
+`sanitize.Apply` roda entre `binding.Decode` e a validação, dentro de
+`httpx.Endpoint`, pra que um validador tipo `required`/`min` veja o
+valor que o cliente realmente pretende, não bytes crus que por acaso
+satisfazem a checagem sem ter esse sentido (ex.: `"C "` passando em
+`min=2` pelo comprimento sem trim, mesmo o valor pretendido sendo um
+único caractere).
+
+O escopo é deliberadamente estreito: um sanitizer só faz a limpeza que
+um validador precisa pra decidir corretamente. Qualquer coisa que não
+afete se a validação passa - formatação de exibição, campo computado,
+mascarar dado sensível numa resposta - é responsabilidade do handler,
+não daqui. É também por isso que não existe um equivalente a "Output
+Transformation" do fuego: o handler já tem controle total de escrita
+sobre o tipo de resposta antes do `Endpoint` serializar - mascarar ou
+computar um campo ali é só código Go, sem precisar de hook nenhum do
+framework.
+
+## Sintaxe da tag
+
+`sanitize:"trim,lower"` encadeia transformações nomeadas, resolvidas
+contra o registro que `sanitize.RegisterFunc` alimenta - o mesmo padrão
+de registro único de `validation.RegisterCustomRule`. Built-in: `trim`
+(`strings.TrimSpace`) e `email` (trim + lowercase). Deliberadamente
+mínimo - não vem `lower`/`upper`/`title` etc. por padrão, já que isso é
+decisão de negócio (deixar `Name` em lowercase seria errado), não
+normalização universal; registre o seu via `RegisterFunc`.
+
+`sanitize.FromRegexp(pattern)` retorna um sanitizer que remove toda
+substring que casa com um `*regexp.Regexp` já compilado - o equivalente
+ao `CustomCompiled` do mrz1836/go-sanitize, sem embutir o padrão dentro
+da string da tag (o que colidiria com a própria sintaxe separada por
+vírgula da tag, e forçaria recompilar a cada request, do jeito que o
+`Custom` daquela lib faz).
+
+## Recursão
+
+Um campo struct é sempre recursado, do mesmo jeito que o
+`validator/v10` já desce em struct aninhado automaticamente (sem
+precisar de tag no campo struct em si). Um campo slice/array/map
+precisa que a tag comece com `dive` pra aplicar os tokens restantes em
+cada elemento, seguindo a mesma convenção do `validate`
+(`sanitize:"dive,trim"` num `[]string`, `sanitize:"dive"` sozinho num
+`[]SomeStruct` pra recursar nos próprios campos tagueados de cada
+elemento). Limitado pelo mesmo tipo de profundidade
+(`sanitize.maxDepth`, 16) que `validation.maxFieldMapDepth`, pelo mesmo
+motivo: garantir término contra um struct auto-referente em vez de
+recursar até estourar a pilha.
+
+Restrito a campo `string` (e `*string`) na v1 - sem diretivas
+numéricas/bool que algumas libs de sanitizer oferecem (`max`/`min`/
+`def`): isso sobrepõe `validate:"gt/gte/lt/lte"` e conflitaria com o
+que a tag `default` do OpenAPI já significa.
+
+## Falha rápido, não em silêncio
+
+`httpx.Endpoint` chama `sanitize.Prepare(reflect.TypeFor[TRequest]())`
+uma vez, no momento da construção, e dá panic se alguma tag `sanitize`
+alcançável a partir do tipo referenciar uma função não registrada -
+espelhando a disciplina "panic na construção, nunca no meio de uma
+request" do `middleware.BuildChain`. `Prepare` caminha o
+`reflect.Type` estruturalmente em vez de um valor vivo justamente pra
+que um campo pointer-pra-struct aninhado seja checado mesmo quando
+seria nil em runtime - `Apply` (que roda por request, contra o valor
+real, possivelmente nil) não consegue oferecer essa garantia, e ignora
+silenciosamente uma tag não reconhecida em vez de dar erro em toda
+request.
+
+---
+
 # OpenAPI
 
 ## Estado Atual
