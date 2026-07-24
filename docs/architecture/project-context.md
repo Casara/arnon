@@ -1244,9 +1244,8 @@ structured logs (`httpx/middleware/logging.go`). Demonstrated and
 validated end to end (exported trace matching the application log,
 custom metrics with exemplars pointing to the exact trace) in
 `examples/cmd/observability`, including a local OTel Collector via
-Docker Compose. What's genuinely still missing is automated test
-coverage for `observability`/`observability/otel` (0% today), not the
-functionality itself.
+Docker Compose, and covered by unit tests (see "Tests" below) on top
+of that manual validation.
 
 ---
 
@@ -1287,11 +1286,41 @@ Implemented:
 
 ### Unit
 
-* coverage of the core packages: `validation`, `openapi`, `problem`,
-  `httpx`, `httpx/binding`, `httpx/middleware`, and `httpx/routing`.
+* coverage of every package: `validation`, `openapi`, `problem`,
+  `sanitize`, `httpx`, `httpx/binding`, `httpx/middleware`,
+  `httpx/routing`, `observability`, `observability/otel`.
 * `httpx`: end-to-end tests via `httptest`, covering binding,
-  validation, error mapping (default and custom), and the success
-  path.
+  sanitization, validation, error mapping (default and custom), and
+  the success path.
+* `observability`/`observability/otel`: almost everything worth
+  testing in `observability/otel` is unexported (`newResource`,
+  `newTracerProvider`, `newMeterProvider`, `newMetricExporter`,
+  `newTraceExporter`, `startRuntimeMetrics`, `Config.withDefaults` are
+  all lowercase), and `testpackage` forces an external `_test`
+  package - so instead of granular per-function unit tests, coverage
+  comes from a handful of broader tests against `Initialize` (the one
+  real entry point) that exercise all of that machinery indirectly,
+  asserting on what's externally observable: no error/panic, the real
+  SDK provider got installed (`otel.GetTracerProvider()`/
+  `GetMeterProvider()` type-asserted, not the no-op default), and
+  shutdown respects its context deadline instead of hanging.
+  Constructing the real OTLP/gRPC exporter against an unreachable
+  endpoint is safe to do in a test - confirmed empirically, it doesn't
+  dial synchronously (a `New(ctx, ...)` call returns in ~100µs
+  regardless of whether anything is listening) - but the provider's
+  `Shutdown(ctx)` does attempt a real flush and blocks until the
+  context deadline before returning an error, so those tests use a
+  short-lived context and don't fail on the (expected) export error,
+  only on hanging past it. `otel.SetTracerProvider`/
+  `otel.SetMeterProvider` are process-wide global state, so none of
+  these tests can run with `t.Parallel()` (a justified
+  `//nolint:paralleltest` on each). Writing these tests caught a real
+  bug: `Initialize(Config{TracesEnabled: false})` followed by calling
+  the returned shutdown function paniced with a nil pointer
+  dereference - `shutdown()` nil-checked `meterProvider` before
+  calling `.Shutdown()` but not `traceProvider`, even though both are
+  left nil the same way when their respective `*Enabled` flag is
+  false. Fixed; a regression test covers it.
 
 Planned:
 
@@ -1304,10 +1333,6 @@ Planned:
   human reading a diff. Not implemented yet — `openapi`'s current
   tests assert on individual fields of the generated document, not on
   a full document snapshot.
-
-### Unit (pending)
-
-* coverage of `observability`/`observability/otel` (0% today)
 
 ### Mutation
 

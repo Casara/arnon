@@ -1248,9 +1248,8 @@ logs estruturados (`httpx/middleware/logging.go`). Demonstrado e
 validado fim a fim (trace exportado batendo com o log da aplicação,
 métricas customizadas com exemplars apontando pro trace exato) em
 `examples/cmd/observability`, incluindo um OTel Collector local via
-Docker Compose. O que falta de verdade é cobertura de teste
-automatizado de `observability`/`observability/otel` (0% hoje), não a
-funcionalidade em si.
+Docker Compose, e coberto por testes unitários (ver "Testes" abaixo)
+em cima dessa validação manual.
 
 ---
 
@@ -1291,10 +1290,41 @@ Implementado:
 
 ### Unitários
 
-* cobertura dos pacotes centrais: `validation`, `openapi`, `problem`,
-  `httpx`, `httpx/binding`, `httpx/middleware` e `httpx/routing`.
-* `httpx`: testes fim-a-fim via `httptest`, cobrindo binding, validação,
-  mapeamento de erro (default e customizado) e o caminho de sucesso.
+* cobertura de todos os pacotes: `validation`, `openapi`, `problem`,
+  `sanitize`, `httpx`, `httpx/binding`, `httpx/middleware`,
+  `httpx/routing`, `observability`, `observability/otel`.
+* `httpx`: testes fim-a-fim via `httptest`, cobrindo binding,
+  sanitização, validação, mapeamento de erro (default e customizado) e
+  o caminho de sucesso.
+* `observability`/`observability/otel`: quase tudo que vale a pena
+  testar em `observability/otel` é não-exportado (`newResource`,
+  `newTracerProvider`, `newMeterProvider`, `newMetricExporter`,
+  `newTraceExporter`, `startRuntimeMetrics`, `Config.withDefaults` são
+  todos minúsculos), e `testpackage` obriga pacote `_test` externo -
+  então em vez de testes unitários granulares por função, a cobertura
+  vem de um punhado de testes mais abrangentes contra `Initialize` (o
+  único ponto de entrada real) que exercitam toda essa máquina
+  indiretamente, verificando o que é observável de fora: sem
+  erro/panic, o provider real do SDK foi instalado
+  (`otel.GetTracerProvider()`/`GetMeterProvider()` com type assertion,
+  não o default no-op), e o shutdown respeita o deadline do context em
+  vez de travar. Construir o exporter OTLP/gRPC real contra um
+  endpoint inalcançável é seguro de fazer num teste - confirmado
+  empiricamente, não disca de forma síncrona (uma chamada `New(ctx,
+  ...)` retorna em ~100µs independente de ter algo escutando) - mas o
+  `Shutdown(ctx)` do provider tenta um flush de verdade e bloqueia até
+  o deadline do context antes de retornar erro, então esses testes
+  usam um context de vida curta e não falham no erro de export
+  (esperado), só se travar além disso.
+  `otel.SetTracerProvider`/`otel.SetMeterProvider` são estado global
+  do processo, então nenhum desses testes pode usar `t.Parallel()` (um
+  `//nolint:paralleltest` justificado em cada um). Escrever esses
+  testes pegou um bug real: `Initialize(Config{TracesEnabled: false})`
+  seguido de chamar a função de shutdown retornada dava panic com nil
+  pointer dereference - `shutdown()` checava nil em `meterProvider`
+  antes de chamar `.Shutdown()`, mas não em `traceProvider`, mesmo os
+  dois ficando nil do mesmo jeito quando a respectiva flag `*Enabled`
+  é false. Corrigido; um teste de regressão cobre isso.
 
 Planejado:
 
@@ -1308,10 +1338,6 @@ Planejado:
   Ainda não implementado — os testes atuais de `openapi` fazem
   assertion em campos individuais do documento gerado, não num
   snapshot do documento completo.
-
-### Unitários (pendente)
-
-* cobertura de `observability`/`observability/otel` (0% hoje)
 
 ### Mutação
 

@@ -77,9 +77,11 @@ func shutdown(
 			}
 		}
 
-		err := traceProvider.Shutdown(ctx)
-		if err != nil && firstErr == nil {
-			firstErr = err
+		if traceProvider != nil {
+			err := traceProvider.Shutdown(ctx)
+			if err != nil && firstErr == nil {
+				firstErr = err
+			}
 		}
 
 		return firstErr
