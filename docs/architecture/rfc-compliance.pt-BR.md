@@ -349,10 +349,13 @@ já entende `Link` headers descobre o documento OpenAPI (ex.
 ## RFC 8615 — Well-Known URIs
 
 Fora de escopo. `/openapi.json` (ou o path que o usuário escolher) é
-um path arbitrário, não um endpoint bem-conhecido em
-`/.well-known/`. Não implementado porque não foi pedido e o ganho é
-pequeno frente ao `ServiceDesc` acima, que já resolve a descoberta
-via `Link`.
+um path arbitrário, não um endpoint bem-conhecido em `/.well-known/`.
+Não implementado — não existe hoje nenhum recurso `/.well-known/`
+concreto que o `arnon` precise servir (ex.: `security.txt`,
+`openid-configuration`), e a única necessidade de descoberta que o
+framework realmente tem (apontar o cliente pro documento OpenAPI) já é
+coberta pelo header `Link` do `ServiceDesc`, que não precisa de path
+bem-conhecido nenhum.
 
 Paginação via `Link` (`rel="next"`/`"prev"`, convenção popularizada
 pela API do GitHub) também não está implementada — não há hoje

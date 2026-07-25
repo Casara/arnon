@@ -351,10 +351,12 @@ out-of-band documentation.
 ## RFC 8615 — Well-Known URIs
 
 Out of scope. `/openapi.json` (or whatever path the user chooses) is
-an arbitrary path, not a well-known endpoint under
-`/.well-known/`. Not implemented because it wasn't requested and the
-gain is small compared to `ServiceDesc` above, which already solves
-discovery via `Link`.
+an arbitrary path, not a well-known endpoint under `/.well-known/`.
+Not implemented — there's no concrete `/.well-known/` resource `arnon`
+needs to serve today (e.g. `security.txt`, `openid-configuration`),
+and the one discovery need the framework actually has (pointing a
+client at the OpenAPI document) is already covered by `ServiceDesc`'s
+`Link` header, which needs no well-known path at all.
 
 Pagination via `Link` (`rel="next"`/`"prev"`, a convention popularized
 by GitHub's API) also isn't implemented — there's currently no concept
