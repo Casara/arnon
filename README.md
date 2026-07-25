@@ -96,6 +96,7 @@ terms would be like comparing a bicycle and a car by their engine.
 | --- | --- | --- | --- |
 | Error format | Native RFC 9457 | Native RFC 9457 | Native RFC 9457 — **not a differentiator**, it's today's expected floor |
 | Validation error field | Ad-hoc dot notation (`"body.title"`) | `validator/v10`'s internal namespace (`err.StructNamespace()`, Go type/field name, not the `json` tag) | RFC 6901 (JSON Pointer), with escaping |
+| Sanitization before validation | Not built in | `InTransform`/`OutTransform` interface methods — explicit code per type, not recursive into nested structs | `sanitize` struct tag (`sanitize:"trim"`), recursive into nested structs/slices/maps, custom transforms through the same single-registry pattern as validation |
 | Generated OpenAPI version | 3.1 (`kin-openapi`, no 3.2 yet) | ~3.0 (3.1/3.2 unconfirmed) | 3.2.0 — an advantage with a short shelf life, it's a matter of time until the rest of the ecosystem catches up |
 | Server/router | Bring-your-own — `net/http` via `humago`, but also `fasthttp` via `humafiber` (which loses compatibility with the `net/http` ecosystem) | `net/http` directly, same choice as `arnon` | `net/http` directly, but its own router — not pluggable into an existing `gin.Engine`/`echo.Echo` |
 

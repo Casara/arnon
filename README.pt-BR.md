@@ -96,6 +96,7 @@ e carro pelo motor.
 | --- | --- | --- | --- |
 | Formato de erro | RFC 9457 nativo | RFC 9457 nativo | RFC 9457 nativo — **não é diferencial**, é piso esperado hoje |
 | Campo do erro de validação | notação de ponto ad-hoc (`"body.title"`) | namespace interno do `validator/v10` (`err.StructNamespace()`, nome de tipo/campo Go, não a tag `json`) | RFC 6901 (JSON Pointer), com escaping |
+| Sanitização antes da validação | Não tem | Métodos de interface `InTransform`/`OutTransform` — código explícito por tipo, não recursivo em struct aninhado | Tag `sanitize` (`sanitize:"trim"`), recursiva em struct/slice/map aninhado, transformação customizada pelo mesmo padrão de registro único da validação |
 | Versão OpenAPI gerada | 3.1 (`kin-openapi`, sem 3.2 ainda) | ~3.0 (3.1/3.2 não confirmado) | 3.2.0 — vantagem com prazo de validade curto, é questão de tempo até o resto do ecossistema alcançar |
 | Servidor/router | bring-your-own — `net/http` via `humago`, mas também `fasthttp` via `humafiber` (aí perde a compatibilidade com o ecossistema `net/http`) | `net/http` direto, mesma escolha do `arnon` | `net/http` direto, mas router próprio — não plugável num `gin.Engine`/`echo.Echo` já existente |
 
