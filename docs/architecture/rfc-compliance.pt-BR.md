@@ -363,6 +363,84 @@ nenhum conceito de coleção paginada em `arnon` (endpoints retornam um
 valor único, não uma coleção), então não haveria onde plugar isso
 ainda.
 
+Se vier a ser implementada, o contrato mais consistente com o padrão
+de detecção de capacidade que `arnon` já usa é uma interface opt-in
+implementada pelo próprio tipo de resposta, não uma mudança na
+assinatura de `HandlerFunc`/`Endpoint`:
+
+```go
+// PageLinks carrega o valor do parâmetro de query para cada relação
+// de paginação. Uma string vazia omite essa relação (ex.: sem Prev na
+// primeira página, sem Next na última).
+type PageLinks struct {
+    First string
+    Prev  string
+    Next  string
+    Last  string
+}
+
+// Paginator é implementada por um tipo de resposta capaz de descrever
+// seu próprio estado de paginação. param nomeia o parâmetro de query
+// que carrega o token de página/cursor (ex.: "cursor" ou "page").
+type Paginator interface {
+    PageLinks() (param string, links PageLinks)
+}
+```
+
+`Endpoint` faria um type assertion do `TResponse` retornado pelo
+handler contra `Paginator` (`paginator, ok :=
+any(response).(Paginator)`) logo após a chamada ao handler — o mesmo
+idioma de detecção de capacidade que `router.register` já usa para
+`httpx.OpenAPIProvider` (`provider, ok :=
+handler.(httpx.OpenAPIProvider)`, `httpx/routing/register_openapi.go`).
+Para cada relação não vazia, clonaria os valores de query já existentes
+em `request.URL`, sobrescreveria `param`, e montaria uma referência
+relativa (`path?query`, sem precisar adivinhar host/scheme — a RFC 8288
+§3 permite uma referência de URI relativa em um header `Link`,
+resolvida contra a URI da requisição pelo cliente; o mesmo raciocínio
+que já mantém o campo `Instance` de `WriteProblem` agnóstico a host).
+O valor combinado seria escrito com uma única chamada
+`Header().Set("Link", ...)`, antes do `Header().Add` do próprio
+`ServiceDesc` rodar — consistente com a nota de coexistência acima.
+
+```mermaid
+sequenceDiagram
+    participant C as Cliente
+    participant E as Endpoint
+    participant H as Handler
+    participant W as WriteJSON
+
+    C->>E: request
+    E->>H: handler(ctx, dto)
+    H-->>E: response, err
+    E->>E: paginator, ok := any(response).(Paginator)
+    alt ok
+        E->>E: monta o header Link a partir de request.URL + PageLinks
+        E->>W: writer.Header().Set("Link", ...)
+    end
+    E->>W: WriteJSON(writer, status, response)
+    W-->>C: 200 + body + header Link
+```
+
+Duas alternativas foram consideradas e descartadas:
+
+* **Estender a tupla de retorno de `HandlerFunc`**
+  (`func(ctx, req) (TResponse, PageInfo, error)`) — descartada: muda a
+  assinatura de todo handler já escrito contra ela, paginado ou não,
+  por uma capacidade que só alguns endpoints precisam.
+* **Um construtor paralelo `PaginatedEndpoint`/`PaginatedHandlerFunc`**
+  — descartado: aditivo e sem quebra, mas duplica todo o pipeline
+  bind → sanitize → validate → handle → respond em um segundo caminho
+  de código, então qualquer correção futura em `Endpoint` precisaria
+  ser aplicada duas vezes.
+
+`openapi.Response.Headers` (`openapi/response.go`) já tem o campo para
+documentar um header `Link` por operação
+(`Headers: map[string]openapi.Header{"Link": {...}}`) — nenhuma
+mudança no framework seria necessária ali, já que detectar "esta
+operação é paginada" não é algo confiável de saber sem rodar o
+handler.
+
 ---
 
 ## RFC 6749 / RFC 6750 / RFC 7617 — OAuth 2.0 / Bearer Token / Basic Auth
