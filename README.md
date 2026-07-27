@@ -211,6 +211,10 @@ Complete, runnable examples live in `examples/cmd`:
   the same handler with tracing and metrics via OpenTelemetry,
   actually exporting to a local OTel Collector (started with
   `docker compose`).
+* [examples/cmd/files](examples/cmd/files/main.go) — file
+  download/upload (PDF, CSV, XML): plain `http.Handler`s mounted
+  directly on the router, since `httpx.Endpoint` is JSON-only by
+  design.
 
 ```sh
 go run ./examples/cmd/basic
@@ -218,6 +222,8 @@ go run ./examples/cmd/basic
 go run ./examples/cmd/middleware
 # or (requires docker compose -f examples/cmd/observability/docker-compose.yml up)
 go run ./examples/cmd/observability
+# or
+go run ./examples/cmd/files
 ```
 
 ## Overview

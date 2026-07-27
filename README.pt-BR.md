@@ -210,6 +210,9 @@ Exemplos completos e executáveis estão em `examples/cmd`:
   o mesmo handler com tracing e métricas via OpenTelemetry, exportando
   de verdade para um OTel Collector local (subido com
   `docker compose`).
+* [examples/cmd/files](examples/cmd/files/main.go) — download/upload
+  de arquivos (PDF, CSV, XML): `http.Handler`s simples montados
+  direto no router, já que `httpx.Endpoint` é JSON-only por design.
 
 ```sh
 go run ./examples/cmd/basic
@@ -217,6 +220,8 @@ go run ./examples/cmd/basic
 go run ./examples/cmd/middleware
 # ou (requer docker compose -f examples/cmd/observability/docker-compose.yml up)
 go run ./examples/cmd/observability
+# ou
+go run ./examples/cmd/files
 ```
 
 ## Visão geral

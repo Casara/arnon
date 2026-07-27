@@ -47,7 +47,9 @@ schema, request and response). For XML, PDF, file downloads, or any
 other non-JSON response, don't look for a typed-endpoint equivalent -
 mount a plain `http.Handler` directly on the router
 (`router.GET("/report.pdf", myHandler)`). No middleware in arnon is
-coupled to JSON, so this works with the same middleware stack.
+coupled to JSON, so this works with the same middleware stack. See
+`examples/cmd/files` for a runnable download/upload example (PDF, CSV,
+XML).
 
 ## Request binding
 
