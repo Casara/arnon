@@ -43,9 +43,11 @@ Initial public release.
   automatic HTTP tracing/metrics, custom counters/histograms,
   trace-correlated logging.
 - Interactive API docs via Stoplight Elements (`openapi.NewDocsHandler`).
-- Four runnable examples: `examples/cmd/basic`, `examples/cmd/middleware`,
+- Five runnable examples: `examples/cmd/basic`, `examples/cmd/middleware`,
   `examples/cmd/observability`, `examples/cmd/files` (non-JSON content:
-  file download/upload as plain `http.Handler`s).
+  file download/upload as plain `http.Handler`s), `examples/cmd/staticfiles`
+  (serving static assets via `http.FileServer`, and why that route skips
+  `ETag`/`Compress`).
 - A Claude Skill (`skills/using-arnon`) documenting how to consume
   arnon idiomatically in a project that depends on it.
 

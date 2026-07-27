@@ -261,6 +261,20 @@ Before adding an import between internal packages, run
   install `ETag` first (more outer), to hash the already-compressed
   bytes — consistent with the `Vary: Accept-Encoding` `Compress`
   already sets.
+* **Neither `ETag` nor `Compress` belongs in front of a Range-capable
+  handler** (`http.FileServer`, `http.ServeContent`, or anything else
+  serving resumable downloads/media seeking). Both interactions were
+  confirmed empirically, not assumed — see the doc comments on
+  `middleware.ETag`/`middleware.Compress` and
+  `examples/cmd/staticfiles` for the full detail (short version:
+  `ETag` breaks `If-Range` and produces a validator that isn't stable
+  across full vs. partial requests for the same resource; `Compress`
+  leaves `Content-Range` describing the pre-compression byte
+  positions while shipping a compressed body of a different length).
+  Scope both out of any route serving such a handler — the existing
+  `Group.Use` scoping already used for `AllowContentType`/
+  `MaxBodyBytes` in `examples/cmd/middleware` is the mechanism, not a
+  new one.
 * **`CORS` only intercepts `OPTIONS` when it's a genuine preflight.**
   The condition is `request.Method == http.MethodOptions &&
   request.Header.Get("Access-Control-Request-Method") != ""` — that's

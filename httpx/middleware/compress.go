@@ -44,6 +44,19 @@ var defaultCompressibleTypes = []string{
 // (gzip.DefaultCompression is a reasonable default). An invalid level
 // panics immediately, since that is a configuration error rather than
 // something that can happen at request time.
+//
+// Don't put this in front of a Range-capable handler (http.FileServer,
+// http.ServeContent) either, for a related reason confirmed
+// empirically (see examples/cmd/staticfiles): Compress deletes
+// Content-Length once it decides to gzip (correct for a full body),
+// but never touches Content-Range, which http.ServeContent had
+// already set to describe byte positions in the *uncompressed*
+// resource. A 206 response ends up advertising e.g.
+// "Content-Range: bytes 0-99/10000" while the bytes actually sent are
+// a self-contained gzip stream of a different length - internally
+// decodable, but not what Content-Range means, and not something a
+// real Range-aware client (resuming a download by byte offset) can
+// use correctly.
 func Compress(
 	level int,
 	types ...string,

@@ -213,6 +213,12 @@ Exemplos completos e executáveis estão em `examples/cmd`:
 * [examples/cmd/files](examples/cmd/files/main.go) — download/upload
   de arquivos (PDF, CSV, XML): `http.Handler`s simples montados
   direto no router, já que `httpx.Endpoint` é JSON-only por design.
+* [examples/cmd/staticfiles](examples/cmd/staticfiles/main.go) —
+  servindo assets estáticos via `http.FileServer`, e por que essa rota
+  deliberadamente não usa `ETag`/`Compress` (os dois quebram o
+  suporte nativo do `http.FileServer` a Range/conditional-GET —
+  confirmado empiricamente, ver os doc comments de
+  `middleware.ETag`/`middleware.Compress`).
 
 ```sh
 go run ./examples/cmd/basic
@@ -222,6 +228,8 @@ go run ./examples/cmd/middleware
 go run ./examples/cmd/observability
 # ou
 go run ./examples/cmd/files
+# ou
+go run ./examples/cmd/staticfiles
 ```
 
 ## Visão geral

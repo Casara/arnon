@@ -51,6 +51,14 @@ coupled to JSON, so this works with the same middleware stack. See
 `examples/cmd/files` for a runnable download/upload example (PDF, CSV,
 XML).
 
+One exception: don't put `ETag`/`Compress` in front of a Range-capable
+handler (`http.FileServer`, `http.ServeContent`, static assets, resumable
+downloads, media seeking). Both break Range/`If-Range` support - see the
+doc comments on `middleware.ETag`/`middleware.Compress` and
+`examples/cmd/staticfiles` for the confirmed-empirically detail. Scope
+them out via `Group.Use` on routes that don't need them, same technique
+as `examples/cmd/middleware`'s `AllowContentType`/`MaxBodyBytes` scoping.
+
 ## Request binding
 
 Struct tags select the source per field: `json` (body), `path`,
