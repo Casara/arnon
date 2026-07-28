@@ -76,6 +76,41 @@ func TestPrepare_RejectsUnknownTagInsideDivedSlice(t *testing.T) {
 	}
 }
 
+// TestPrepare_RejectsUnknownTagInsideDivedMap is the map-diving
+// counterpart of TestPrepare_RejectsUnknownTagInsideDivedSlice, added
+// because mutation testing found prepareField's reflect.Map case
+// (prepare.go's mirror of the reflect.Slice/Array case right above
+// it) had no test at all - the equivalent runtime behavior is
+// exercised in apply_test.go, but Prepare's own fail-fast guarantee
+// for a map field was unverified.
+func TestPrepare_RejectsUnknownTagInsideDivedMap(t *testing.T) {
+	t.Parallel()
+
+	type request struct {
+		Labels map[string]string `sanitize:"dive,preparetest_mapbogus"`
+	}
+
+	err := sanitize.Prepare(reflect.TypeFor[request]())
+	if !errors.Is(err, sanitize.ErrUnknownSanitizer) {
+		t.Fatalf("expected ErrUnknownSanitizer, got %v", err)
+	}
+}
+
+// TestPrepare_IgnoresTagOnMapWithoutDive is the map-diving counterpart
+// of TestPrepare_IgnoresTagOnSliceWithoutDive.
+func TestPrepare_IgnoresTagOnMapWithoutDive(t *testing.T) {
+	t.Parallel()
+
+	type request struct {
+		Labels map[string]string `sanitize:"preparetest_ignored"`
+	}
+
+	err := sanitize.Prepare(reflect.TypeFor[request]())
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+}
+
 func TestPrepare_SelfReferentialStructDoesNotRecurseForever(t *testing.T) {
 	t.Parallel()
 
