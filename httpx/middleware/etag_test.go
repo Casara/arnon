@@ -4,7 +4,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/Casara/arnon/httpx/middleware"
 )
@@ -157,6 +159,58 @@ func TestETag_NonGetHeadMethodsPassThroughUnbuffered(t *testing.T) {
 
 	if recorder.Header().Get("ETag") != "" {
 		t.Error("expected no ETag header for a non-GET/HEAD request")
+	}
+}
+
+func TestETag_RangeRequestPassesThroughUnbuffered(t *testing.T) {
+	t.Parallel()
+
+	handler := middleware.ETag()(writeBody(`{"id":"usr_123"}`))
+
+	request := httptest.NewRequest(http.MethodGet, "/users/123", nil)
+	request.Header.Set("Range", "bytes=0-3")
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Header().Get("ETag") != "" {
+		t.Error("expected no ETag header for a Range request")
+	}
+}
+
+// TestETag_DoesNotBreakRangeSupportOnAWrappedFileServer is the
+// regression test for a real interaction confirmed empirically (see
+// examples/cmd/staticfiles): wrapping a Range-capable handler in ETag
+// used to make it fall back to a full 200 instead of the requested
+// 206, because ETag only set its header after the handler returned,
+// too late for http.ServeContent's own If-Range check to see it.
+func TestETag_DoesNotBreakRangeSupportOnAWrappedFileServer(t *testing.T) {
+	t.Parallel()
+
+	content := strings.NewReader("0123456789")
+
+	fileHandler := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		http.ServeContent(writer, request, "numbers.txt", time.Time{}, content)
+	})
+
+	handler := middleware.ETag()(fileHandler)
+
+	request := httptest.NewRequest(http.MethodGet, "/numbers.txt", nil)
+	request.Header.Set("Range", "bytes=0-3")
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusPartialContent {
+		t.Fatalf("expected status %d, got %d", http.StatusPartialContent, recorder.Code)
+	}
+
+	if recorder.Body.String() != "0123" {
+		t.Errorf("expected partial body %q, got %q", "0123", recorder.Body.String())
+	}
+
+	if got := recorder.Header().Get("Content-Range"); got != "bytes 0-3/10" {
+		t.Errorf("expected Content-Range %q, got %q", "bytes 0-3/10", got)
 	}
 }
 

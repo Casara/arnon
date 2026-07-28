@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/Casara/arnon/httpx/middleware"
 )
@@ -82,6 +84,79 @@ func TestCompress_PassesThroughWithoutAcceptEncoding(t *testing.T) {
 
 	if recorder.Body.String() != body {
 		t.Errorf("expected plain body %q, got %q", body, recorder.Body.String())
+	}
+}
+
+func TestCompress_RangeRequestPassesThroughUnwrapped(t *testing.T) {
+	t.Parallel()
+
+	const body = "plain response"
+
+	handler := middleware.Compress(gzip.DefaultCompression)(
+		writeWithContentType("application/json", body),
+	)
+
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.Header.Set("Accept-Encoding", "gzip")
+	request.Header.Set("Range", "bytes=0-3")
+
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Header().Get("Content-Encoding") != "" {
+		t.Errorf(
+			"expected no Content-Encoding for a Range request, got %q",
+			recorder.Header().Get("Content-Encoding"),
+		)
+	}
+
+	if recorder.Body.String() != body {
+		t.Errorf("expected uncompressed body %q, got %q", body, recorder.Body.String())
+	}
+}
+
+// TestCompress_DoesNotCorruptContentRangeOnAWrappedFileServer is the
+// regression test for a real interaction confirmed empirically (see
+// examples/cmd/staticfiles): wrapping a Range-capable handler in
+// Compress used to gzip the partial body while leaving Content-Range
+// describing byte positions in the uncompressed resource, so the two
+// no longer agreed.
+func TestCompress_DoesNotCorruptContentRangeOnAWrappedFileServer(t *testing.T) {
+	t.Parallel()
+
+	content := strings.NewReader("0123456789")
+
+	fileHandler := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		http.ServeContent(writer, request, "numbers.txt", time.Time{}, content)
+	})
+
+	handler := middleware.Compress(gzip.DefaultCompression)(fileHandler)
+
+	request := httptest.NewRequest(http.MethodGet, "/numbers.txt", nil)
+	request.Header.Set("Accept-Encoding", "gzip")
+	request.Header.Set("Range", "bytes=0-3")
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusPartialContent {
+		t.Fatalf("expected status %d, got %d", http.StatusPartialContent, recorder.Code)
+	}
+
+	if recorder.Header().Get("Content-Encoding") != "" {
+		t.Errorf(
+			"expected no Content-Encoding on a Range response, got %q",
+			recorder.Header().Get("Content-Encoding"),
+		)
+	}
+
+	if got := recorder.Header().Get("Content-Range"); got != "bytes 0-3/10" {
+		t.Errorf("expected Content-Range %q, got %q", "bytes 0-3/10", got)
+	}
+
+	if recorder.Body.String() != "0123" {
+		t.Errorf("expected uncompressed partial body %q, got %q", "0123", recorder.Body.String())
 	}
 }
 

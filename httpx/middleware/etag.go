@@ -36,20 +36,24 @@ import (
 // there is nothing for a future request to send an If-None-Match
 // against.
 //
-// Don't put this in front of a Range-capable handler (http.FileServer,
-// http.ServeContent, or anything else serving resumable downloads or
-// media seeking) - confirmed empirically (see examples/cmd/staticfiles):
-// ETag only sets its own header after next returns, so when
-// http.ServeContent checks an incoming If-Range against the response
-// headers it can see so far, no ETag exists yet for it to compare
-// against, and If-Range silently fails to match - the request falls
-// back to a full 200 instead of the expected 206. The ETag that does
-// get set afterward is also unstable across requests to the same
-// resource: it hashes whatever bytes were actually written for that
-// specific request, so a 206 (partial body) and a 200 (full body) for
-// the same file produce two different ETags. http.FileServer already
-// implements its own, correct conditional GET via Last-Modified; scope
-// ETag to routes that don't serve Range-capable content instead.
+// A request carrying a Range header is also passed to next
+// unbuffered, for a reason confirmed empirically (see
+// examples/cmd/staticfiles): wrapping a Range-capable handler
+// (http.FileServer, http.ServeContent, or anything else serving
+// resumable downloads or media seeking) otherwise breaks its own
+// If-Range/Content-Range handling. ETag only sets its own header
+// after next returns, so when http.ServeContent checks an incoming
+// If-Range against the response headers it can see so far, no ETag
+// exists yet for it to compare against, and If-Range silently fails
+// to match - the request falls back to a full 200 instead of the
+// expected 206. The ETag that does get set afterward is also unstable
+// across requests to the same resource: it hashes whatever bytes were
+// actually written for that specific request, so a 206 (partial body)
+// and a 200 (full body) for the same file produce two different
+// ETags. Stepping aside for Range requests means ETag can safely sit
+// in front of a Range-capable handler: a plain GET still gets a
+// validator, a Range GET gets neither - just http.ServeContent's own,
+// untouched Range/conditional-GET handling via Last-Modified.
 func ETag() routing.Middleware {
 	return func(
 		next http.Handler,
@@ -59,6 +63,12 @@ func ETag() routing.Middleware {
 			request *http.Request,
 		) {
 			if request.Method != http.MethodGet && request.Method != http.MethodHead {
+				next.ServeHTTP(writer, request)
+
+				return
+			}
+
+			if request.Header.Get("Range") != "" {
 				next.ServeHTTP(writer, request)
 
 				return
