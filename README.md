@@ -26,14 +26,17 @@
 ## Why Arnon
 
 `arnon` didn't start as "let's build a framework." It started as an
-API for a real financial system, on top of fuego. At some point it
-got hard to apply RFC 9457 (Problem Details) together with RFC 6901
-(JSON Pointer, to point at the field with the error) the way the spec
-actually defines it — the framework was fighting the standard instead
-of following it. Trying another framework would probably just defer
-the same kind of friction, so the fix was to drop down to the stdlib
-(`net/http`) directly. The resulting structure grew reusable enough to
-become a lib, then a framework.
+API for a real financial system, on top of fuego. In that project,
+pointing at the exact field of a validation error via RFC 6901 (JSON
+Pointer) — the way RFC 9457 (Problem Details) expects — didn't fit
+fuego's own error-field convention (`err.StructNamespace()`, Go
+type/field names, not built for pointer-style paths). That was a
+problem specific to what this project needed, not a verdict on fuego
+in general. The fix was to drop down to the stdlib (`net/http`)
+directly instead of trying another framework. The resulting structure
+grew reusable enough to become a lib, then a framework — published in
+case others run into the same need; the tradeoffs below are for you to
+judge.
 
 The stated goal is to be as unopinionated as possible — whoever uses
 it should be able to keep `arnon`'s default choices or swap them for
@@ -80,7 +83,7 @@ isn't "opinionated or not," it's **where each opinion comes from** and
 
 huma and fuego **are not the most-used Go frameworks** — Gin dominates
 real-world adoption (~48%, ~88k stars), followed by Echo and Fiber,
-orders of magnitude ahead of huma (~4.2k stars) and fuego (~1.8k). The
+orders of magnitude ahead of huma (~4.3k stars) and fuego (~1.8k). The
 comparison below isn't with them because they're the most popular,
 it's because they're the only two with the same core pitch as `arnon`
 (typed handler → OpenAPI generated automatically by reflection, no

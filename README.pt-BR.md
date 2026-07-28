@@ -26,14 +26,18 @@
 ## Por que Arnon
 
 `arnon` não começou como "vamos construir um framework". Começou como
-uma API de um sistema financeiro real, sobre o fuego. Em algum ponto
-ficou difícil aplicar RFC 9457 (Problem Details) junto com RFC 6901
-(JSON Pointer, pra apontar o campo com erro) do jeito que a spec
-realmente define — o framework brigava com o padrão em vez de seguir
-ele. Testar outro framework provavelmente só adiaria o mesmo tipo de
-atrito pra depois, então a solução foi descer pra stdlib (`net/http`)
-direto. A estrutura resultante cresceu reaproveitável o bastante pra
-virar lib, depois framework.
+uma API de um sistema financeiro real, sobre o fuego. Nesse projeto,
+apontar o campo exato de um erro de validação via RFC 6901 (JSON
+Pointer) — do jeito que a RFC 9457 (Problem Details) espera — não
+encaixava na própria convenção de campo de erro do fuego
+(`err.StructNamespace()`, nome de tipo/campo Go, não pensada pra
+caminhos no formato de pointer). Isso foi um problema específico do
+que esse projeto precisava, não um veredito sobre o fuego em geral. A
+solução foi descer pra stdlib (`net/http`) direto, em vez de tentar
+outro framework. A estrutura resultante cresceu reaproveitável o
+bastante pra virar lib, depois framework — publicado pro caso de
+outros esbarrarem na mesma necessidade; os trade-offs abaixo são pra
+você julgar.
 
 O objetivo declarado é ser o menos opinativo possível — quem usa deve
 conseguir manter as escolhas padrão do `arnon` ou trocá-las pelas
@@ -80,7 +84,7 @@ não é "opinativo ou não", é **de onde vem cada opinião** e **quão caro
 
 huma e fuego **não são os frameworks Go mais usados** — Gin domina a
 adoção real (~48%, ~88k stars), seguido de Echo e Fiber, ordens de
-grandeza à frente de huma (~4.2k stars) e fuego (~1.8k). A comparação
+grandeza à frente de huma (~4.3k stars) e fuego (~1.8k). A comparação
 abaixo não é com eles porque são os mais populares, e sim porque são os
 únicos dois com a mesma proposta central do `arnon` (handler tipado →
 OpenAPI gerado automaticamente por reflection, sem passo de anotação
