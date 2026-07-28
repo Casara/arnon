@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -321,6 +322,148 @@ func TestRateLimit_CustomOnCounterError(t *testing.T) {
 
 	if recorder.Code != http.StatusTeapot {
 		t.Errorf("expected custom status %d, got %d", http.StatusTeapot, recorder.Code)
+	}
+}
+
+// previousWindowFakeCounter is a concurrent-safe LimitCounter test
+// double that reports a fixed previousCount on every Get call,
+// regardless of the window arguments it's called with - unlike
+// fakeLimitCounter above and the built-in localLimitCounter, both of
+// which effectively ignore the previousWindow argument (the local
+// counter derives "previous" from its own eviction bookkeeping keyed
+// only on currentWindow). A real external LimitCounter (Redis, etc.)
+// is expected to honor previousWindow directly, so this is what lets
+// a test control - and therefore verify - the sliding-window blend in
+// checkRateLimit that the built-in counter alone never exercises.
+type previousWindowFakeCounter struct {
+	mu            sync.Mutex
+	previousCount int
+	currentCount  int
+
+	// lastCurrentWindow/lastPreviousWindow record the exact arguments
+	// checkRateLimit passed to the most recent Get call, so a test can
+	// verify previousWindow was actually derived from currentWindow
+	// (currentWindow.Add(-windowLength)), not just that some value was
+	// passed.
+	lastCurrentWindow  time.Time
+	lastPreviousWindow time.Time
+}
+
+func (counter *previousWindowFakeCounter) Config(int, time.Duration) {}
+
+func (counter *previousWindowFakeCounter) Increment(key string, currentWindow time.Time) error {
+	return counter.IncrementBy(key, currentWindow, 1)
+}
+
+func (counter *previousWindowFakeCounter) IncrementBy(_ string, _ time.Time, amount int) error {
+	counter.mu.Lock()
+	defer counter.mu.Unlock()
+
+	counter.currentCount += amount
+
+	return nil
+}
+
+func (counter *previousWindowFakeCounter) Get(
+	_ string,
+	currentWindow, previousWindow time.Time,
+) (int, int, error) {
+	counter.mu.Lock()
+	defer counter.mu.Unlock()
+
+	counter.lastCurrentWindow = currentWindow
+	counter.lastPreviousWindow = previousWindow
+
+	return counter.currentCount, counter.previousCount, nil
+}
+
+// TestRateLimit_SlidingWindowWeightsPreviousWindowByElapsedFraction is
+// the regression test for a gap mutation testing found: every other
+// test in this file either uses an hour-long window (elapsed stays
+// near zero throughout the test, so the blend weight stays near 1 and
+// its own correctness is never actually observed) or a counter that
+// reports previousCount as always 0 (multiplying the weight by zero,
+// which hides a wrong weight just as effectively). This test uses
+// previousWindowFakeCounter to hold previousCount fixed and nonzero,
+// checks the request/deny decision at both ends of a real window -
+// this is the "avoid burst at the boundary" behavior sliding-window
+// weighting exists for in the first place (see RateLimit's doc
+// comment) - and separately checks that previousWindow itself was
+// derived from currentWindow (exactly one windowLength apart), which
+// the request/deny assertions alone don't pin down since the fake
+// counter's returned counts don't depend on the window values it
+// receives.
+func TestRateLimit_SlidingWindowWeightsPreviousWindowByElapsedFraction(t *testing.T) {
+	t.Parallel()
+
+	const (
+		// Short enough to keep this test (and a mutation-testing run,
+		// which reruns the whole suite once per mutant) fast, long
+		// enough that the 5%/90%-of-window targets below stay well
+		// clear of normal scheduling jitter.
+		windowLength = 300 * time.Millisecond
+		limit        = 10
+	)
+
+	counter := &previousWindowFakeCounter{previousCount: limit}
+
+	handler := middleware.RateLimit(middleware.RateLimitConfig{
+		RequestLimit: limit,
+		WindowLength: windowLength,
+		Counter:      counter,
+		KeyFunc: func(*http.Request) string {
+			return "same-client"
+		},
+	})(newNoopHandler())
+
+	// Wait for a fresh window boundary, then a little further into it,
+	// so elapsed is small and the blend weight is close to 1: the
+	// previous window's full count of requests still weighs in almost
+	// entirely, so a single additional request already meets the
+	// limit - denied. A naive fixed window would instead treat this as
+	// a brand new, empty bucket and allow it, which is exactly the
+	// boundary-burst problem this algorithm exists to avoid.
+	nextWindow := time.Now().Truncate(windowLength).Add(windowLength)
+	time.Sleep(time.Until(nextWindow) + 15*time.Millisecond)
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+
+	if recorder.Code != http.StatusTooManyRequests {
+		t.Errorf(
+			"expected a request just after a window boundary "+
+				"(previous window's count still weighs in) to be limited, got status %d",
+			recorder.Code,
+		)
+	}
+
+	counter.mu.Lock()
+	gotGap := counter.lastCurrentWindow.Sub(counter.lastPreviousWindow)
+	counter.mu.Unlock()
+
+	if gotGap != windowLength {
+		t.Errorf(
+			"expected previousWindow to be exactly one windowLength (%s) before currentWindow, got a %s gap",
+			windowLength,
+			gotGap,
+		)
+	}
+
+	// Wait further into the same window, so elapsed is large and the
+	// blend weight is close to 0: the same previous-window count has
+	// now mostly decayed out of the blend, and the current window is
+	// still empty (the denied request above was never counted), so a
+	// request is allowed again.
+	time.Sleep(time.Until(nextWindow.Add(270 * time.Millisecond)))
+
+	recorder = httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+
+	if recorder.Code != http.StatusOK {
+		t.Errorf(
+			"expected a request late in the window (previous window's count decayed) to be allowed, got status %d",
+			recorder.Code,
+		)
 	}
 }
 
