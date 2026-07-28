@@ -261,20 +261,25 @@ Before adding an import between internal packages, run
   install `ETag` first (more outer), to hash the already-compressed
   bytes — consistent with the `Vary: Accept-Encoding` `Compress`
   already sets.
-* **Neither `ETag` nor `Compress` belongs in front of a Range-capable
-  handler** (`http.FileServer`, `http.ServeContent`, or anything else
-  serving resumable downloads/media seeking). Both interactions were
-  confirmed empirically, not assumed — see the doc comments on
-  `middleware.ETag`/`middleware.Compress` and
-  `examples/cmd/staticfiles` for the full detail (short version:
-  `ETag` breaks `If-Range` and produces a validator that isn't stable
-  across full vs. partial requests for the same resource; `Compress`
-  leaves `Content-Range` describing the pre-compression byte
-  positions while shipping a compressed body of a different length).
-  Scope both out of any route serving such a handler — the existing
-  `Group.Use` scoping already used for `AllowContentType`/
-  `MaxBodyBytes` in `examples/cmd/middleware` is the mechanism, not a
-  new one.
+* **`ETag` and `Compress` both step aside for any request carrying a
+  `Range` header**, running `next` unwrapped instead of buffering/
+  transforming it. This is what makes it safe to put either in front
+  of a Range-capable handler (`http.FileServer`, `http.ServeContent`,
+  or anything else serving resumable downloads/media seeking) —
+  confirmed empirically, not assumed, by running `examples/cmd/
+  staticfiles` with both applied globally and inspecting the actual
+  response headers/bytes for a plain GET versus a Range GET (see the
+  doc comments on `middleware.ETag`/`middleware.Compress` for the
+  mechanism: without this, `ETag` breaks `If-Range` and produces a
+  validator that isn't stable across full vs. partial requests for the
+  same resource; `Compress` leaves `Content-Range` describing the
+  pre-compression byte positions while shipping a compressed body of a
+  different length). A Range GET simply gets neither — only the
+  underlying handler's own Range/conditional-GET handling — while a
+  plain GET to the same route still benefits from both. No route
+  scoping needed for this specific concern; `Group.Use` (as used for
+  `AllowContentType`/`MaxBodyBytes` in `examples/cmd/middleware`) is
+  still how you'd scope either for unrelated reasons.
 * **`CORS` only intercepts `OPTIONS` when it's a genuine preflight.**
   The condition is `request.Method == http.MethodOptions &&
   request.Header.Get("Access-Control-Request-Method") != ""` — that's

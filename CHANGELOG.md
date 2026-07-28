@@ -32,7 +32,11 @@ Initial public release.
   `RequestID`, `SecureHeaders`, `RateLimit` (sliding window, pluggable
   storage via `LimitCounter`), `Throttle`, `ETag`/conditional GET
   (RFC 9111), `Compress`, `CORS`, `ServiceDesc` (RFC 8631), `Logging`,
-  `AllowContentType`, `MaxBodyBytes`, `NoCache`.
+  `AllowContentType`, `MaxBodyBytes`, `NoCache`. `ETag`/`Compress` both
+  step aside for a request carrying a `Range` header, so either is
+  safe to combine with a Range-capable handler (`http.FileServer`,
+  `http.ServeContent`) without breaking its Range/conditional-GET
+  support.
 - Custom validation rules through a single registry
   (`validation.RegisterCustomRule`) that feeds runtime validation,
   error mapping and OpenAPI schema generation together.
@@ -46,8 +50,8 @@ Initial public release.
 - Five runnable examples: `examples/cmd/basic`, `examples/cmd/middleware`,
   `examples/cmd/observability`, `examples/cmd/files` (non-JSON content:
   file download/upload as plain `http.Handler`s), `examples/cmd/staticfiles`
-  (serving static assets via `http.FileServer`, and why that route skips
-  `ETag`/`Compress`).
+  (serving static assets via `http.FileServer`, with `ETag`/`Compress`
+  applied globally alongside it).
 - A Claude Skill (`skills/using-arnon`) documenting how to consume
   arnon idiomatically in a project that depends on it.
 

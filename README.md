@@ -216,10 +216,11 @@ Complete, runnable examples live in `examples/cmd`:
   directly on the router, since `httpx.Endpoint` is JSON-only by
   design.
 * [examples/cmd/staticfiles](examples/cmd/staticfiles/main.go) —
-  serving static assets via `http.FileServer`, and why that route
-  deliberately skips `ETag`/`Compress` (both break `http.FileServer`'s
-  own Range/conditional-GET support - confirmed empirically, see the
-  doc comments on `middleware.ETag`/`middleware.Compress`).
+  serving static assets via `http.FileServer`, with `ETag`/`Compress`
+  applied globally: both step aside for any request carrying a
+  `Range` header, so `http.FileServer`'s own Range/conditional-GET
+  support keeps working untouched - confirmed empirically, see the
+  doc comments on `middleware.ETag`/`middleware.Compress`.
 
 ```sh
 go run ./examples/cmd/basic

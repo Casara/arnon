@@ -214,11 +214,12 @@ Exemplos completos e executáveis estão em `examples/cmd`:
   de arquivos (PDF, CSV, XML): `http.Handler`s simples montados
   direto no router, já que `httpx.Endpoint` é JSON-only por design.
 * [examples/cmd/staticfiles](examples/cmd/staticfiles/main.go) —
-  servindo assets estáticos via `http.FileServer`, e por que essa rota
-  deliberadamente não usa `ETag`/`Compress` (os dois quebram o
-  suporte nativo do `http.FileServer` a Range/conditional-GET —
-  confirmado empiricamente, ver os doc comments de
-  `middleware.ETag`/`middleware.Compress`).
+  servindo assets estáticos via `http.FileServer`, com `ETag`/
+  `Compress` aplicados globalmente: os dois se afastam de qualquer
+  requisição com header `Range`, então o suporte nativo do
+  `http.FileServer` a Range/conditional-GET continua funcionando sem
+  interferência — confirmado empiricamente, ver os doc comments de
+  `middleware.ETag`/`middleware.Compress`.
 
 ```sh
 go run ./examples/cmd/basic
