@@ -330,3 +330,36 @@ Before adding an import between internal packages, run
   couldn't see. Any new code that needs to check a content-negotiation
   header should follow this pattern (parse `;q=`, find the most
   specific match), not go back to a substring check.
+
+## Documentation synchronization
+
+Any change to an exported function, an exported config/request/
+response struct (e.g. `EndpointConfig`, `RateLimitConfig`,
+`CORSConfig`, `openapi.Operation`), or a `Router`/`Group` routing
+method (`GET`, `POST`, `Use`, `Handle`, etc.) is not done until every
+place that shows that API in code has been checked and, if needed,
+updated:
+
+* [skills/using-arnon/SKILL.md](skills/using-arnon/SKILL.md) — every
+  code snippet there must still match the current API, not just still
+  parse as Go.
+* `examples/cmd/*` — the runnable examples. A signature change that
+  breaks compilation is already caught by `go build ./...`; one that
+  still compiles (a new optional field, a widened type, a renamed but
+  still-valid parameter) is not, and can leave an example silently
+  demonstrating a stale pattern.
+* `README.md` and `README.pt-BR.md` — both contain a full working
+  "Quick start" example; keep the two in sync with each other and with
+  the real API.
+* [docs/architecture/project-context.md](docs/architecture/project-context.md) —
+  its code snippets and the prose describing the changed behavior.
+* This file — the "Non-obvious decisions" bullet(s) referencing the
+  changed symbol, and the dependency graph if the change adds or
+  removes an import between packages.
+
+`make check` (lint + arch-lint + tests) does not verify any of this:
+it confirms the code itself is correct, not that the documentation
+still describes it accurately. Treat updating these as part of the
+same change, not a follow-up task — a stale code example is a bug in
+the documentation, and it should be fixed with the same care as one in
+the code.
