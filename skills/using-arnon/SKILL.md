@@ -19,6 +19,12 @@ that *consumes* arnon as a dependency, not for arnon's own source - if
 you're working inside the `arnon` repo itself, follow its `CLAUDE.md`
 instead.
 
+This file is meant to be copied into any project that depends on
+arnon, so it never lives next to arnon's own source tree. Every
+`examples/cmd/*` or `docs/*` path mentioned below is therefore a full
+link into the arnon repository itself
+(<https://github.com/Casara/arnon>), not a path relative to this file.
+
 ## Typed endpoints
 
 A handler is a plain function, never `http.HandlerFunc` directly:
@@ -48,18 +54,20 @@ other non-JSON response, don't look for a typed-endpoint equivalent -
 mount a plain `http.Handler` directly on the router
 (`router.GET("/report.pdf", myHandler)`). No middleware in arnon is
 coupled to JSON, so this works with the same middleware stack. See
-`examples/cmd/files` for a runnable download/upload example (PDF, CSV,
-XML).
+[examples/cmd/files](https://github.com/Casara/arnon/tree/main/examples/cmd/files)
+for a runnable download/upload example (PDF, CSV, XML).
 
 `ETag`/`Compress` are both safe to put in front of a Range-capable
 handler (`http.FileServer`, `http.ServeContent`, static assets, resumable
 downloads, media seeking): both step aside for any request carrying a
 `Range` header, so the underlying handler's own Range/`If-Range` support
 runs untouched - see the doc comments on
-`middleware.ETag`/`middleware.Compress` and `examples/cmd/staticfiles`
+`middleware.ETag`/`middleware.Compress` and
+[examples/cmd/staticfiles](https://github.com/Casara/arnon/tree/main/examples/cmd/staticfiles)
 for the confirmed-empirically detail. No special scoping needed for
 this specific concern; `Group.Use` is still how you'd scope either for
-unrelated reasons, same technique as `examples/cmd/middleware`'s
+unrelated reasons, same technique as
+[examples/cmd/middleware](https://github.com/Casara/arnon/tree/main/examples/cmd/middleware)'s
 `AllowContentType`/`MaxBodyBytes`.
 
 ## Request binding
@@ -188,5 +196,7 @@ middleware there when it should only apply to a subset of routes (e.g.
 
 Full rationale for all of the above (including why each design choice
 was made) lives in the arnon repo itself:
-`docs/architecture/project-context.md` (architecture and behavior) and
-`docs/architecture/rfc-compliance.md` (RFC-by-RFC compliance notes).
+[docs/architecture/project-context.md](https://github.com/Casara/arnon/blob/main/docs/architecture/project-context.md)
+(architecture and behavior) and
+[docs/architecture/rfc-compliance.md](https://github.com/Casara/arnon/blob/main/docs/architecture/rfc-compliance.md)
+(RFC-by-RFC compliance notes).
