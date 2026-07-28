@@ -35,6 +35,7 @@ relevante.
 | RFC 8615 | Well-Known URIs | ❌ Fora de escopo |
 | RFC 6749 / RFC 6750 / RFC 7617 | OAuth2 / Bearer / Basic | ❌ Adiado |
 | RFC 8259 | JSON | ✅ Conforme |
+| RFC 8949 | CBOR | ❌ Não implementado — design considerado, ver notas abaixo |
 | draft-ietf-httpapi-idempotency-key-header | Idempotency-Key (ainda não é RFC) | ❌ Não implementado, vale acompanhar |
 
 ---
@@ -465,6 +466,43 @@ pra quem espera ver `&` literal numa resposta JSON de API.
 
 ---
 
+## RFC 8949 — CBOR (Concise Binary Object Representation)
+
+Não implementado. `httpx.Endpoint` faz bind, valida e serializa
+exatamente uma representação por endpoint tipado — JSON (RFC 8259) —
+sem negociação entre formatos de wire por endpoint, uma decisão de
+escopo deliberada (`CLAUDE.md`, "`httpx.Endpoint` é JSON-only por
+design"). Quem precisar de CBOR (ou XML, ou qualquer outra coisa)
+monta um `http.Handler` puro, o mesmo escape hatch de qualquer outro
+conteúdo não-JSON (ver `examples/cmd/files`) — mas isso significa
+perder `sanitize`/`validation`/geração de OpenAPI pra essa
+representação, já que os três só estão conectados no `httpx.Endpoint`.
+
+Se negociação multi-formato for adicionada algum dia, boa parte do
+pipeline já não se importa com o formato de wire: `sanitize`/
+`validation` operam sobre o valor Go já vinculado, não sobre os bytes
+da requisição/resposta, então nenhum dos dois precisaria mudar. Duas
+coisas precisariam: `httpx/binding` (que hoje só decodifica corpo
+JSON) e as respostas de erro — o media type registrado da RFC 9457 é
+especificamente `application/problem+json`, não existe um
+`application/problem+cbor` padronizado, então um cliente CBOR ainda
+precisaria de uma resposta explícita pra como os erros são
+representados.
+
+Verifiquei como o huma trata isso
+(`github.com/danielgtaylor/huma/v2/formats/cbor`): CBOR é um
+subpacote opt-in que isola sua dependência `fxamacker/cbor/v2` ali,
+registrado na mesma negociação `huma.Format`/`Accept` que o JSON já
+usa — um padrão viável se isso for perseguido aqui algum dia, seguindo
+a mesma forma "dependência externa vive numa peça própria opt-in,
+nunca no módulo `arnon` em si" que já existe na história de backend
+externo do `RateLimit.LimitCounter`. O fuego, pra comparação, também
+não tem suporte a CBOR: seu `WithContentTypeSerDes` é um hook genérico
+pra serializer escrito à mão por content type, não um formato de
+fábrica. Sem demanda concreta pra isso no `arnon` hoje.
+
+---
+
 ## draft-ietf-httpapi-idempotency-key-header — Idempotency-Key
 
 Ainda não é uma RFC (confirmado: está na versão -07 como
@@ -491,4 +529,6 @@ Trabalho futuro genuíno, fora do escopo já coberto acima:
 * `428 Precondition Required` / `If-Match` — só faria sentido junto
   de um mecanismo de precondition mais amplo que o `ETag` atual
   cobre.
+* CBOR (RFC 8949) / negociação multi-formato pro `httpx.Endpoint` —
+  sem demanda concreta hoje, ver notas acima.
 * Acompanhar o `Idempotency-Key` (ainda draft, não RFC).

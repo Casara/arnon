@@ -34,6 +34,7 @@ stdlib "should" do) — the results are noted where relevant.
 | RFC 8615 | Well-Known URIs | ❌ Out of scope |
 | RFC 6749 / RFC 6750 / RFC 7617 | OAuth2 / Bearer / Basic | ❌ Deferred |
 | RFC 8259 | JSON | ✅ Compliant |
+| RFC 8949 | CBOR | ❌ Not implemented — design considered, see notes below |
 | draft-ietf-httpapi-idempotency-key-header | Idempotency-Key (not yet an RFC) | ❌ Not implemented, worth tracking |
 
 ---
@@ -463,6 +464,41 @@ to see a literal `&` in an API's JSON response.
 
 ---
 
+## RFC 8949 — CBOR (Concise Binary Object Representation)
+
+Not implemented. `httpx.Endpoint` binds, validates, and serializes
+exactly one representation per typed endpoint — JSON (RFC 8259) —
+with no per-endpoint negotiation between wire formats, a deliberate
+scope decision (`CLAUDE.md`, "`httpx.Endpoint` is JSON-only by
+design"). Whoever needs CBOR (or XML, or anything else) mounts a
+plain `http.Handler`, the same escape hatch as any other non-JSON
+content (see `examples/cmd/files`) — but that means losing
+`sanitize`/`validation`/OpenAPI generation for that representation,
+since all three are only wired into `httpx.Endpoint`.
+
+If multi-format negotiation is ever added, most of the pipeline
+already doesn't care about wire format: `sanitize`/`validation`
+operate on the bound Go value, not the request/response bytes, so
+neither would need to change. Two things would: `httpx/binding` (which
+only decodes JSON bodies today) and error responses — RFC 9457's
+registered media type is `application/problem+json` specifically,
+there is no standardized `application/problem+cbor`, so a CBOR client
+would still need an explicit answer for how errors are represented.
+
+Checked how huma handles this (`github.com/danielgtaylor/huma/v2/
+formats/cbor`): CBOR is an opt-in subpackage that isolates its
+`fxamacker/cbor/v2` dependency there, registered into the same
+`huma.Format`/`Accept` negotiation JSON already uses — a workable
+pattern if this is ever pursued here, following the same "external
+dependency lives in its own opt-in piece, never in the `arnon` module
+itself" shape as `RateLimit.LimitCounter`'s external-backend story.
+fuego, for comparison, has no CBOR support either: its
+`WithContentTypeSerDes` is a generic hook for a hand-written
+serializer per content type, not a built-in format. No concrete demand
+for this in `arnon` today.
+
+---
+
 ## draft-ietf-httpapi-idempotency-key-header — Idempotency-Key
 
 Not yet an RFC (confirmed: it's at version -07 as an Internet-Draft
@@ -488,4 +524,6 @@ Genuine future work, outside the scope already covered above:
 * `428 Precondition Required` / `If-Match` — would only make sense
   alongside a broader precondition mechanism than what `ETag`
   currently covers.
+* CBOR (RFC 8949) / multi-format negotiation for `httpx.Endpoint` — no
+  concrete demand today, see notes above.
 * Track `Idempotency-Key` (still a draft, not an RFC).
