@@ -7,11 +7,20 @@ GOLANGCI_LINT := github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
 GO_ARCH_LINT  := github.com/fe3dback/go-arch-lint@v1.16.0
 GREMLINS      := github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0
 
+# The one non-Go dev tool here: there's no Go implementation with
+# matching rule fidelity to markdownlint, the reference implementation
+# the project's own recommended VS Code extension
+# (.vscode/extensions.json) already uses. Pinned to the same
+# markdownlint-cli2 version .github/workflows/ci.yml's
+# markdownlint-cli2-action resolves internally, run via npx instead of
+# a global install. Requires Node.js >= 20.
+MARKDOWNLINT := markdownlint-cli2@0.23.2
+
 # Example package run by `make run`/`make build`, under examples/cmd
 # (see examples/internal for the code shared between them).
 EXAMPLE ?= basic
 
-.PHONY: help build run fmt lint lint-fix arch-lint test test-race coverage \
+.PHONY: help build run fmt lint lint-fix lint-md arch-lint test test-race coverage \
 	test-mutation test-mutation-dry-run check clean
 
 help: ## Show this help
@@ -31,6 +40,9 @@ lint: ## Run the linter (golangci-lint v2)
 
 lint-fix: ## Run the linter and apply available auto-fixes
 	@go run $(GOLANGCI_LINT) run --fix
+
+lint-md: ## Lint markdown files (markdownlint-cli2, requires Node.js >= 20)
+	@npx --yes $(MARKDOWNLINT) "**/*.md" "#NOTES.md"
 
 arch-lint: ## Check the package dependency graph (.go-arch-lint.yml)
 	@go run $(GO_ARCH_LINT) check

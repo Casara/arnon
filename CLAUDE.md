@@ -25,6 +25,7 @@ make test          # go test ./...
 make test-race     # with the race detector
 make coverage      # generates coverage.html
 make lint          # golangci-lint v2, version pinned in the Makefile
+make lint-md       # markdownlint-cli2, requires Node.js >= 20
 make arch-lint     # go-arch-lint check
 make test-mutation # gremlins, writes mutation.json
 make check         # lint + arch-lint + test-race (minimum before a commit)
@@ -41,6 +42,32 @@ it silently reports "No results to report" for multiple packages. The
 Makefile already works around this by passing `.` (it recurses through
 the whole module on its own); don't switch back to `./...` thinking
 it's equivalent.
+
+`make lint-md` is the one non-Go tool here (no Go implementation
+matches markdownlint's rule fidelity), run via `npx` — no `go run`
+pinning available for it, so it needs Node.js >= 20 locally (not just
+"a" Node — `markdownlint-cli2`'s own dependencies use syntax older
+runtimes reject outright, not just a version warning, confirmed
+empirically). `.markdownlint.json` is picked up automatically by both
+`make lint-md` and CI's `markdownlint-cli2-action`
+(`.github/workflows/ci.yml`) — markdownlint-cli2 auto-discovers it,
+no explicit `config:` input needed. `NOTES.md` (gitignored, so absent
+in any CI checkout) is excluded explicitly in the Makefile target
+only, since it's a local working file never meant to be lint-clean.
+
+`MD060` (table-column-style, requires pipes to be consistently
+aligned/padded within a table) is disabled entirely in
+`.markdownlint.json`, same reasoning as `MD013`'s existing
+`"tables": false` — this project's tables (the framework comparison
+table in particular) have cells running hundreds of characters, so
+hand-aligning pipe columns is impractical and doesn't survive the next
+edit (confirmed: the README package table had already drifted out of
+alignment before this rule was even added to the config, from edits
+made across this project's own history). `markdownlint-cli2 --fix`
+can't repair "aligned"-style violations on its own either — verified
+directly, it left the table unchanged and still reported all 23
+errors — confirming this isn't a fixable formatting slip, it's a rule
+that doesn't fit this kind of table.
 
 ## Package dependency graph
 

@@ -20,6 +20,16 @@ jobs:
 
       - run: make check
 
+  markdown:
+    name: markdown lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: DavidAnson/markdownlint-cli2-action@v24
+        with:
+          globs: '**/*.md'
+
   coverage:
     name: coverage
     runs-on: ubuntu-latest
