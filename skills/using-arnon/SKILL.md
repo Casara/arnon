@@ -192,6 +192,39 @@ middleware there when it should only apply to a subset of routes (e.g.
 `AllowContentType`, `MaxBodyBytes` on a JSON-body group, not on
 `/openapi.json`/`/docs`).
 
+## Deriving PATCH from GET+PUT
+
+Don't hand-write a `PATCH` handler that parses a patch document
+itself. `httpx/patch.From` derives one from an existing `GET` and
+`PUT` handler for the same resource, supporting both RFC 7386 (JSON
+Merge Patch) and RFC 6902 (JSON Patch), selected by the incoming
+request's `Content-Type`:
+
+```go
+getHandler := httpx.Endpoint(getUser, httpx.EndpointConfig{...})
+putHandler := httpx.Endpoint(putUser, httpx.EndpointConfig{...})
+
+router.GET("/users/{id}", getHandler)
+router.PUT("/users/{id}", putHandler)
+router.PATCH("/users/{id}", patch.From(getHandler, putHandler, patch.Config{}))
+```
+
+It works by request replay: an internal `GET` fetches the resource's
+current JSON, the patch is applied to those raw bytes, and the result
+is replayed as an internal `PUT` - `getUser`/`putUser` above need no
+change to support this, and their existing binding/sanitize/validation
+runs exactly as it would for a real `PUT`. `get`/`put` are called
+directly, not through the `Router`, so any middleware that should
+apply to the derived `PATCH` (auth, logging, ...) needs to already
+wrap `get`/`put` themselves, or wrap the `PATCH` route with the same
+`Group.Use` stack as the real `GET`/`PUT` routes.
+
+Known limitation: the internal `GET`→apply→`PUT` sequence has a
+lost-update race under concurrent `PATCH`es to the same resource,
+since `arnon` has no `If-Match`/optimistic-concurrency mechanism yet.
+Acceptable for most APIs; if it isn't for yours, don't use `From` for
+that resource yet.
+
 ## Reference
 
 Full rationale for all of the above (including why each design choice

@@ -101,6 +101,7 @@ terms would be like comparing a bicycle and a car by their engine.
 | Validation error field | Ad-hoc dot notation (`"body.title"`) | `validator/v10`'s internal namespace (`err.StructNamespace()`, Go type/field name, not the `json` tag) | RFC 6901 (JSON Pointer), with escaping |
 | Sanitization before validation | Not built in | `InTransform`/`OutTransform` interface methods — explicit code per type, not recursive into nested structs | `sanitize` struct tag (`sanitize:"trim"`), recursive into nested structs/slices/maps, custom transforms through the same single-registry pattern as validation |
 | Wire format beyond JSON | Opt-in CBOR (RFC 8949) via the `formats/cbor` subpackage — isolates its `fxamacker/cbor/v2` dependency there, registers into the same `huma.Format`/`Accept` negotiation JSON already uses | Built-in JSON/XML/YAML/HTML/plain text via `Accept`; other formats need a hand-written `WithContentTypeSerDes` — no CBOR out of the box | JSON only by design — no per-endpoint negotiation between representations; anything else is a plain `http.Handler` (see `examples/cmd/files`), not `httpx.Endpoint` |
+| `PATCH` from `GET`+`PUT` | `autopatch.AutoPatch(api)` — auto-discovers the pair via huma's own operation registry, RFC 7386/RFC 6902 both supported | Not built in | `httpx/patch.From(get, put, ...)` — explicit, no route introspection (`arnon` has none to reuse without a layering violation); same two RFCs |
 | Generated OpenAPI version | 3.1 (`kin-openapi`, no 3.2 yet) | ~3.0 (3.1/3.2 unconfirmed) | 3.2.0 — an advantage with a short shelf life, it's a matter of time until the rest of the ecosystem catches up |
 | Server/router | Bring-your-own — `net/http` via `humago`, but also `fasthttp` via `humafiber` (which loses compatibility with the `net/http` ecosystem) | `net/http` directly, same choice as `arnon` | `net/http` directly, but its own router — not pluggable into an existing `gin.Engine`/`echo.Echo` |
 
@@ -225,6 +226,10 @@ Complete, runnable examples live in `examples/cmd`:
   `Range` header, so `http.FileServer`'s own Range/conditional-GET
   support keeps working untouched - confirmed empirically, see the
   doc comments on `middleware.ETag`/`middleware.Compress`.
+* [examples/cmd/patch](examples/cmd/patch/main.go) — `PATCH` derived
+  from an existing `GET`+`PUT` pair via `httpx/patch.From` (RFC 7386
+  JSON Merge Patch and RFC 6902 JSON Patch, selected by
+  `Content-Type`), with neither handler changed to support it.
 
 ```sh
 go run ./examples/cmd/basic
@@ -236,6 +241,8 @@ go run ./examples/cmd/observability
 go run ./examples/cmd/files
 # or
 go run ./examples/cmd/staticfiles
+# or
+go run ./examples/cmd/patch
 ```
 
 ## Overview
@@ -253,6 +260,7 @@ responsibility:
 | `httpx/binding`       | Path, query, header, and JSON body binding.                                                                            |
 | `httpx/routing`       | Router based on `net/http.ServeMux`, with groups and middleware.                                                        |
 | `httpx/middleware`    | Standard middleware (CORS, recovery, request ID, logging, rate limiting, throttle, compression, security headers, etc). |
+| `httpx/patch`         | Derives a `PATCH` handler from an existing `GET`+`PUT` pair (RFC 6902 / RFC 7386).                                     |
 | `observability`       | Thin abstractions over the OpenTelemetry API.                                                                         |
 | `observability/otel`  | OpenTelemetry SDK configuration and initialization.                                                                  |
 

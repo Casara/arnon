@@ -36,6 +36,7 @@ relevante.
 | RFC 6749 / RFC 6750 / RFC 7617 | OAuth2 / Bearer / Basic | ❌ Adiado |
 | RFC 8259 | JSON | ✅ Conforme |
 | RFC 8949 | CBOR | ❌ Não implementado — design considerado, ver notas abaixo |
+| RFC 6902 / RFC 7386 | JSON Patch / JSON Merge Patch | ✅ `httpx/patch.From` deriva `PATCH` a partir de um par `GET`+`PUT` já existente |
 | draft-ietf-httpapi-idempotency-key-header | Idempotency-Key (ainda não é RFC) | ❌ Não implementado, vale acompanhar |
 
 ---
@@ -500,6 +501,62 @@ externo do `RateLimit.LimitCounter`. O fuego, pra comparação, também
 não tem suporte a CBOR: seu `WithContentTypeSerDes` é um hook genérico
 pra serializer escrito à mão por content type, não um formato de
 fábrica. Sem demanda concreta pra isso no `arnon` hoje.
+
+---
+
+## RFC 6902 (JSON Patch) / RFC 7386 (JSON Merge Patch)
+
+As duas estão implementadas, via `httpx/patch.From`. As duas descrevem
+um formato de wire pra uma atualização *parcial* de um recurso — um
+formato diferente do "uma representação completa do documento,
+decodificada uma vez" do `httpx.Endpoint` — então em vez de ensinar
+cada handler `PATCH` a parsear um documento de patch, o `From` deriva
+um inteiramente a partir de um handler `GET` e `PUT` já existentes,
+via replay de requisição: ele chama `get` direto (nunca através de um
+`Router` — isso rodaria a middleware global de novo pra requisição
+sintética) pra buscar o JSON atual do recurso, aplica o patch (merge
+da RFC 7386, ou operações da RFC 6902, escolhido pelo `Content-Type`
+da requisição recebida) direto nos bytes crus via
+`github.com/evanphx/json-patch/v5`, e então chama `put` direto com o
+corpo já mesclado — reaproveitando o binding/sanitização/validação já
+existentes desse handler sem nenhuma mudança. Nem `get` nem `put`
+precisam saber que `PATCH` existe.
+
+Isso contorna uma limitação real do Go, confirmada empiricamente: um
+campo de struct comum não distingue "ausente" de "`null` explícito" —
+`json.Unmarshal` num `*string` produz `nil` tanto pra `{}` quanto pra
+`{"name":null}`. A RFC 7386 precisa dessa distinção (ausente = não
+mexe, `null` = apaga), então decodificar um corpo de merge-patch direto
+num struct tipado não consegue expressar isso sem um tipo tri-state
+customizado. Operar nos bytes JSON crus antes de tocar no struct
+tipado evita o problema por completo — o mesmo motivo pelo qual a RFC
+6902 se encaixa nesse formato também: o documento de patch (uma lista
+de operações) não tem o formato do recurso de jeito nenhum, então
+nunca ia decodificar num struct tipado de qualquer forma.
+
+O `From` deliberadamente não descobre automaticamente o par `GET`/
+`PUT` de um path do jeito que o `autopatch.AutoPatch(api)` do huma
+faz: `openapi.Generator`/`Registry` é write-only (`Register`/
+`RegisterTypes`, sem lookup) e só rastreia endpoints que optaram por
+OpenAPI, então reaproveitá-lo como registro funcional de rotas seria
+uma violação de camadas. `From(get, put, config)` recebe os dois
+handlers explicitamente em vez disso — nenhuma API de introspecção
+nova em lugar nenhum, seguindo o padrão já existente de "explícito em
+vez de mágico" do framework (`ChainConfig.Extra` em vez de
+auto-ordenação, `CORS` não interceptando todo `OPTIONS`).
+
+Limitação conhecida e aceita: a sequência interna `GET`→aplica→`PUT`
+tem uma race de lost-update sob `PATCH`es concorrentes pro mesmo
+recurso, já que o `arnon` ainda não tem mecanismo de `If-Match`/
+concorrência otimista (ver a nota de 428/`If-Match` acima). O `From`
+ainda assim copia o `ETag`/`Last-Modified` da resposta do `GET`
+interno pro `If-Match`/`If-Unmodified-Since` do `PUT` interno
+(espelhando o huma) — inerte hoje, já que nada checa esses headers no
+`PUT` ainda, mas significa que o `From` não vai precisar de retrabalho
+quando esse mecanismo existir.
+
+O fuego não tem nenhuma das duas RFCs, nem nada parecido com
+`autopatch`.
 
 ---
 

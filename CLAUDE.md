@@ -65,6 +65,8 @@ flowchart TD
     httpxMiddleware --> httpxRouting
     httpxMiddleware --> observability["observability"]
     httpxMiddleware --> problem
+    httpxPatch["httpx/patch"] --> httpx
+    httpxPatch --> problem
     observabilityOtel["observability/otel"] --> observability
 ```
 
@@ -137,8 +139,11 @@ Before adding an import between internal packages, run
   runnable example lives in `examples/cmd/<name>` (`basic`: typed
   endpoint + validation + OpenAPI, zero middleware; `middleware`: the
   same endpoint with the full middleware stack; `observability`: the
-  same endpoint with tracing/metrics via OpenTelemetry). Code shared
-  between them (logger, custom validator registration, the example
+  same endpoint with tracing/metrics via OpenTelemetry; `files`: file
+  download/upload as plain `http.Handler`s; `staticfiles`:
+  `http.FileServer` with `ETag`/`Compress` applied globally;
+  `patch`: `PATCH` derived from `GET`+`PUT` via `httpx/patch.From`).
+  Code shared between them (logger, custom validator registration, the example
   handler) lives in `examples/internal/*` — not importable from
   outside `examples/` per Go's own rule, which is also why `examples`
   had to be added to its own `mayDependOn` in `.go-arch-lint.yml`
@@ -330,6 +335,36 @@ Before adding an import between internal packages, run
   couldn't see. Any new code that needs to check a content-negotiation
   header should follow this pattern (parse `;q=`, find the most
   specific match), not go back to a substring check.
+* **`httpx/patch.From` derives `PATCH` from `GET`+`PUT` by request
+  replay, not by teaching `httpx.Endpoint` anything about partial
+  updates.** It calls the given `get`/`put` `http.Handler`s directly —
+  never through a `Router` — because replaying through
+  `Router.ServeHTTP` would re-run global middleware (`RequestID`,
+  `RateLimit`, `Logging`, ...) a second time for the synthetic
+  request. `request.Clone` is what makes this safe: confirmed against
+  Go's stdlib source that `Clone` explicitly copies the internal
+  `matches`/`otherValues` fields `PathValue` reads (fixed for exactly
+  this reuse-across-calls scenario, issue 61410), so the internal
+  `GET`/`PUT` still resolve path parameters correctly without any
+  extra wiring.
+  Unlike huma's `autopatch.AutoPatch(api)`, this doesn't
+  auto-discover the `GET`/`PUT` pair for a path — `openapi.Generator`/
+  `Registry` is write-only (`Register`/`RegisterTypes`, no lookup) and
+  only tracks endpoints that opted into OpenAPI, so repurposing it as
+  a functional routing registry would be a layering violation.
+  Explicit `get`/`put` arguments avoid that, and match the framework's
+  existing "explicit over magic" pattern (`ChainConfig.Extra` over
+  auto-ordering, `CORS` not intercepting every `OPTIONS`).
+  The internal `GET`→apply→`PUT` sequence has an accepted lost-update
+  race under concurrent `PATCH`es to the same resource: `arnon` has no
+  `If-Match`/optimistic-concurrency mechanism yet (see the 428/
+  `If-Match` note above), so nothing rejects the internal `PUT` if the
+  resource changed in between. `From` still copies the internal
+  `GET` response's `ETag`/`Last-Modified` onto the internal `PUT`'s
+  `If-Match`/`If-Unmodified-Since` (mirroring huma) — inert today, but
+  means `From` won't need rework once that mechanism exists. This
+  trade-off was a deliberate, explicit choice, not an oversight — don't
+  "fix" the race without also landing `If-Match` support first.
 
 ## Documentation synchronization
 

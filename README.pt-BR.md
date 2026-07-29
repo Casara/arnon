@@ -102,6 +102,7 @@ e carro pelo motor.
 | Campo do erro de validação | notação de ponto ad-hoc (`"body.title"`) | namespace interno do `validator/v10` (`err.StructNamespace()`, nome de tipo/campo Go, não a tag `json`) | RFC 6901 (JSON Pointer), com escaping |
 | Sanitização antes da validação | Não tem | Métodos de interface `InTransform`/`OutTransform` — código explícito por tipo, não recursivo em struct aninhado | Tag `sanitize` (`sanitize:"trim"`), recursiva em struct/slice/map aninhado, transformação customizada pelo mesmo padrão de registro único da validação |
 | Formato de wire além de JSON | CBOR (RFC 8949) opt-in via o subpacote `formats/cbor` — isola a dependência `fxamacker/cbor/v2` ali, registrado na mesma negociação `huma.Format`/`Accept` que o JSON já usa | JSON/XML/YAML/HTML/plain text nativos via `Accept`; outros formatos exigem `WithContentTypeSerDes` escrito à mão — sem CBOR de fábrica | JSON only por design — sem negociação entre representações por endpoint; qualquer outra coisa é `http.Handler` puro (ver `examples/cmd/files`), não `httpx.Endpoint` |
+| `PATCH` a partir de `GET`+`PUT` | `autopatch.AutoPatch(api)` — descobre o par automaticamente via o registro de operações próprio do huma, RFC 7386/RFC 6902 suportadas | Não tem | `httpx/patch.From(get, put, ...)` — explícito, sem introspecção de rota (`arnon` não tem uma sem violar camadas); as mesmas duas RFCs |
 | Versão OpenAPI gerada | 3.1 (`kin-openapi`, sem 3.2 ainda) | ~3.0 (3.1/3.2 não confirmado) | 3.2.0 — vantagem com prazo de validade curto, é questão de tempo até o resto do ecossistema alcançar |
 | Servidor/router | bring-your-own — `net/http` via `humago`, mas também `fasthttp` via `humafiber` (aí perde a compatibilidade com o ecossistema `net/http`) | `net/http` direto, mesma escolha do `arnon` | `net/http` direto, mas router próprio — não plugável num `gin.Engine`/`echo.Echo` já existente |
 
@@ -225,6 +226,10 @@ Exemplos completos e executáveis estão em `examples/cmd`:
   `http.FileServer` a Range/conditional-GET continua funcionando sem
   interferência — confirmado empiricamente, ver os doc comments de
   `middleware.ETag`/`middleware.Compress`.
+* [examples/cmd/patch](examples/cmd/patch/main.go) — `PATCH` derivado
+  de um par `GET`+`PUT` já existente via `httpx/patch.From` (RFC 7386
+  JSON Merge Patch e RFC 6902 JSON Patch, escolhido pelo
+  `Content-Type`), sem mudar nenhum dos dois handlers.
 
 ```sh
 go run ./examples/cmd/basic
@@ -236,6 +241,8 @@ go run ./examples/cmd/observability
 go run ./examples/cmd/files
 # ou
 go run ./examples/cmd/staticfiles
+# ou
+go run ./examples/cmd/patch
 ```
 
 ## Visão geral
@@ -243,18 +250,19 @@ go run ./examples/cmd/staticfiles
 O `arnon` é composto por pacotes independentes, cada um com uma
 responsabilidade única:
 
-| Pacote                | Responsabilidade                                                                                                       |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `problem`             | Erros HTTP no formato RFC 9457 (Problem Details).                                                                      |
-| `sanitize`            | Transformações de dados via struct tag (trim, funções customizadas), aplicadas antes da validação.                     |
-| `validation`          | Validação de requests, com registro de regras customizadas.                                                            |
-| `openapi`             | Geração de schemas e do documento OpenAPI a partir de tipos Go.                                                        |
-| `httpx`               | Endpoint tipado: binding, validação, serialização e erros.                                                             |
-| `httpx/binding`       | Binding de path, query, header e JSON body.                                                                            |
-| `httpx/routing`       | Router baseado em `net/http.ServeMux`, com grupos e middleware.                                                        |
+| Pacote                | Responsabilidade                                                                                                      |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `problem`             | Erros HTTP no formato RFC 9457 (Problem Details).                                                                     |
+| `sanitize`            | Transformações de dados via struct tag (trim, funções customizadas), aplicadas antes da validação.                    |
+| `validation`          | Validação de requests, com registro de regras customizadas.                                                           |
+| `openapi`             | Geração de schemas e do documento OpenAPI a partir de tipos Go.                                                       |
+| `httpx`               | Endpoint tipado: binding, validação, serialização e erros.                                                            |
+| `httpx/binding`       | Binding de path, query, header e JSON body.                                                                           |
+| `httpx/routing`       | Router baseado em `net/http.ServeMux`, com grupos e middleware.                                                       |
 | `httpx/middleware`    | Middlewares padrão (CORS, recovery, request ID, logging, rate limiting, throttle, compressão, security headers, etc). |
-| `observability`       | Abstrações finas sobre a API do OpenTelemetry.                                                                         |
-| `observability/otel`  | Configuração e inicialização do SDK do OpenTelemetry.                                                                  |
+| `httpx/patch`         | Deriva um handler `PATCH` a partir de um par `GET`+`PUT` já existente (RFC 6902 / RFC 7386).                          |
+| `observability`       | Abstrações finas sobre a API do OpenTelemetry.                                                                        |
+| `observability/otel`  | Configuração e inicialização do SDK do OpenTelemetry.                                                                 |
 
 O grafo de dependências permitido entre esses pacotes está documentado
 em [.go-arch-lint.yml](.go-arch-lint.yml) (diagrama em

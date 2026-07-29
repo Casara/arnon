@@ -47,11 +47,15 @@ Initial public release.
   automatic HTTP tracing/metrics, custom counters/histograms,
   trace-correlated logging.
 - Interactive API docs via Stoplight Elements (`openapi.NewDocsHandler`).
-- Five runnable examples: `examples/cmd/basic`, `examples/cmd/middleware`,
+- `PATCH` derived from an existing `GET`+`PUT` pair (`httpx/patch.From`):
+  RFC 7386 (JSON Merge Patch) and RFC 6902 (JSON Patch), selected by
+  the incoming request's Content-Type, via internal request replay -
+  neither the `GET` nor the `PUT` handler needs to change.
+- Six runnable examples: `examples/cmd/basic`, `examples/cmd/middleware`,
   `examples/cmd/observability`, `examples/cmd/files` (non-JSON content:
   file download/upload as plain `http.Handler`s), `examples/cmd/staticfiles`
   (serving static assets via `http.FileServer`, with `ETag`/`Compress`
-  applied globally alongside it).
+  applied globally alongside it), `examples/cmd/patch` (derived `PATCH`).
 - A Claude Skill (`skills/using-arnon`) documenting how to consume
   arnon idiomatically in a project that depends on it.
 
