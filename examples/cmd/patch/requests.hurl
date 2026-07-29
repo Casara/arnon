@@ -17,6 +17,71 @@ jsonpath "$.bio" == "Mathematician and writer"
 jsonpath "$.tags" count == 1
 jsonpath "$.tags[0]" == "mathematics"
 
+# --- RFC 9110 write preconditions (httpx/precondition) --------------
+#
+# This section ends with the resource back in its original state, so
+# it doesn't disturb the PATCH sections after it.
+
+# Capture the ETag a real client would see - middleware.ETag() sets it
+# on the GET route.
+GET http://localhost:8080/profiles/ada
+HTTP 200
+[Captures]
+stale_etag: header "ETag"
+
+# A PUT with the correct If-Match succeeds and changes the resource -
+# stale_etag no longer matches after this.
+PUT http://localhost:8080/profiles/ada
+If-Match: {{stale_etag}}
+{
+    "name": "Ada Lovelace",
+    "bio": "Temporary bio for the If-Match demo",
+    "tags": ["mathematics"]
+}
+HTTP 200
+
+# A second PUT reusing the now-stale ETag is rejected (store.put's own
+# precondition.Check call), and nothing is written.
+PUT http://localhost:8080/profiles/ada
+If-Match: {{stale_etag}}
+{
+    "name": "Someone Else",
+    "bio": "Should never apply",
+    "tags": []
+}
+HTTP 412
+[Asserts]
+header "Content-Type" == "application/problem+json; charset=utf-8"
+
+# A PATCH with the same stale If-Match is rejected the same way - by
+# patch.From itself, before the internal PUT is ever attempted.
+PATCH http://localhost:8080/profiles/ada
+If-Match: {{stale_etag}}
+{
+    "bio": "Should never apply either"
+}
+HTTP 412
+
+# Confirms both rejected writes above genuinely left the resource
+# untouched (still the "Temporary bio" state from the first PUT
+# above).
+GET http://localhost:8080/profiles/ada
+HTTP 200
+[Asserts]
+jsonpath "$.name" == "Ada Lovelace"
+jsonpath "$.bio" == "Temporary bio for the If-Match demo"
+
+# A write with no If-Match at all still succeeds - Config.Require
+# defaults to false, so a precondition is optional, not mandatory.
+# Restores the profile to its original state for the sections below.
+PUT http://localhost:8080/profiles/ada
+{
+    "name": "Ada Lovelace",
+    "bio": "Mathematician and writer",
+    "tags": ["mathematics"]
+}
+HTTP 200
+
 # --- PATCH: RFC 7386 JSON Merge Patch -----------------------------
 
 # No Content-Type: merge patch is the default.

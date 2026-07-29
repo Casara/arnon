@@ -3,17 +3,27 @@
 // (JSON Patch) are both supported, selected by the incoming request's
 // Content-Type, with no change to the GET/PUT handlers themselves.
 //
+// It also demonstrates the write-precondition mechanism
+// (httpx/precondition) that closes patch.From's own optimistic-
+// concurrency gap: the GET route is wrapped in middleware.ETag(), and
+// store.put checks the incoming If-Match/If-Unmodified-Since against
+// the profile's current state before applying an update - so both a
+// direct PUT and a derived PATCH with a stale If-Match get 412
+// Precondition Failed instead of silently overwriting a change they
+// never saw.
+//
 // See httpx/patch's package doc comment for the mechanism (internal
-// GET, apply the patch to the raw JSON, internal PUT), and its own
-// doc comment on From for the accepted lost-update race under
-// concurrent PATCHes to the same resource (arnon has no
-// If-Match/optimistic-concurrency support yet).
+// GET, apply the patch to the raw JSON, internal PUT).
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"log/slog"
 	"net/http"
 	"os"
@@ -22,7 +32,9 @@ import (
 
 	"github.com/Casara/arnon/examples/internal/logging"
 	"github.com/Casara/arnon/httpx"
+	"github.com/Casara/arnon/httpx/middleware"
 	"github.com/Casara/arnon/httpx/patch"
+	"github.com/Casara/arnon/httpx/precondition"
 	"github.com/Casara/arnon/httpx/routing"
 	"github.com/Casara/arnon/openapi"
 	"github.com/Casara/arnon/problem"
@@ -92,39 +104,91 @@ func (s *store) get(
 }
 
 // putProfileRequest is the request for store.put - a full
-// replacement, same as any other PUT. Mixes single-purpose tags on
-// purpose (ID's path tag alone, the rest json/validate alone), same
-// as examples/internal/users.GetUserRequest.
+// replacement, same as any other PUT. IfMatch is bound the same way
+// any other header is - httpx.HandlerFunc never receives
+// *http.Request, so precondition.Check needs the value handed to it.
+// Mixes single-purpose tags on purpose (ID/IfMatch alone, the rest
+// json/validate alone), same as examples/internal/users.GetUserRequest.
 //
 //nolint:tagalign // see doc comment above
 type putProfileRequest struct {
-	ID   string   `path:"id"`
-	Name string   `          json:"name" validate:"required"`
-	Bio  string   `          json:"bio"`
-	Tags []string `          json:"tags"`
+	ID      string   `path:"id"`
+	IfMatch string   `          header:"If-Match"`
+	Name    string   `                            json:"name" validate:"required"`
+	Bio     string   `                            json:"bio"`
+	Tags    []string `                            json:"tags"`
 }
 
 func (s *store) put(
 	_ context.Context,
 	request putProfileRequest,
 ) (Profile, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	current, exists := s.profiles[request.ID]
+
+	var currentETag string
+
+	if exists {
+		var err error
+
+		currentETag, err = computeETag(current)
+		if err != nil {
+			return Profile{}, fmt.Errorf("compute current ETag: %w", err)
+		}
+	}
+
+	problemInstance := precondition.Check(
+		request.IfMatch,
+		"",
+		currentETag,
+		time.Time{},
+		precondition.Config{Require: false},
+	)
+	if problemInstance != nil {
+		return Profile{}, problemInstance
+	}
+
 	profile := Profile{
 		Name: request.Name,
 		Bio:  request.Bio,
 		Tags: request.Tags,
 	}
 
-	s.mu.Lock()
 	s.profiles[request.ID] = profile
-	s.mu.Unlock()
 
 	return profile, nil
+}
+
+// computeETag mirrors middleware.ETag's own algorithm (a strong ETag:
+// FNV-1a 64-bit hash of the exact bytes httpx.WriteJSON would encode,
+// hex-encoded and quoted) - not exported from httpx/middleware, so
+// store.put duplicates the ~5 lines here to independently compute the
+// current profile's ETag before checking preconditions against it.
+func computeETag(profile Profile) (string, error) {
+	buffer := &bytes.Buffer{}
+
+	err := json.NewEncoder(buffer).Encode(profile)
+	if err != nil {
+		return "", fmt.Errorf("encode profile: %w", err)
+	}
+
+	hasher := fnv.New64a()
+	_, _ = hasher.Write(buffer.Bytes())
+
+	return `"` + hex.EncodeToString(hasher.Sum(nil)) + `"`, nil
 }
 
 func mapProfileError(err error) *problem.Problem {
 	var notFound notFoundError
 	if errors.As(err, &notFound) {
 		return problem.NewNotFound(notFound.Error())
+	}
+
+	var problemInstance *problem.Problem
+	if errors.As(err, &problemInstance) {
+		return problemInstance
 	}
 
 	return problem.NewInternal("")
@@ -154,12 +218,24 @@ func main() {
 		OpenAPI:       &openapi.Operation{Summary: "Replace a profile"},
 	})
 
-	router.GET("/profiles/{id}", getHandler)
+	// getHandler is wrapped in ETag *before* being used anywhere, so
+	// every caller - a direct client GET, and patch.From's own internal
+	// GET below - sees the same ETag. This does mean the route no
+	// longer implements httpx.OpenAPIProvider (the wrapped handler is a
+	// plain http.HandlerFunc), so it won't show up in /openapi.json -
+	// an accepted trade-off for this example, per httpx/patch.From's
+	// own doc comment ("wrap get/put themselves" is the documented way
+	// to combine From with middleware).
+	getHandlerWithETag := middleware.ETag()(getHandler)
+
+	router.GET("/profiles/{id}", getHandlerWithETag)
 	router.PUT("/profiles/{id}", putHandler)
 
-	// PATCH is derived entirely from the GET/PUT handlers above -
-	// neither needed any change to support it.
-	router.PATCH("/profiles/{id}", patch.From(getHandler, putHandler, patch.Config{}))
+	// PATCH is derived from the GET/PUT handlers above - neither needed
+	// any change to support it. Using getHandlerWithETag (not the bare
+	// getHandler) here is what lets patch.From's internal GET see a
+	// real ETag to check the incoming PATCH's own If-Match against.
+	router.PATCH("/profiles/{id}", patch.From(getHandlerWithETag, putHandler, patch.Config{}))
 
 	document := generator.Generate()
 
