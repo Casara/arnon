@@ -78,6 +78,8 @@ linters:
         - '.*/middleware\.localLimitCounter$'
         - '.*/middleware\.timeoutResponseWriter$'
         - '.*/middleware\.etagResponseWriter$'
+        - '.*/patch\.bufferedResponseWriter$'
+        - '.*/patch\.Config$'
     funlen:
       # Checks the number of lines in a function.
       # If lower than 0, disable the check.

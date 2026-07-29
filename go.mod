@@ -3,6 +3,7 @@ module github.com/Casara/arnon
 go 1.26.5
 
 require (
+	github.com/evanphx/json-patch/v5 v5.9.11
 	github.com/go-playground/validator/v10 v10.30.3
 	github.com/google/uuid v1.6.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0

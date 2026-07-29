@@ -9,6 +9,7 @@ vendors:
   validator: { in: github.com/go-playground/validator/v10(/**)? }
   otel: { in: go.opentelemetry.io/otel(/**)? }
   otel-contrib: { in: go.opentelemetry.io/contrib(/**)? }
+  json-patch: { in: github.com/evanphx/json-patch/v5(/**)? }
 
 components:
   problem: { in: problem }
@@ -19,6 +20,7 @@ components:
   httpx-binding: { in: httpx/binding }
   httpx-routing: { in: httpx/routing }
   httpx-middleware: { in: httpx/middleware }
+  httpx-patch: { in: httpx/patch }
   observability: { in: observability }
   observability-otel: { in: observability/otel }
   # Runnable examples are consumers of the library, not part of its
@@ -87,6 +89,17 @@ deps:
     canUse:
       - go-uuid
 
+  # Derives a PATCH http.Handler from an existing GET+PUT pair (RFC 6902
+  # JSON Patch / RFC 7386 JSON Merge Patch), by request replay - never
+  # goes through httpx-routing, it only ever calls the two given
+  # http.Handlers directly.
+  httpx-patch:
+    mayDependOn:
+      - httpx
+      - problem
+    canUse:
+      - json-patch
+
   # Thin OpenTelemetry API wrappers (counters, histograms, attributes).
   observability:
     canUse:
@@ -112,6 +125,7 @@ deps:
       - httpx-binding
       - httpx-routing
       - httpx-middleware
+      - httpx-patch
       - openapi
       - problem
       - sanitize
