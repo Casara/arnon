@@ -104,6 +104,7 @@ e carro pelo motor.
 | Sanitização antes da validação | Não tem | Métodos de interface `InTransform`/`OutTransform` — código explícito por tipo, não recursivo em struct aninhado | Tag `sanitize` (`sanitize:"trim"`), recursiva em struct/slice/map aninhado, transformação customizada pelo mesmo padrão de registro único da validação |
 | Formato de wire além de JSON | CBOR (RFC 8949) opt-in via o subpacote `formats/cbor` — isola a dependência `fxamacker/cbor/v2` ali, registrado na mesma negociação `huma.Format`/`Accept` que o JSON já usa | JSON/XML/YAML/HTML/plain text nativos via `Accept`; outros formatos exigem `WithContentTypeSerDes` escrito à mão — sem CBOR de fábrica | JSON only por design — sem negociação entre representações por endpoint; qualquer outra coisa é `http.Handler` puro (ver `examples/cmd/files`), não `httpx.Endpoint` |
 | `PATCH` a partir de `GET`+`PUT` | `autopatch.AutoPatch(api)` — descobre o par automaticamente via o registro de operações próprio do huma, RFC 7386/RFC 6902 suportadas | Não tem | `httpx/patch.From(get, put, ...)` — explícito, sem introspecção de rota (`arnon` não tem uma sem violar camadas); as mesmas duas RFCs |
+| Preconditions de escrita / concorrência otimista | `conditional.Params` embutido no struct de entrada + `input.PreconditionFailed(etag, modified)`, chamado pelo handler com seu próprio estado atual | Não tem | `httpx/precondition.Check`/`CheckRequest` — mesmo formato "handler fornece o estado atual" do huma, `412`/`428` opt-in; `httpx/patch.From` chama internamente sobre o `If-Match` do próprio cliente antes de aplicar qualquer patch |
 | Versão OpenAPI gerada | 3.1 (`kin-openapi`, sem 3.2 ainda) | ~3.0 (3.1/3.2 não confirmado) | 3.2.0 — vantagem com prazo de validade curto, é questão de tempo até o resto do ecossistema alcançar |
 | Servidor/router | bring-your-own — `net/http` via `humago`, mas também `fasthttp` via `humafiber` (aí perde a compatibilidade com o ecossistema `net/http`) | `net/http` direto, mesma escolha do `arnon` | `net/http` direto, mas router próprio — não plugável num `gin.Engine`/`echo.Echo` já existente |
 
@@ -262,6 +263,7 @@ responsabilidade única:
 | `httpx/routing`       | Router baseado em `net/http.ServeMux`, com grupos e middleware.                                                       |
 | `httpx/middleware`    | Middlewares padrão (CORS, recovery, request ID, logging, rate limiting, throttle, compressão, security headers, etc). |
 | `httpx/patch`         | Deriva um handler `PATCH` a partir de um par `GET`+`PUT` já existente (RFC 6902 / RFC 7386).                          |
+| `httpx/precondition`  | Preconditions de escrita (`If-Match`/`If-Unmodified-Since`, RFC 9110 §13.1.1/§13.1.4), `428` opt-in.                  |
 | `observability`       | Abstrações finas sobre a API do OpenTelemetry.                                                                        |
 | `observability/otel`  | Configuração e inicialização do SDK do OpenTelemetry.                                                                 |
 

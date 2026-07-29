@@ -93,7 +93,9 @@ flowchart TD
     httpxMiddleware --> observability["observability"]
     httpxMiddleware --> problem
     httpxPatch["httpx/patch"] --> httpx
+    httpxPatch --> httpxPrecondition["httpx/precondition"]
     httpxPatch --> problem
+    httpxPrecondition --> problem
     observabilityOtel["observability/otel"] --> observability
 ```
 
@@ -382,16 +384,43 @@ Before adding an import between internal packages, run
   Explicit `get`/`put` arguments avoid that, and match the framework's
   existing "explicit over magic" pattern (`ChainConfig.Extra` over
   auto-ordering, `CORS` not intercepting every `OPTIONS`).
-  The internal `GET`→apply→`PUT` sequence has an accepted lost-update
-  race under concurrent `PATCH`es to the same resource: `arnon` has no
-  `If-Match`/optimistic-concurrency mechanism yet (see the 428/
-  `If-Match` note above), so nothing rejects the internal `PUT` if the
-  resource changed in between. `From` still copies the internal
-  `GET` response's `ETag`/`Last-Modified` onto the internal `PUT`'s
-  `If-Match`/`If-Unmodified-Since` (mirroring huma) — inert today, but
-  means `From` won't need rework once that mechanism exists. This
-  trade-off was a deliberate, explicit choice, not an oversight — don't
-  "fix" the race without also landing `If-Match` support first.
+  `From` checks the original incoming `PATCH` request's own
+  `If-Match`/`If-Unmodified-Since` (a client's optimistic-concurrency
+  intent, from an earlier `GET`) against the internal `GET`'s
+  `ETag`/`Last-Modified` via `httpx/precondition.CheckRequest`, before
+  ever applying the patch or calling `put` — a mismatch is `412`. It
+  also still copies the internal `GET` response's `ETag`/`Last-Modified`
+  onto the internal `PUT`'s `If-Match`/`If-Unmodified-Since` (mirroring
+  huma), but that only closes the narrower internal `GET`-to-`PUT` race
+  if `put` itself calls `precondition.Check`/`CheckRequest` with its
+  own atomically-read current state — `From` has no way to do that part
+  for it, since it doesn't know what "current state" means for an
+  arbitrary resource. See the `httpx/precondition` bullet below.
+* **`httpx/precondition.Check`/`CheckRequest` validate RFC 9110
+  §13.1.1/§13.1.4 write preconditions (`If-Match`/`If-Unmodified-Since`)
+  against a resource's *current* state, supplied by the caller — not
+  computed by the package itself.** Unlike `middleware.ETag` (which
+  buffers a `GET`/`HEAD` response and handles `If-None-Match` entirely
+  on its own, since a response's bytes are all it needs), a write
+  precondition can't be evaluated generically: only the resource layer
+  (whatever loads the current row/record to apply a `PUT`/`PATCH`/
+  `DELETE`) knows the resource's current `ETag`/modification time at the
+  moment of the write. This mirrors huma's `conditional` package
+  exactly (its `PreconditionFailed(etag, modified)` is likewise called
+  by the handler, not the framework) — confirmed by reading huma's
+  actual design before implementing this. `Check` takes header values
+  already bound onto a request DTO via `header:"If-Match"`/
+  `header:"If-Unmodified-Since"` tags, since `httpx.HandlerFunc` never
+  receives `*http.Request`; `CheckRequest` is the `*http.Request`-based
+  equivalent, for a plain `http.Handler` or framework-internal code
+  (`httpx/patch.From`). `If-Match` uses strong comparison (RFC 9110
+  §13.1.1: a weak `ETag`, `W/"..."`, can never satisfy it, unlike
+  `middleware.ETag`'s weak comparison for `If-None-Match`) and takes
+  precedence over `If-Unmodified-Since` when both are present.
+  `Config.Require` (default `false`) opts into `428 Precondition
+  Required` when neither header is present — bundled with `If-Match`
+  rather than shipped separately, since one only makes sense alongside
+  the other (a previous "not implemented yet" note here said as much).
 
 ## Documentation synchronization
 

@@ -51,6 +51,11 @@ Initial public release.
   RFC 7386 (JSON Merge Patch) and RFC 6902 (JSON Patch), selected by
   the incoming request's Content-Type, via internal request replay -
   neither the `GET` nor the `PUT` handler needs to change.
+- Write preconditions (`httpx/precondition.Check`/`CheckRequest`): RFC
+  9110 §13.1.1/§13.1.4 `If-Match`/`If-Unmodified-Since`, with opt-in
+  `428 Precondition Required` (`Config.Require`). `httpx/patch.From`
+  uses this to reject a `PATCH` whose `If-Match` no longer matches the
+  resource, before ever applying the patch.
 - Six runnable examples: `examples/cmd/basic`, `examples/cmd/middleware`,
   `examples/cmd/observability`, `examples/cmd/files` (non-JSON content:
   file download/upload as plain `http.Handler`s), `examples/cmd/staticfiles`

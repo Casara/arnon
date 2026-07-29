@@ -5,7 +5,7 @@
 Como o `arnon` se relaciona com os padrões IETF relevantes para uma
 fundação HTTP: o que é implementado, como funciona, o que é uma
 decisão deliberada de escopo (e por quê) e o que ainda não existe.
-Última revisão: 2026-07-15.
+Última revisão: 2026-07-29.
 
 O objetivo não é "implementar toda RFC que existe", mas deixar
 explícito, para cada uma relevante, se o `arnon` atende, atende
@@ -29,8 +29,9 @@ relevante.
 | RFC 6901 | JSON Pointer | ✅ `ValidationSource.field` quando `in: "body"`, com escaping correto, struct aninhado, índice de array/slice (`/items/0/name`) e chave de map (`/meta/x~1y`) |
 | RFC 9110 | HTTP Semantics | ✅ HEAD/405/`OPTIONS`/negociação de conteúdo/multi-valor de header |
 | RFC 9111 | HTTP Caching | ✅ ETag + conditional GET via middleware opt-in |
+| RFC 9110 §13.1.1/§13.1.4 | Preconditions de escrita (If-Match / If-Unmodified-Since) | ✅ `httpx/precondition.Check`/`CheckRequest`, `428` opt-in |
 | RFC 7239 | Forwarded HTTP Extension | ✅ Implementado em `RealIP`, com fallback pros headers de fato |
-| RFC 6585 | Additional HTTP Status Codes | ✅ 429 com `Retry-After`; 431/428 fora do alcance do framework (limite de plataforma) |
+| RFC 6585 | Additional HTTP Status Codes | ✅ 429 com `Retry-After`, 428 opt-in; 431 fora do alcance do framework (limite de plataforma) |
 | RFC 8288 / RFC 8631 | Web Linking / service link relations | ✅ `Link: rel="service-desc"` opt-in |
 | RFC 8615 | Well-Known URIs | ❌ Fora de escopo |
 | RFC 6749 / RFC 6750 / RFC 7617 | OAuth2 / Bearer / Basic | ❌ Adiado |
@@ -287,6 +288,47 @@ ambas são opt-in por rota/grupo.
 
 ---
 
+## RFC 9110 §13.1.1 / §13.1.4 — Preconditions de Escrita (If-Match / If-Unmodified-Since)
+
+`httpx/precondition.Check`/`CheckRequest`, com `Config{Require bool}`
+(opt-in pro `428`, ver a seção RFC 6585 abaixo). Essa é a contraparte
+do lado de escrita do GET condicional do `ETag` acima, e é
+arquiteturalmente diferente por um motivo: o `ETag` consegue calcular
+tudo que precisa a partir da resposta que já está bufferizando, mas
+uma precondition de escrita precisa ser checada contra o estado
+*atual* do recurso no momento da escrita — algo que só o código que
+carrega esse recurso (pra aplicar um `PUT`/`PATCH`/`DELETE`) realmente
+sabe. Então, diferente do `ETag`, isso não é middleware; é uma função
+que o próprio handler chama, passando seu próprio `etag`/
+`lastModified` já conhecido. Confirmado contra o próprio pacote
+`danielgtaylor/huma/v2/conditional` do huma antes de implementar isso:
+o `PreconditionFailed(etag, modified)` dele também é chamado pelo
+handler, não computado pelo framework, pelo mesmo motivo.
+
+`If-Match` usa comparação forte (RFC 9110 §13.1.1): um `ETag` fraco
+(`W/"..."`) de qualquer lado nunca satisfaz, diferente da própria
+comparação fraca do `ETag` pro `If-None-Match` acima (RFC 9110 §13.1.2
+exige comparação fraca ali, já que `GET`/`HEAD` são métodos seguros).
+`*` dá match em qualquer recurso existente. `If-Unmodified-Since` só é
+avaliado quando `If-Match` está ausente (RFC 9110 §13.1.4: um servidor
+DEVE ignorar `If-Unmodified-Since` quando `If-Match` está presente) —
+uma data não parseável ou um `lastModified` não setado são tratados
+como não verificáveis, e a requisição segue em frente em vez de ser
+rejeitada.
+
+O `httpx/patch.From` (seção RFC 6902/7386 abaixo) usa isso
+diretamente: antes de aplicar um patch, ele checa o `If-Match`/
+`If-Unmodified-Since` da própria requisição `PATCH` recebida contra o
+`ETag`/`Last-Modified` do `GET` interno via `CheckRequest`, rejeitando
+com `412` antes de sequer chamar o handler `PUT` subjacente se não
+baterem.
+
+O fuego não tem nada parecido (confirmado: nenhum guia sobre ETag,
+requisição condicional, ou concorrência otimista em nenhum lugar da
+documentação dele).
+
+---
+
 ## RFC 7239 — Forwarded HTTP Extension
 
 `RealIP` (`httpx/middleware/real_ip.go`) resolve o IP do cliente
@@ -331,10 +373,11 @@ endereço dentro do próprio bloco pra escapar do limite.
   `MaxHeaderBytes`) que fecha a conexão antes de qualquer handler do
   `arnon` rodar. Não dá pra interceptar isso e responder com Problem
   Details sem abandonar `net/http` como base.
-* **428 Precondition Required**: não implementado; faria sentido
-  revisitar junto com um mecanismo de `If-Match` (fora do escopo de
-  `ETag`, que só cobre `If-None-Match` pra métodos seguros), não
-  isoladamente.
+* **428 Precondition Required**: `httpx/precondition.Config{Require:
+  true}` — opt-in, já que a maioria das APIs não quer que toda escrita
+  exija uma precondition. Lançado junto com o próprio mecanismo de
+  `If-Match`/`If-Unmodified-Since` (seção RFC 9110 §13.1.1/§13.1.4
+  acima), não isoladamente, como planejado.
 
 ---
 
@@ -545,15 +588,21 @@ nova em lugar nenhum, seguindo o padrão já existente de "explícito em
 vez de mágico" do framework (`ChainConfig.Extra` em vez de
 auto-ordenação, `CORS` não interceptando todo `OPTIONS`).
 
-Limitação conhecida e aceita: a sequência interna `GET`→aplica→`PUT`
-tem uma race de lost-update sob `PATCH`es concorrentes pro mesmo
-recurso, já que o `arnon` ainda não tem mecanismo de `If-Match`/
-concorrência otimista (ver a nota de 428/`If-Match` acima). O `From`
-ainda assim copia o `ETag`/`Last-Modified` da resposta do `GET`
-interno pro `If-Match`/`If-Unmodified-Since` do `PUT` interno
-(espelhando o huma) — inerte hoje, já que nada checa esses headers no
-`PUT` ainda, mas significa que o `From` não vai precisar de retrabalho
-quando esse mecanismo existir.
+O `From` checa o `If-Match`/`If-Unmodified-Since` da própria requisição
+`PATCH` recebida (`httpx/precondition.CheckRequest`, seção RFC 9110
+§13.1.1/§13.1.4 acima) contra o `ETag`/`Last-Modified` do `GET`
+interno antes de aplicar o patch, rejeitando com `412` antes do `put`
+ser chamado se não baterem — isso é o que realmente protege a intenção
+de concorrência otimista de um cliente (mandar o `ETag` que ele leu
+antes). O `From` também continua copiando o `ETag`/`Last-Modified` da
+resposta do `GET` interno pro `If-Match`/`If-Unmodified-Since` do
+`PUT` interno (espelhando o huma), mas isso só fecha a race mais
+estreita entre o `GET` e o `PUT` internos (um segundo escritor
+intrometendo-se entre os dois, dentro da mesma chamada de `PATCH`) se
+o handler `put` subjacente também chamar `precondition.Check`/
+`CheckRequest` com seu próprio estado atual lido atomicamente — o
+`From` não tem como fazer essa parte por ele, já que não tem noção do
+que "estado atual" significa pra um recurso arbitrário.
 
 O fuego não tem nenhuma das duas RFCs, nem nada parecido com
 `autopatch`.
@@ -583,9 +632,6 @@ Trabalho futuro genuíno, fora do escopo já coberto acima:
 * Bearer/Basic Auth (adiado).
 * `/.well-known/` (RFC 8615) e paginação via `Link` — sem demanda
   concreta hoje, ver notas acima.
-* `428 Precondition Required` / `If-Match` — só faria sentido junto
-  de um mecanismo de precondition mais amplo que o `ETag` atual
-  cobre.
 * CBOR (RFC 8949) / negociação multi-formato pro `httpx.Endpoint` —
   sem demanda concreta hoje, ver notas acima.
 * Acompanhar o `Idempotency-Key` (ainda draft, não RFC).

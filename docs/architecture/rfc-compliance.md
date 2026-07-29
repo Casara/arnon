@@ -5,7 +5,7 @@
 How `arnon` relates to the relevant IETF standards for an HTTP
 foundation: what is implemented, how it works, what is a deliberate
 scope decision (and why), and what doesn't exist yet.
-Last reviewed: 2026-07-15.
+Last reviewed: 2026-07-29.
 
 The goal is not "implement every RFC that exists," but to make
 explicit, for each relevant one, whether `arnon` complies, partially
@@ -28,8 +28,9 @@ stdlib "should" do) — the results are noted where relevant.
 | RFC 6901 | JSON Pointer | ✅ `ValidationSource.field` when `in: "body"`, with correct escaping, nested struct, array/slice index (`/items/0/name`), and map key (`/meta/x~1y`) |
 | RFC 9110 | HTTP Semantics | ✅ HEAD/405/`OPTIONS`/content negotiation/multi-value headers |
 | RFC 9111 | HTTP Caching | ✅ ETag + conditional GET via opt-in middleware |
+| RFC 9110 §13.1.1/§13.1.4 | Write preconditions (If-Match / If-Unmodified-Since) | ✅ `httpx/precondition.Check`/`CheckRequest`, opt-in `428` |
 | RFC 7239 | Forwarded HTTP Extension | ✅ Implemented in `RealIP`, with fallback to the de facto headers |
-| RFC 6585 | Additional HTTP Status Codes | ✅ 429 with `Retry-After`; 431/428 out of the framework's reach (platform limit) |
+| RFC 6585 | Additional HTTP Status Codes | ✅ 429 with `Retry-After`, opt-in 428; 431 out of the framework's reach (platform limit) |
 | RFC 8288 / RFC 8631 | Web Linking / service link relations | ✅ `Link: rel="service-desc"` opt-in |
 | RFC 8615 | Well-Known URIs | ❌ Out of scope |
 | RFC 6749 / RFC 6750 / RFC 7617 | OAuth2 / Bearer / Basic | ❌ Deferred |
@@ -288,6 +289,44 @@ opt-in per route/group.
 
 ---
 
+## RFC 9110 §13.1.1 / §13.1.4 — Write Preconditions (If-Match / If-Unmodified-Since)
+
+`httpx/precondition.Check`/`CheckRequest`, implemented via
+`Config{Require bool}` (opt-in `428`, see the RFC 6585 section below).
+This is the write-side counterpart to `ETag`'s read-side conditional
+`GET` above, and it's architecturally different for a reason: `ETag`
+can compute everything it needs from the response it's already
+buffering, but a write precondition has to be checked against the
+resource's *current* state at the moment of the write — something only
+the code that loads that resource (to apply a `PUT`/`PATCH`/`DELETE`)
+actually knows. So unlike `ETag`, this isn't middleware; it's a
+function the handler calls itself, passing in its own already-known
+`etag`/`lastModified`. Confirmed against huma's own
+`danielgtaylor/huma/v2/conditional` package before implementing this:
+its `PreconditionFailed(etag, modified)` is likewise called by the
+handler, not computed by the framework, for the same reason.
+
+`If-Match` uses strong comparison (RFC 9110 §13.1.1): a weak `ETag`
+(`W/"..."`) on either side never satisfies it, unlike `ETag`'s own weak
+comparison for `If-None-Match` above (RFC 9110 §13.1.2 requires weak
+comparison there instead, since `GET`/`HEAD` are safe methods). `*`
+matches any existing resource. `If-Unmodified-Since` is only evaluated
+when `If-Match` is absent (RFC 9110 §13.1.4: a server MUST ignore
+`If-Unmodified-Since` when `If-Match` is present) - an unparseable date
+or an unset `lastModified` is treated as unverifiable and the request
+proceeds, rather than being rejected.
+
+`httpx/patch.From` (RFC 6902/7386 section below) uses this directly:
+before applying a patch, it checks the incoming `PATCH` request's own
+`If-Match`/`If-Unmodified-Since` against the internal `GET`'s
+`ETag`/`Last-Modified` via `CheckRequest`, rejecting with `412` before
+ever calling the underlying `PUT` handler if they don't match.
+
+fuego has nothing comparable (confirmed: no ETag, conditional-request,
+or optimistic-concurrency guide anywhere in its documentation).
+
+---
+
 ## RFC 7239 — Forwarded HTTP Extension
 
 `RealIP` (`httpx/middleware/real_ip.go`) resolves the client IP by
@@ -332,10 +371,11 @@ within its own block to escape the limit.
   that closes the connection before any `arnon` handler runs. There's
   no way to intercept this and respond with Problem Details without
   abandoning `net/http` as the foundation.
-* **428 Precondition Required**: not implemented; it would make sense
-  to revisit this together with an `If-Match` mechanism (out of scope
-  for `ETag`, which only covers `If-None-Match` for safe methods),
-  not in isolation.
+* **428 Precondition Required**: `httpx/precondition.Config{Require:
+  true}` — opt-in, since most APIs don't want every write to mandate a
+  precondition. Shipped together with the `If-Match`/
+  `If-Unmodified-Since` mechanism itself (RFC 9110 §13.1.1/§13.1.4
+  section above), not in isolation, as planned.
 
 ---
 
@@ -539,14 +579,21 @@ explicitly instead — no new introspection API anywhere, matching the
 framework's existing "explicit over magic" pattern (`ChainConfig.Extra`
 over auto-ordering, `CORS` not intercepting every `OPTIONS`).
 
-Known, accepted limitation: the internal `GET`→apply→`PUT` sequence
-has a lost-update race under concurrent `PATCH`es to the same
-resource, since `arnon` has no `If-Match`/optimistic-concurrency
-mechanism yet (see the 428/`If-Match` note above). `From` still copies
-the internal `GET` response's `ETag`/`Last-Modified` onto the internal
-`PUT`'s `If-Match`/`If-Unmodified-Since` (mirroring huma) — inert
-today, since nothing checks those headers on `PUT` yet, but means
-`From` won't need rework once that mechanism exists.
+`From` checks the incoming `PATCH` request's own
+`If-Match`/`If-Unmodified-Since` (`httpx/precondition.CheckRequest`,
+RFC 9110 §13.1.1/§13.1.4 section above) against the internal `GET`'s
+`ETag`/`Last-Modified` before applying the patch, rejecting with `412`
+before `put` is ever called if they don't match — this is what a
+client's own optimistic-concurrency intent (send the `ETag` it read
+earlier) actually protects against. `From` also still copies the
+internal `GET` response's `ETag`/`Last-Modified` onto the internal
+`PUT`'s `If-Match`/`If-Unmodified-Since` (mirroring huma), but that
+only closes the narrower internal `GET`-to-`PUT` race (a second writer
+sneaking in between the two, within the same `PATCH` call) if the
+underlying `put` handler itself calls `precondition.Check`/
+`CheckRequest` with its own atomically-read current state — `From` has
+no way to do that part for it, since it has no notion of what "current
+state" means for an arbitrary resource.
 
 fuego has neither RFC, nor anything resembling `autopatch`.
 
@@ -574,9 +621,6 @@ Genuine future work, outside the scope already covered above:
 * Bearer/Basic Auth (deferred).
 * `/.well-known/` (RFC 8615) and pagination via `Link` — no concrete
   demand today, see notes above.
-* `428 Precondition Required` / `If-Match` — would only make sense
-  alongside a broader precondition mechanism than what `ETag`
-  currently covers.
 * CBOR (RFC 8949) / multi-format negotiation for `httpx.Endpoint` — no
   concrete demand today, see notes above.
 * Track `Idempotency-Key` (still a draft, not an RFC).

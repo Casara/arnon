@@ -103,6 +103,7 @@ terms would be like comparing a bicycle and a car by their engine.
 | Sanitization before validation | Not built in | `InTransform`/`OutTransform` interface methods — explicit code per type, not recursive into nested structs | `sanitize` struct tag (`sanitize:"trim"`), recursive into nested structs/slices/maps, custom transforms through the same single-registry pattern as validation |
 | Wire format beyond JSON | Opt-in CBOR (RFC 8949) via the `formats/cbor` subpackage — isolates its `fxamacker/cbor/v2` dependency there, registers into the same `huma.Format`/`Accept` negotiation JSON already uses | Built-in JSON/XML/YAML/HTML/plain text via `Accept`; other formats need a hand-written `WithContentTypeSerDes` — no CBOR out of the box | JSON only by design — no per-endpoint negotiation between representations; anything else is a plain `http.Handler` (see `examples/cmd/files`), not `httpx.Endpoint` |
 | `PATCH` from `GET`+`PUT` | `autopatch.AutoPatch(api)` — auto-discovers the pair via huma's own operation registry, RFC 7386/RFC 6902 both supported | Not built in | `httpx/patch.From(get, put, ...)` — explicit, no route introspection (`arnon` has none to reuse without a layering violation); same two RFCs |
+| Write preconditions / optimistic concurrency | `conditional.Params` embedded in the input struct + `input.PreconditionFailed(etag, modified)`, called by the handler with its own current state | Not built in | `httpx/precondition.Check`/`CheckRequest` — same "handler supplies current state" shape as huma, `412`/opt-in `428`; `httpx/patch.From` calls it on the client's own `If-Match` before ever applying a patch |
 | Generated OpenAPI version | 3.1 (`kin-openapi`, no 3.2 yet) | ~3.0 (3.1/3.2 unconfirmed) | 3.2.0 — an advantage with a short shelf life, it's a matter of time until the rest of the ecosystem catches up |
 | Server/router | Bring-your-own — `net/http` via `humago`, but also `fasthttp` via `humafiber` (which loses compatibility with the `net/http` ecosystem) | `net/http` directly, same choice as `arnon` | `net/http` directly, but its own router — not pluggable into an existing `gin.Engine`/`echo.Echo` |
 
@@ -262,6 +263,7 @@ responsibility:
 | `httpx/routing`       | Router based on `net/http.ServeMux`, with groups and middleware.                                                        |
 | `httpx/middleware`    | Standard middleware (CORS, recovery, request ID, logging, rate limiting, throttle, compression, security headers, etc). |
 | `httpx/patch`         | Derives a `PATCH` handler from an existing `GET`+`PUT` pair (RFC 6902 / RFC 7386).                                     |
+| `httpx/precondition`  | Write preconditions (`If-Match`/`If-Unmodified-Since`, RFC 9110 §13.1.1/§13.1.4), opt-in `428`.                        |
 | `observability`       | Thin abstractions over the OpenTelemetry API.                                                                         |
 | `observability/otel`  | OpenTelemetry SDK configuration and initialization.                                                                  |
 

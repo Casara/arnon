@@ -219,11 +219,61 @@ apply to the derived `PATCH` (auth, logging, ...) needs to already
 wrap `get`/`put` themselves, or wrap the `PATCH` route with the same
 `Group.Use` stack as the real `GET`/`PUT` routes.
 
-Known limitation: the internal `GET`→apply→`PUT` sequence has a
-lost-update race under concurrent `PATCH`es to the same resource,
-since `arnon` has no `If-Match`/optimistic-concurrency mechanism yet.
-Acceptable for most APIs; if it isn't for yours, don't use `From` for
-that resource yet.
+`From` checks the incoming `PATCH` request's own `If-Match`/
+`If-Unmodified-Since` against the internal `GET`'s `ETag`/
+`Last-Modified` before applying the patch, so a client that read the
+resource first and sends the `ETag` it saw gets a `412` instead of a
+silent lost update if the resource changed in between. It also
+propagates that same `ETag`/`Last-Modified` onto the internal `PUT`'s
+`If-Match`/`If-Unmodified-Since` - but that only protects the narrower
+internal `GET`-to-`PUT` window if `putUser` itself calls
+`precondition.Check` too (see below).
+
+## Write preconditions (If-Match / If-Unmodified-Since)
+
+A `PUT`/`PATCH`/`DELETE` handler that wants to reject a write when the
+resource has changed since the client last read it calls
+`httpx/precondition.Check` itself, with the resource's *current*
+`ETag`/modification time - only the handler knows that, so the package
+can't compute it on its own (the same reason `httpx/patch.From` can't
+either):
+
+```go
+type putUserRequest struct {
+    ID      string `path:"id"`
+    IfMatch string `header:"If-Match"`
+    Name    string `json:"name" validate:"required"`
+}
+
+func putUser(ctx context.Context, request putUserRequest) (User, error) {
+    current, err := loadUser(ctx, request.ID) // your own storage lookup
+    if err != nil {
+        return User{}, err
+    }
+
+    if problem := precondition.Check(
+        request.IfMatch,
+        "",              // If-Unmodified-Since, if you track it instead
+        current.ETag(),  // your own resource's current ETag
+        time.Time{},     // or its current modification time
+        precondition.Config{},
+    ); problem != nil {
+        return User{}, problem // *problem.Problem implements error
+    }
+
+    // ... apply the update
+}
+```
+
+`Check` returns `nil` (proceed), a `412 Precondition Failed`
+`*problem.Problem` (the precondition present didn't match), or - with
+`precondition.Config{Require: true}` - a `428 Precondition Required`
+when the request carries neither header at all. `If-Match` uses strong
+comparison (a weak `ETag`, `W/"..."`, never satisfies it) and takes
+precedence over `If-Unmodified-Since` when both are sent.
+`CheckRequest(request, etag, lastModified, config)` is the equivalent
+for a plain `http.Handler` that already holds `*http.Request`, instead
+of a typed handler's bound request struct.
 
 ## Reference
 
