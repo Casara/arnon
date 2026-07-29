@@ -161,6 +161,8 @@ func TestNewXxx_ProduceExpectedStatusCodes(t *testing.T) {
 		{"NotFound", problem.NewNotFound, http.StatusNotFound},
 		{"Conflict", problem.NewConflict, http.StatusConflict},
 		{"UnprocessableEntity", problem.NewUnprocessableEntity, http.StatusUnprocessableEntity},
+		{"PreconditionFailed", problem.NewPreconditionFailed, http.StatusPreconditionFailed},
+		{"PreconditionRequired", problem.NewPreconditionRequired, http.StatusPreconditionRequired},
 		{"TooManyRequests", problem.NewTooManyRequests, http.StatusTooManyRequests},
 		{"Internal", problem.NewInternal, http.StatusInternalServerError},
 	}

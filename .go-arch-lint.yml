@@ -21,6 +21,7 @@ components:
   httpx-routing: { in: httpx/routing }
   httpx-middleware: { in: httpx/middleware }
   httpx-patch: { in: httpx/patch }
+  httpx-precondition: { in: httpx/precondition }
   observability: { in: observability }
   observability-otel: { in: observability/otel }
   # Runnable examples are consumers of the library, not part of its
@@ -96,9 +97,18 @@ deps:
   httpx-patch:
     mayDependOn:
       - httpx
+      - httpx-precondition
       - problem
     canUse:
       - json-patch
+
+  # Pure RFC 9110 write-precondition (If-Match/If-Unmodified-Since)
+  # check: only reports 412/428, never touches *http.Request beyond
+  # reading its own two headers in CheckRequest - the caller supplies
+  # the resource's current etag/lastModified, since only it knows that.
+  httpx-precondition:
+    mayDependOn:
+      - problem
 
   # Thin OpenTelemetry API wrappers (counters, histograms, attributes).
   observability:
@@ -126,6 +136,7 @@ deps:
       - httpx-routing
       - httpx-middleware
       - httpx-patch
+      - httpx-precondition
       - openapi
       - problem
       - sanitize

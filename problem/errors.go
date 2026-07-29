@@ -116,6 +116,32 @@ func NewUnprocessableEntity(
 	)
 }
 
+// NewPreconditionFailed creates a 412 problem.
+func NewPreconditionFailed(
+	detail string,
+) *Problem {
+	return New(
+		http.StatusPreconditionFailed,
+		http.StatusText(
+			http.StatusPreconditionFailed,
+		),
+		detail,
+	)
+}
+
+// NewPreconditionRequired creates a 428 problem.
+func NewPreconditionRequired(
+	detail string,
+) *Problem {
+	return New(
+		http.StatusPreconditionRequired,
+		http.StatusText(
+			http.StatusPreconditionRequired,
+		),
+		detail,
+	)
+}
+
 // NewTooManyRequests creates a 429 problem.
 func NewTooManyRequests(
 	detail string,
