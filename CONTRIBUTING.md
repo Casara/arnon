@@ -24,12 +24,14 @@ Read, in this order:
 `make help` lists every command. Before opening a PR, run:
 
 ```sh
-make check   # lint + arch-lint + tests with race detector
+make check     # lint + arch-lint + tests with race detector
+make lint-md   # markdown lint (requires Node.js >= 20)
 ```
 
 That's the minimum CI runs on every PR
-([.github/workflows/ci.yml](.github/workflows/ci.yml)). If the change
-touches behavior — not just refactoring — include a test covering the
+([.github/workflows/ci.yml](.github/workflows/ci.yml)) — `check` and
+markdown lint run as separate jobs. If the change touches behavior —
+not just refactoring — include a test covering the
 new case (unit test in `_test.go`, or a case in
 `examples/cmd/*/requests.hurl` if it's something observable end-to-end
 over HTTP), and, when it makes sense, update
@@ -50,7 +52,7 @@ intermediate history isn't what stays.
 [Conventional Commits](https://www.conventionalcommits.org/), in
 English, imperative mood:
 
-```
+```text
 <type>(<scope>): <description>
 ```
 
@@ -84,7 +86,7 @@ English, imperative mood:
 
 ### Examples (from the project's own history)
 
-```
+```text
 feat(validation): resolve RFC 6901 pointers through array/slice indices
 fix(routing): complete splitPattern's method whitelist
 docs(readme): explain why arnon exists before comparing frameworks
@@ -93,7 +95,8 @@ test(openapi): cover dive-redirected schema constraints
 
 ## Pull requests
 
-* `make check` passing is mandatory, not optional.
+* `make check` passing is mandatory, not optional. If the change
+  touches any Markdown file, `make lint-md` too.
 * A small PR focused on one change is preferable to a large PR
   covering several unrelated things — but that's judgment, not a
   strict rule (e.g. a bug fix found while testing a new feature can go

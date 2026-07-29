@@ -24,12 +24,14 @@ Leia, nesta ordem:
 `make help` lista todos os comandos. Antes de abrir um PR, rode:
 
 ```sh
-make check   # lint + arch-lint + testes com race detector
+make check     # lint + arch-lint + testes com race detector
+make lint-md   # lint de markdown (requer Node.js >= 20)
 ```
 
 Isso é o mínimo que o CI roda em todo PR
-([.github/workflows/ci.yml](.github/workflows/ci.yml)). Se a mudança
-tocar comportamento — não só refatoração — inclua teste cobrindo o
+([.github/workflows/ci.yml](.github/workflows/ci.yml)) — `check` e o
+lint de markdown rodam como jobs separados. Se a mudança tocar
+comportamento — não só refatoração — inclua teste cobrindo o
 caso novo (unitário em `_test.go`, ou um caso em
 `examples/cmd/*/requests.hurl` se for algo observável de ponta a ponta
 via HTTP) e, quando fizer sentido, atualize
@@ -50,7 +52,7 @@ trabalho que vai passar por squash ao ser mesclada não precisa segui-la
 [Conventional Commits](https://www.conventionalcommits.org/), em
 inglês, modo imperativo:
 
-```
+```text
 <tipo>(<escopo>): <descrição>
 ```
 
@@ -84,7 +86,7 @@ inglês, modo imperativo:
 
 ### Exemplos (do próprio histórico do projeto)
 
-```
+```text
 feat(validation): resolve RFC 6901 pointers through array/slice indices
 fix(routing): complete splitPattern's method whitelist
 docs(readme): explain why arnon exists before comparing frameworks
@@ -93,7 +95,8 @@ test(openapi): cover dive-redirected schema constraints
 
 ## Pull requests
 
-* `make check` verde é obrigatório, não opcional.
+* `make check` verde é obrigatório, não opcional. Se a mudança tocar
+  algum arquivo Markdown, `make lint-md` também.
 * PR pequeno e focado em uma mudança é preferível a um PR grande
   cobrindo várias coisas não relacionadas — mas isso é julgamento, não
   regra rígida (ex.: uma correção de bug encontrada testando uma

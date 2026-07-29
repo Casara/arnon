@@ -11,7 +11,15 @@
   "MD024": true,
   "MD033": {
     "allowed_elements": [
-      "sub"
+      "div",
+      "img",
+      "picture",
+      "source",
+      "strong"
     ]
-  }
+  },
+  "MD041": {
+    "level": 1
+  },
+  "MD060": false
 }

@@ -24,7 +24,7 @@ relevante.
 ## Resumo
 
 | RFC | Assunto | Situação |
-|---|---|---|
+| --- | --- | --- |
 | RFC 9457 | Problem Details for HTTP APIs | ✅ Formato único de erro, em toda middleware que produz erro |
 | RFC 6901 | JSON Pointer | ✅ `ValidationSource.field` quando `in: "body"`, com escaping correto, struct aninhado, índice de array/slice (`/items/0/name`) e chave de map (`/meta/x~1y`) |
 | RFC 9110 | HTTP Semantics | ✅ HEAD/405/`OPTIONS`/negociação de conteúdo/multi-valor de header |

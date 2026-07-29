@@ -1,3 +1,4 @@
+<!-- markdownlint-disable-next-line MD041 -- deliberately no H1: the logo image is the title. -->
 <div align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="./static/arnon-dark.svg" />

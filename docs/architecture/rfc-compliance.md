@@ -23,7 +23,7 @@ stdlib "should" do) — the results are noted where relevant.
 ## Summary
 
 | RFC | Subject | Status |
-|---|---|---|
+| --- | --- | --- |
 | RFC 9457 | Problem Details for HTTP APIs | ✅ Single error format, across every middleware that produces an error |
 | RFC 6901 | JSON Pointer | ✅ `ValidationSource.field` when `in: "body"`, with correct escaping, nested struct, array/slice index (`/items/0/name`), and map key (`/meta/x~1y`) |
 | RFC 9110 | HTTP Semantics | ✅ HEAD/405/`OPTIONS`/content negotiation/multi-value headers |

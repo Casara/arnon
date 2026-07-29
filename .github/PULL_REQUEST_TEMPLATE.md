@@ -1,3 +1,4 @@
+<!-- markdownlint-disable-next-line MD041 -- GitHub PR templates aren't rendered as a titled page, no H1 needed. -->
 ## What and why
 
 <!-- What changes, and the motivation - link an issue if there is one. -->

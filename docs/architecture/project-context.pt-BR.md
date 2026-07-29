@@ -21,9 +21,9 @@ antes de adotar pra algo crítico pro negócio.
 
 ---
 
-# Princípios Arquiteturais
+## Princípios Arquiteturais
 
-## Simplicidade antes de abstração
+### Simplicidade antes de abstração
 
 Abstrações só devem ser adicionadas quando houver ganho real.
 
@@ -31,7 +31,7 @@ Evitar over-engineering.
 
 ---
 
-## Convenção sobre configuração
+### Convenção sobre configuração
 
 O framework deve inferir o máximo possível através de:
 
@@ -44,7 +44,7 @@ A configuração explícita deve existir apenas para sobrescrever comportamentos
 
 ---
 
-## OpenAPI híbrida
+### OpenAPI híbrida
 
 A documentação OpenAPI deve ser gerada automaticamente sempre que possível.
 
@@ -59,7 +59,7 @@ Exemplo:
 
 ---
 
-## RFC 9457 como padrão de erro
+### RFC 9457 como padrão de erro
 
 Todos os erros HTTP devem convergir para Problem Details.
 
@@ -67,7 +67,7 @@ O framework utiliza RFC 9457 como padrão oficial de representação de erros.
 
 ---
 
-## OpenAPI 3.2.0
+### OpenAPI 3.2.0
 
 A versão adotada é OpenAPI 3.2.0.
 
@@ -82,9 +82,9 @@ Motivos:
 
 ---
 
-# Estado Atual
+## Estado Atual
 
-## HTTP
+### HTTP
 
 Implementado:
 
@@ -100,7 +100,7 @@ Implementado:
 
 ---
 
-## Endpoint Helper
+### Endpoint Helper
 
 Os endpoints utilizam uma assinatura tipada.
 
@@ -128,14 +128,14 @@ Os defaults (validador padrão, `DefaultProblemMapper`, status 200) vêm de
 `EndpointConfig.WithDefaults()`, chamado internamente por `Endpoint()`.
 Nenhum deles precisa ser configurado manualmente para o caso comum.
 
-### Registro no OpenAPI é opt-in por endpoint
+#### Registro no OpenAPI é opt-in por endpoint
 
 Diferente do binding/validação, a rota só entra no documento OpenAPI
 gerado se `EndpointConfig.OpenAPI` for preenchido (mesmo que com um
 `&openapi.Operation{}` vazio). Isso é intencional: o desenvolvedor decide
 explicitamente quais rotas são públicas na documentação.
 
-### `SuccessStatus` existe em dois lugares
+#### `SuccessStatus` existe em dois lugares
 
 `EndpointConfig.SuccessStatus` (o status HTTP que o handler de fato
 retorna) e `openapi.Operation.SuccessStatus` (o status que o documento
@@ -146,7 +146,7 @@ unificação futura desses dois campos é candidata a melhoria.
 
 ---
 
-## Validation
+### Validation
 
 A validação ocorre através de validators. O validador padrão
 (`validation.Default()`) usa `github.com/go-playground/validator/v10`
@@ -154,7 +154,7 @@ por baixo.
 
 As informações dos validators são reutilizadas na geração OpenAPI.
 
-### Custom Validators
+#### Custom Validators
 
 Regras de validação customizadas (tags que o `validator/v10` não conhece
 nativamente) são registradas uma única vez, via
@@ -179,7 +179,7 @@ apenas na instância crua valeria em tempo de requisição mas ficaria
 invisível pro schema gerado. `RegisterCustomRule` é o único ponto que
 mantém os três sincronizados.
 
-### Por que `ValidationError` tem `detail` + `code` + `source` + `meta`
+#### Por que `ValidationError` tem `detail` + `code` + `source` + `meta`
 
 Cada campo tem um papel deliberadamente diferente, não é redundância:
 
@@ -193,7 +193,7 @@ Cada campo tem um papel deliberadamente diferente, não é redundância:
   montar a própria mensagem localizada, sem precisar fazer parsing de
   `detail`.
 
-### `min`/`max` é comprimento, não valor numérico
+#### `min`/`max` é comprimento, não valor numérico
 
 `validate:"min=1,max=100"` num `int` é um erro semântico comum:
 `min`/`max` do `validator/v10` sempre significam comprimento de
@@ -203,7 +203,7 @@ com mensagem "must contain at least/most N characters", mesmo aplicadas a
 um campo numérico. Pra restringir o *valor* de um número, a tag certa é
 `gt`/`gte`/`lt`/`lte`.
 
-### Mapeamento de erro do validator: regras explícitas + fallback
+#### Mapeamento de erro do validator: regras explícitas + fallback
 
 `mapFieldError` (`validation/mapper.go`) mapeia um conjunto fixo de tags
 conhecidas explicitamente; qualquer tag não coberta (built-in do
@@ -218,7 +218,7 @@ garantia de `code` ser vocabulário estável.
 
 ---
 
-# Sanitização
+## Sanitização
 
 `sanitize.Apply` roda entre `binding.Decode` e a validação, dentro de
 `httpx.Endpoint`, pra que um validador tipo `required`/`min` veja o
@@ -237,7 +237,7 @@ sobre o tipo de resposta antes do `Endpoint` serializar - mascarar ou
 computar um campo ali é só código Go, sem precisar de hook nenhum do
 framework.
 
-## Sintaxe da tag
+### Sintaxe da tag
 
 `sanitize:"trim,lower"` encadeia transformações nomeadas, resolvidas
 contra o registro que `sanitize.RegisterFunc` alimenta - o mesmo padrão
@@ -254,7 +254,7 @@ da string da tag (o que colidiria com a própria sintaxe separada por
 vírgula da tag, e forçaria recompilar a cada request, do jeito que o
 `Custom` daquela lib faz).
 
-## Recursão
+### Recursão
 
 Um campo struct é sempre recursado, do mesmo jeito que o
 `validator/v10` já desce em struct aninhado automaticamente (sem
@@ -273,7 +273,7 @@ numéricas/bool que algumas libs de sanitizer oferecem (`max`/`min`/
 `def`): isso sobrepõe `validate:"gt/gte/lt/lte"` e conflitaria com o
 que a tag `default` do OpenAPI já significa.
 
-## Falha rápido, não em silêncio
+### Falha rápido, não em silêncio
 
 `httpx.Endpoint` chama `sanitize.Prepare(reflect.TypeFor[TRequest]())`
 uma vez, no momento da construção, e dá panic se alguma tag `sanitize`
@@ -289,9 +289,9 @@ request.
 
 ---
 
-# OpenAPI
+## OpenAPI
 
-## Estado Atual
+### O Que Está Implementado
 
 Implementado:
 
@@ -305,7 +305,7 @@ Implementado:
 
 ---
 
-## Recursos de Schema
+### Recursos de Schema
 
 Implementados:
 
@@ -341,13 +341,13 @@ de alguns outros frameworks Go).
 
 ---
 
-## Inferência Automática
+### Inferência Automática
 
 O framework infere informações automaticamente a partir dos validators.
 
 Atualmente:
 
-### email
+#### email
 
 ```go
 validate:"email"
@@ -361,7 +361,7 @@ format: email
 
 ---
 
-### uuid
+#### uuid
 
 ```go
 validate:"uuid"
@@ -375,7 +375,7 @@ format: uuid
 
 ---
 
-### url
+#### url
 
 ```go
 validate:"url"
@@ -389,7 +389,7 @@ format: uri
 
 ---
 
-### `dive` redireciona constraint pro schema do elemento
+#### `dive` redireciona constraint pro schema do elemento
 
 ```go
 Tags []string `validate:"dive,min=2"`
@@ -419,7 +419,7 @@ campo como obrigatório no schema (não tem equivalente OpenAPI pra
 
 ---
 
-### Não inferidos automaticamente: `Pattern` e `Tags`
+#### Não inferidos automaticamente: `Pattern` e `Tags`
 
 `Schema.Pattern` só é setado quando uma regra customizada declara isso
 explicitamente via `SchemaEffect.Pattern` de `RegisterCustomRule` (ver
@@ -433,7 +433,7 @@ de handler.
 
 ---
 
-## Examples
+### A Tag `example`
 
 Examples são convertidos para o tipo correto.
 
@@ -475,7 +475,7 @@ example: 1.5
 
 ---
 
-## Default
+### Default
 
 Defaults também são convertidos para o tipo correto.
 
@@ -493,7 +493,7 @@ default: 20
 
 ---
 
-## Tags OpenAPI
+### Tags OpenAPI
 
 Foi adotado o modelo OpenAPI 3.2.
 
@@ -514,7 +514,7 @@ Kinds suportados:
 
 ---
 
-## Campos de Nível de Documento
+### Campos de Nível de Documento
 
 `openapi.NewGenerator(info, opts...)` recebe `GeneratorOption`s (espelha
 `routing.Option`/`routing.WithOpenAPI`) pra setar campos de nível de
@@ -528,7 +528,7 @@ Veja `examples/cmd/basic` pra `WithServers` em uso.
 
 ---
 
-## UI da Documentação
+### UI da Documentação
 
 Ferramenta adotada:
 
@@ -542,7 +542,7 @@ Motivos:
 
 ---
 
-### Recursos atuais
+#### Recursos atuais
 
 * título customizável
 * logo customizável
@@ -552,12 +552,12 @@ Motivos:
 
 ---
 
-## O que ainda não está implementado
+### O que ainda não está implementado
 
 Auditado contra o Object Model do OpenAPI 3.2; agrupado por quanto cada
 gap importa:
 
-### Gaps reais, vale fechar (ainda não feito)
+#### Gaps reais, vale fechar (ainda não feito)
 
 * **`Components`** só implementa `Schemas` — que é genuinamente usado
   (registrado por tipo e referenciado via `$ref`, ver
@@ -580,7 +580,7 @@ gap importa:
   sobre como uma middleware declararia "eu adiciono esse header de
   resposta" pro gerador.
 
-### Dependem de Auth, que já está adiado
+#### Dependem de Auth, que já está adiado
 
 * **`Operation.Security`/`Document.Security`** (requisito de segurança
   por operação e global) e **`Components.SecuritySchemes`** (não
@@ -602,7 +602,7 @@ gap importa:
   ainda não emite palavra-chave de schema específica de um dialeto (ver
   abaixo).
 
-### Aceito, não planejado
+#### Aceito, não planejado
 
 * **Dialeto completo do JSON Schema 2020-12**
   (`oneOf`/`anyOf`/`allOf`/`not`, `const`, `discriminator`, `xml`,
@@ -632,31 +632,31 @@ gap importa:
 
 ---
 
-# Problem Details
+## Problem Details
 
-## Padrão
+### Padrão
 
 RFC 9457
 
 ---
 
-## Schemas
+### Schemas
 
 Implementados:
 
-### Problem
+#### Problem
 
 Representa um erro HTTP.
 
 ---
 
-### ValidationError
+#### ValidationError
 
 Representa um erro individual de validação.
 
 ---
 
-### ValidationSource
+#### ValidationSource
 
 Representa a origem do erro.
 
@@ -708,11 +708,11 @@ RFC em [docs/architecture/rfc-compliance.md](rfc-compliance.md).
 
 ---
 
-## Responses automáticas
+### Responses automáticas
 
 Endpoints recebem automaticamente:
 
-### 400
+#### 400
 
 Bad Request
 
@@ -722,7 +722,7 @@ application/problem+json
 
 ---
 
-### 500
+#### 500
 
 Internal Server Error
 
@@ -732,7 +732,7 @@ application/problem+json
 
 ---
 
-## Examples
+### Exemplos de Resposta
 
 Cada response possui seu próprio exemplo.
 
@@ -744,13 +744,13 @@ Exemplo:
 
 ---
 
-# Middleware
+## Middleware
 
 Todos em `httpx/middleware`, construídos como `routing.Middleware`
 (`func(http.Handler) http.Handler`), aplicados via `Router.Use`
 (global, roda antes do roteamento) ou `Group.Use` (por-grupo).
 
-## Implementado
+### Implementado
 
 * **CORS** — configurável (`CORSConfig.AllowedOrigins`, etc). Só
   intercepta `OPTIONS` com `204` quando é um preflight de verdade
@@ -876,14 +876,14 @@ Todos em `httpx/middleware`, construídos como `routing.Middleware`
   em vez de substituí-los. Implementação em
   `httpx/middleware/service_desc.go`.
 
-## Ordem dos middlewares
+### Ordem dos middlewares
 
 A ordem relativa das middlewares globais (`Router.Use`) importa —
 várias têm dependências reais umas nas outras (contexto que uma
 popula e outra lê, bytes que uma precisa ver antes da outra
 transformar). Duas formas de aplicar isso, por ordem de preferência:
 
-### `middleware.BuildChain` — ordem garantida por código, não por disciplina
+#### `middleware.BuildChain` — ordem garantida por código, não por disciplina
 
 `middleware.BuildChain(config middleware.ChainConfig) []routing.Middleware`
 (`httpx/middleware/chain.go`) monta a cadeia global recomendada na
@@ -937,7 +937,7 @@ não fazem sentido como parte da cadeia global. Não há ordem relevante
 entre eles (são independentes), então não precisam de um builder
 próprio — use `group.Use(...)` diretamente.
 
-### Middleware customizada com requisito de ordem — `ChainConfig.Extra`
+#### Middleware customizada com requisito de ordem — `ChainConfig.Extra`
 
 `BuildChain` só conhece os middlewares embutidos do `arnon` — se uma
 middleware customizada ou de terceiros precisar rodar numa posição
@@ -1003,7 +1003,7 @@ segura para rodar naquela posição (isso continua sendo julgamento de
 quem escreve, como em qualquer outra linguagem sem sistema de tipos
 que modele "ordem de execução").
 
-### A ordem em si, e por quê
+#### A ordem em si, e por quê
 
 Da mais externa (roda primeiro, envolve tudo) pra mais interna (roda
 por último, mais perto do handler):
@@ -1070,15 +1070,15 @@ posição certa dentro de `BuildChain` — senão ela fica inacessível via
 `BuildChain`/`Extra` e essa seção de doc fica desatualizada. Middleware
 de grupo (`AllowContentType`-like) não precisa disso.
 
-## Planejado / adiado
+### Planejado / adiado
 
 * **Autenticação (Bearer/Basic)** — adiado, ver "Segurança" abaixo.
 
 ---
 
-# Decisões Importantes
+## Decisões Importantes
 
-## Middleware global envolve o mux inteiro, não cada rota
+### Middleware global envolve o mux inteiro, não cada rota
 
 `Router.Use` (middleware global) é aplicado em `Router.ServeHTTP`,
 envolvendo o `mux` inteiro — não em `router.register`, por rota. Isso é
@@ -1090,7 +1090,7 @@ Middleware de grupo (`Group.Use`) continua aplicado por-rota em
 prefixo. Não volte a mesclar `router.middlewares` dentro de
 `register()` — duplicaria a execução.
 
-## Erros de binding não carregam status HTTP por padrão
+### Erros de binding não carregam status HTTP por padrão
 
 `httpx.Endpoint` mapeia todo erro de `binding.Decode` pra 400
 (`writeValidationProblem`, em `httpx/endpoint.go`), independente do
@@ -1105,7 +1105,7 @@ código de validação que deveria implicar um status diferente de 400,
 adicione o caso em `StatusOverride()` em vez de inventar outro
 mecanismo.
 
-## `WriteProblem` exige `*http.Request` para auto-popular `Problem.Instance`
+### `WriteProblem` exige `*http.Request` para auto-popular `Problem.Instance`
 
 `httpx.WriteProblem(writer, request, problemInstance)` recebe a
 request desde 2026-07-15 (mudança de assinatura — aceitável porque o
@@ -1118,7 +1118,7 @@ então não dá pra usar `request_id`/`trace_id` aqui — path é o que dá
 pra fazer sem alargar essa fronteira. Todo novo call site de
 `WriteProblem` precisa passar a request.
 
-## `httpx.Endpoint` é JSON-only por design; negociação de `Accept` formaliza isso
+### `httpx.Endpoint` é JSON-only por design; negociação de `Accept` formaliza isso
 
 `Endpoint()` checa o header `Accept` (`httpx/accept.go`, `acceptsJSON`)
 antes de fazer qualquer binding e responde `406 Not Acceptable`
@@ -1140,7 +1140,7 @@ acoplada a JSON. Não crie uma segunda abstração de endpoint tipado
 "genérico em formato" pra cobrir esse caso — o padrão já é usar
 `http.Handler` puro.
 
-## Ponteiros em Schemas
+### Ponteiros em Schemas
 
 Properties utilizam ponteiros.
 
@@ -1156,7 +1156,7 @@ Evitar cópias desnecessárias e permitir estruturas recursivas.
 
 ---
 
-## AdditionalProperties
+### AdditionalProperties
 
 Utiliza:
 
@@ -1166,7 +1166,7 @@ AdditionalProperties *Schema
 
 ---
 
-## Receivers
+### Receivers
 
 Preferência por receivers de ponteiro.
 
@@ -1185,7 +1185,7 @@ imutável, comportando-se como valor → valor.
 
 ---
 
-## Stoplight
+### Stoplight
 
 Foi escolhido Stoplight Elements ao invés de Swagger UI — encaixa melhor
 com a proposta de "fundação" pouco opinativa (visual mais neutro,
@@ -1204,7 +1204,7 @@ validação.
 
 ---
 
-## OpenAPI híbrida
+### OpenAPI Híbrida, Revisitada
 
 A geração automática continua sendo a principal estratégia.
 
@@ -1212,11 +1212,11 @@ Customizações devem complementar a geração automática, nunca exigir repeti�
 
 ---
 
-# Recursos Planejados
+## Recursos Planejados
 
-## Observabilidade (Prioridade Máxima)
+### Observabilidade (Prioridade Máxima)
 
-### OpenTelemetry
+#### OpenTelemetry
 
 Tracing:
 
@@ -1253,7 +1253,7 @@ em cima dessa validação manual.
 
 ---
 
-## Health Endpoints
+### Health Endpoints
 
 * /health
 * /ready
@@ -1263,7 +1263,7 @@ Compatíveis com Kubernetes.
 
 ---
 
-## Segurança
+### Segurança
 
 Autenticação:
 
@@ -1276,7 +1276,7 @@ Autorização:
 
 ---
 
-## Configuração
+### Configuração
 
 * leitura de env vars
 * defaults
@@ -1284,11 +1284,11 @@ Autorização:
 
 ---
 
-## Testes
+### Testes
 
 Implementado:
 
-### Unitários
+#### Unitários
 
 * cobertura de todos os pacotes: `validation`, `openapi`, `problem`,
   `sanitize`, `httpx`, `httpx/binding`, `httpx/middleware`,
@@ -1328,7 +1328,7 @@ Implementado:
 
 Planejado:
 
-### OpenAPI (Golden Tests)
+#### OpenAPI (Golden Tests)
 
 * Golden tests: gerar o documento OpenAPI pra um conjunto fixo de
   endpoints e comparar contra um arquivo de referência versionado no
@@ -1339,7 +1339,7 @@ Planejado:
   assertion em campos individuais do documento gerado, não num
   snapshot do documento completo.
 
-### Mutação
+#### Mutação
 
 * `gremlins` já está integrado (`make test-mutation`, ver
   `CLAUDE.md`); falta uma rodada completa pelo código pra encontrar e
@@ -1347,7 +1347,7 @@ Planejado:
 
 ---
 
-## Qualidade e Ferramentas
+### Qualidade e Ferramentas
 
 Implementado:
 
