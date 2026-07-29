@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/Casara/arnon/httpx"
+	"github.com/Casara/arnon/httpx/precondition"
 	"github.com/Casara/arnon/problem"
 )
 
@@ -39,15 +41,17 @@ type Config struct {
 // already wrap get/put themselves, or wrap the registered PATCH route
 // with the same Group.Use stack as the real GET/PUT routes.
 //
-// If the internal GET's response carries an ETag/Last-Modified, it is
-// copied onto the internal PUT's If-Match/If-Unmodified-Since -
-// mirroring huma's own autopatch package. This is inert today: arnon
-// has no If-Match/optimistic-concurrency mechanism yet (see
-// CLAUDE.md's 428/If-Match note), so nothing currently rejects a PUT
-// whose precondition fails, and a lost update between the internal
-// GET and PUT is possible under concurrent PATCHes to the same
-// resource. Propagating the headers now means this won't need
-// rework once that mechanism exists.
+// The original incoming request's own If-Match/If-Unmodified-Since (a
+// client's optimistic-concurrency intent, from an earlier GET) is
+// checked against the internal GET's ETag/Last-Modified via
+// httpx/precondition - a mismatch is a 412 Precondition Failed, and
+// put is never called. If the internal GET's response carries an
+// ETag/Last-Modified, it is separately copied onto the internal PUT's
+// If-Match/If-Unmodified-Since too - mirroring huma's own autopatch
+// package. That second propagation only closes the internal GET-to-PUT
+// race if put itself calls precondition.Check/CheckRequest with its
+// own atomically-read current state (From has no way to do that part
+// for it - see httpx/precondition's package doc for why).
 func From(
 	get http.Handler,
 	put http.Handler,
@@ -73,6 +77,18 @@ func From(
 
 		if !getResponse.isSuccess() {
 			getResponse.copyTo(writer)
+
+			return
+		}
+
+		problemInstance := precondition.CheckRequest(
+			request,
+			getResponse.header.Get("ETag"),
+			parseLastModified(getResponse.header.Get("Last-Modified")),
+			precondition.Config{Require: false},
+		)
+		if problemInstance != nil {
+			httpx.WriteProblem(writer, request, problemInstance)
 
 			return
 		}
@@ -150,4 +166,17 @@ func writeApplyError(
 
 func defaultOnApplyError(err error) *problem.Problem {
 	return problem.NewBadRequest(err.Error())
+}
+
+// parseLastModified parses header as an HTTP-date (RFC 9110 §5.6.7),
+// returning the zero time.Time for an absent or unparseable value -
+// precondition.Check/CheckRequest already treat a zero lastModified as
+// unverifiable and ignore it, exactly the right behavior here too.
+func parseLastModified(header string) time.Time {
+	parsed, err := http.ParseTime(header)
+	if err != nil {
+		return time.Time{}
+	}
+
+	return parsed
 }

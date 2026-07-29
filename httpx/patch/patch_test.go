@@ -580,3 +580,168 @@ func TestFrom_ETagAndLastModifiedPropagateToIfMatchAndIfUnmodifiedSince(t *testi
 		)
 	}
 }
+
+// TestFrom_MatchingIfMatchOnPatchRequestSucceeds proves a client's own
+// optimistic-concurrency If-Match (from an earlier GET of the same
+// resource) is honored: it's checked against the internal GET's ETag,
+// and since it matches here, the patch applies normally.
+func TestFrom_MatchingIfMatchOnPatchRequestSucceeds(t *testing.T) {
+	t.Parallel()
+
+	resource := newMemoryResource(`{"name":"Ada","age":30}`)
+	resource.responseHeader.Set("ETag", `"abc123"`)
+
+	handler := patch.From(resource.getHandler(), resource.putHandler(nil), patch.Config{})
+
+	request := httptest.NewRequest(http.MethodPatch, "/", bytes.NewBufferString(`{"age":31}`))
+	request.Header.Set("If-Match", `"abc123"`)
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf(
+			"expected status %d, got %d: %s",
+			http.StatusOK,
+			recorder.Code,
+			recorder.Body.String(),
+		)
+	}
+}
+
+// TestFrom_StaleIfMatchOnPatchRequestReturns412WithoutCallingPut is the
+// case that actually closes the gap this package's doc comment used to
+// call "inert": a client's If-Match that no longer matches the
+// resource's current ETag must reject the whole PATCH with 412, before
+// ever calling put.
+func TestFrom_StaleIfMatchOnPatchRequestReturns412WithoutCallingPut(t *testing.T) {
+	t.Parallel()
+
+	resource := newMemoryResource(`{"name":"Ada","age":30}`)
+	resource.responseHeader.Set("ETag", `"abc123"`)
+
+	putCalled := false
+
+	put := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		putCalled = true
+	})
+
+	handler := patch.From(resource.getHandler(), put, patch.Config{})
+
+	request := httptest.NewRequest(http.MethodPatch, "/", bytes.NewBufferString(`{"age":31}`))
+	request.Header.Set("If-Match", `"stale"`)
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusPreconditionFailed {
+		t.Fatalf(
+			"expected status %d, got %d: %s",
+			http.StatusPreconditionFailed,
+			recorder.Code,
+			recorder.Body.String(),
+		)
+	}
+
+	if putCalled {
+		t.Error("expected put to never be called when the original request's If-Match is stale")
+	}
+
+	if got := recorder.Header().Get("Content-Type"); got != problemContentType {
+		t.Errorf("expected a Problem Details response, got Content-Type %q", got)
+	}
+}
+
+// TestFrom_NoIfMatchOnPatchRequestBehavesAsBefore is a regression guard:
+// a PATCH request that carries no conditional header at all must
+// behave exactly as it did before this package checked one.
+func TestFrom_NoIfMatchOnPatchRequestBehavesAsBefore(t *testing.T) {
+	t.Parallel()
+
+	resource := newMemoryResource(`{"name":"Ada","age":30}`)
+	resource.responseHeader.Set("ETag", `"abc123"`)
+
+	handler := patch.From(resource.getHandler(), resource.putHandler(nil), patch.Config{})
+
+	request := httptest.NewRequest(http.MethodPatch, "/", bytes.NewBufferString(`{"age":31}`))
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf(
+			"expected status %d, got %d: %s",
+			http.StatusOK,
+			recorder.Code,
+			recorder.Body.String(),
+		)
+	}
+}
+
+// TestFrom_IfUnmodifiedSinceNotAfterInternalGetsLastModifiedSucceeds
+// proves parseLastModified correctly parses the internal GET's
+// Last-Modified into a real time.Time, not just a non-empty string:
+// an If-Unmodified-Since exactly at the resource's Last-Modified must
+// satisfy the precondition.
+func TestFrom_IfUnmodifiedSinceNotAfterInternalGetsLastModifiedSucceeds(t *testing.T) {
+	t.Parallel()
+
+	resource := newMemoryResource(`{"name":"Ada","age":30}`)
+	resource.responseHeader.Set("Last-Modified", "Wed, 21 Oct 2026 07:28:00 GMT")
+
+	handler := patch.From(resource.getHandler(), resource.putHandler(nil), patch.Config{})
+
+	request := httptest.NewRequest(http.MethodPatch, "/", bytes.NewBufferString(`{"age":31}`))
+	request.Header.Set("If-Unmodified-Since", "Wed, 21 Oct 2026 07:28:00 GMT")
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf(
+			"expected status %d, got %d: %s",
+			http.StatusOK,
+			recorder.Code,
+			recorder.Body.String(),
+		)
+	}
+}
+
+// TestFrom_IfUnmodifiedSinceBeforeInternalGetsLastModifiedReturns412WithoutCallingPut
+// is the mirror case: an If-Unmodified-Since earlier than the internal
+// GET's real (parsed) Last-Modified must reject the request.
+func TestFrom_IfUnmodifiedSinceBeforeInternalGetsLastModifiedReturns412WithoutCallingPut(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	resource := newMemoryResource(`{"name":"Ada","age":30}`)
+	resource.responseHeader.Set("Last-Modified", "Wed, 21 Oct 2026 07:28:00 GMT")
+
+	putCalled := false
+
+	put := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		putCalled = true
+	})
+
+	handler := patch.From(resource.getHandler(), put, patch.Config{})
+
+	request := httptest.NewRequest(http.MethodPatch, "/", bytes.NewBufferString(`{"age":31}`))
+	request.Header.Set("If-Unmodified-Since", "Tue, 20 Oct 2026 00:00:00 GMT")
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusPreconditionFailed {
+		t.Fatalf(
+			"expected status %d, got %d: %s",
+			http.StatusPreconditionFailed,
+			recorder.Code,
+			recorder.Body.String(),
+		)
+	}
+
+	if putCalled {
+		t.Error("expected put to never be called when If-Unmodified-Since is not satisfied")
+	}
+}
