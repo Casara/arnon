@@ -6,9 +6,42 @@ on:
       - main
   pull_request:
 
+# Read-only by default: nothing here writes to the repository, and a job that
+# later needs more should ask for it explicitly rather than inherit it.
+permissions:
+  contents: read
+
+# A new push to the same branch cancels the previous run. Not applied to main,
+# where every commit's result is worth keeping.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   check:
-    name: check (lint + arch-lint + test -race)
+    name: check (Go ${{ matrix.go }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 1.26.0 is the floor declared in go.mod - running it proves the
+        # directive is honest, which is invisible when CI only ever uses the
+        # newest toolchain. "stable" catches breakage from a new release.
+        go:
+          - "1.26.0"
+          - stable
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+
+      - run: make check
+
+  vuln:
+    name: govulncheck
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,7 +51,10 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - run: make check
+      # Reports only vulnerabilities reachable from this code, across all three
+      # modules. Runs on its own rather than inside `check` so that a newly
+      # disclosed advisory is distinguishable from a code failure.
+      - run: make vuln
 
   markdown:
     name: markdown lint
@@ -26,9 +62,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: DavidAnson/markdownlint-cli2-action@v24
+      - uses: actions/setup-node@v4
         with:
-          globs: '**/*.md'
+          node-version: 20
+
+      # Deliberately `make lint-md` rather than markdownlint-cli2-action: it is
+      # the same pinned version contributors run locally, so the two cannot
+      # drift, and it inherits the NOTES.md exclusion instead of depending on
+      # that file being gitignored.
+      - run: make lint-md
 
   coverage:
     name: coverage

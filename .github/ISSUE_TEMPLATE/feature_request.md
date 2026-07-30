@@ -23,7 +23,7 @@ Anything else you tried, including working around it outside arnon.
 
 **RFC/standard, if any**
 If this maps to an existing IETF RFC or other standard, link it - see
-[CLAUDE.md](../../CLAUDE.md) and
+[AGENTS.md](../../AGENTS.md) and
 [docs/architecture/rfc-compliance.md](../../docs/architecture/rfc-compliance.md)
 for how the project prefers grounding decisions in a spec over
 inventing a new convention.

@@ -1,0 +1,48 @@
+version: 2
+
+updates:
+  # One entry per module: Dependabot does not discover the other two from the
+  # root go.mod, and go.work is not a manifest it reads. See
+  # docs/architecture/adr-0001-module-layout.md for the layout.
+  #
+  # The submodules' `replace` directives point at the working tree, so their
+  # dependency on arnon itself is never something Dependabot can bump - it only
+  # sees the third-party requirements, which is exactly what should be watched
+  # here.
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+    commit-message:
+      # Matches the Conventional Commits convention CONTRIBUTING.md mandates
+      # on main, so Dependabot's PRs don't have to be reworded before merging.
+      prefix: "chore(deps)"
+
+  - package-ecosystem: gomod
+    directory: /observability/otel
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: gomod
+    directory: /examples
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+    commit-message:
+      prefix: "chore(ci)"
