@@ -29,8 +29,13 @@
 // # Implementation
 //
 // The Validator interface is the seam; PlaygroundValidator is the
-// implementation, built on github.com/go-playground/validator/v10. Note that
-// two of this package's exported symbols (Option and CustomRule.Func)
-// currently name that library's types directly, so the seam is not yet
-// complete - see the API stability section in the README.
+// implementation, built on github.com/go-playground/validator/v10. A custom
+// rule is written against this package's own FieldContext, so nothing you
+// write names that library.
+//
+// The one exception is WithConfigure, which hands you the underlying
+// *validator.Validate on purpose - the escape hatch for something this
+// package does not wrap. Using it ties that code to validator/v10, and a rule
+// registered through it is invisible to OpenAPI schema generation, which is
+// exactly what RegisterCustomRule exists to avoid.
 package validation

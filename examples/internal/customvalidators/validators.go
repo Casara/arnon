@@ -6,8 +6,6 @@ import (
 	"strings"
 
 	"github.com/casara/arnon/validation"
-
-	validatorv10 "github.com/go-playground/validator/v10"
 )
 
 // RegisterCustomValidators registers the framework-wide custom
@@ -24,7 +22,7 @@ func RegisterCustomValidators() {
 		// " " passes it. notblank fills that specific gap.
 		Tag: "notblank",
 
-		Func: func(field validatorv10.FieldLevel) bool {
+		Func: func(field validation.FieldContext) bool {
 			return strings.TrimSpace(field.Field().String()) != ""
 		},
 

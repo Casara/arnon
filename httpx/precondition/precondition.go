@@ -8,6 +8,27 @@ import (
 	"github.com/casara/arnon/problem"
 )
 
+// Headers carries the conditional headers the client sent. Bind them onto a
+// request DTO with `header:"If-Match"` / `header:"If-Unmodified-Since"` tags
+// and pass them straight through; CheckRequest fills this in for you when you
+// hold an *http.Request.
+type Headers struct {
+	IfMatch           string
+	IfUnmodifiedSince string
+}
+
+// State is the resource's state right now, as the caller just read it. Only
+// the code that loaded the row to apply the write knows this, which is why the
+// package cannot compute it.
+//
+// A zero LastModified means "not tracked", and an empty ETag means the
+// resource has none - neither is an error, both simply cannot satisfy the
+// precondition that would need them.
+type State struct {
+	ETag         string
+	LastModified time.Time
+}
+
 // Config configures Check/CheckRequest.
 type Config struct {
 	// Require, when true, rejects a request carrying neither If-Match
@@ -49,14 +70,14 @@ type Config struct {
 // config.Require) a 428 Precondition Required problem.Problem when
 // neither header is present.
 func Check(
-	ifMatch string,
-	ifUnmodifiedSince string,
-	etag string,
-	lastModified time.Time,
+	client Headers,
+	current State,
 	config Config,
 ) *problem.Problem {
-	ifMatch = strings.TrimSpace(ifMatch)
-	ifUnmodifiedSince = strings.TrimSpace(ifUnmodifiedSince)
+	ifMatch := strings.TrimSpace(client.IfMatch)
+	ifUnmodifiedSince := strings.TrimSpace(client.IfUnmodifiedSince)
+	etag := current.ETag
+	lastModified := current.LastModified
 
 	if ifMatch == "" && ifUnmodifiedSince == "" {
 		if config.Require {
@@ -93,15 +114,15 @@ func Check(
 // *http.Request, instead of a typed HandlerFunc's bound DTO.
 func CheckRequest(
 	request *http.Request,
-	etag string,
-	lastModified time.Time,
+	current State,
 	config Config,
 ) *problem.Problem {
 	return Check(
-		request.Header.Get("If-Match"),
-		request.Header.Get("If-Unmodified-Since"),
-		etag,
-		lastModified,
+		Headers{
+			IfMatch:           request.Header.Get("If-Match"),
+			IfUnmodifiedSince: request.Header.Get("If-Unmodified-Since"),
+		},
+		current,
 		config,
 	)
 }

@@ -83,8 +83,10 @@ func From(
 
 		problemInstance := precondition.CheckRequest(
 			request,
-			getResponse.header.Get("ETag"),
-			parseLastModified(getResponse.header.Get("Last-Modified")),
+			precondition.State{
+				ETag:         getResponse.header.Get("ETag"),
+				LastModified: parseLastModified(getResponse.header.Get("Last-Modified")),
+			},
 			precondition.Config{Require: false},
 		)
 		if problemInstance != nil {

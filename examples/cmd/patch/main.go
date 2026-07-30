@@ -141,10 +141,8 @@ func (s *store) put(
 	}
 
 	problemInstance := precondition.Check(
-		request.IfMatch,
-		"",
-		currentETag,
-		time.Time{},
+		precondition.Headers{IfMatch: request.IfMatch},
+		precondition.State{ETag: currentETag},
 		precondition.Config{Require: false},
 	)
 	if problemInstance != nil {

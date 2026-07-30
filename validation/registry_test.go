@@ -4,8 +4,6 @@ import (
 	"errors"
 	"testing"
 
-	validatorv10 "github.com/go-playground/validator/v10"
-
 	"github.com/casara/arnon/problem"
 	"github.com/casara/arnon/validation"
 )
@@ -14,7 +12,7 @@ func TestRegisterCustomRule_RejectsEmptyTag(t *testing.T) {
 	t.Parallel()
 
 	err := validation.RegisterCustomRule(validation.CustomRule{
-		Func: func(validatorv10.FieldLevel) bool { return true },
+		Func: func(validation.FieldContext) bool { return true },
 	})
 
 	if !errors.Is(err, validation.ErrCustomRuleTagEmpty) {
@@ -42,7 +40,7 @@ func TestCustomRule_AppliesAcrossValidationAndErrorMapping(t *testing.T) {
 	err := validation.RegisterCustomRule(validation.CustomRule{
 		Tag: tag,
 
-		Func: func(field validatorv10.FieldLevel) bool {
+		Func: func(field validation.FieldContext) bool {
 			return len(field.Field().String())%2 == 0
 		},
 

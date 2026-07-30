@@ -20,7 +20,6 @@
 package main
 
 import (
-	"compress/gzip"
 	"context"
 	"embed"
 	"io/fs"
@@ -72,7 +71,7 @@ func main() {
 	// doc comment above.
 	router.Use(
 		middleware.ETag(),
-		middleware.Compress(gzip.DefaultCompression),
+		middleware.Compress(),
 	)
 
 	router.GET(

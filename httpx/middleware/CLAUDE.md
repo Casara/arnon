@@ -32,6 +32,31 @@ live in the root `AGENTS.md`.
   place. Miss one and it can't be reached via `BuildChain`/`Extra`, and the
   order doc in `project-context.md` goes stale.
 
+## How a middleware takes its configuration
+
+Three shapes, and which one to use is decided by the configuration itself, not
+by taste. Adding a middleware means picking from these, not inventing a fourth:
+
+* **A required value goes positionally.** `Timeout(5*time.Second)`,
+  `MaxBodyBytes(1<<20)`, `ServiceDesc("/openapi.json")`, `Logging(logger)`,
+  `AllowContentType("application/json")`. There is nothing to default, so a
+  config struct would only add ceremony.
+* **Several settings, at least one required, go in a `XxxConfig` struct.**
+  `RateLimit(RateLimitConfig{RequestLimit: …, WindowLength: …})`, `Throttle`,
+  `SecureHeaders`, `CORS`. A struct is what can say "these two are required and
+  the rest have defaults" in one place — see `RateLimitConfig`'s doc comment,
+  which is the model to copy.
+* **Optional tuning only goes in variadic options.** `RealIP()` and
+  `RealIP(WithTrustedProxies(…))`. The bare call keeps working, and a new knob
+  later is source-compatible for everyone who never passed one. This is why
+  `RealIP` gained options rather than a config struct: making every existing
+  `RealIP()` call site change to `RealIP(RealIPConfig{})` would have been a
+  break with nothing gained.
+
+`ChainConfig` mirrors the same split: a plain `bool` for a middleware with
+nothing to configure, a `*XxxConfig` pointer for one that has settings, and
+`RealIPOptions` alongside the `RealIP` bool for the one that takes options.
+
 ## Individual middleware
 
 * **`RateLimit` uses a sliding-window counter (2 windows), not a per-key

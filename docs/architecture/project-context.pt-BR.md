@@ -782,7 +782,7 @@ Todos em `httpx/middleware`, construídos como `routing.Middleware`
   Ambos precisam rodar como middleware *global* (pré-roteamento) pra
   funcionar — ver nota em "Decisões Importantes" sobre
   `Router.ServeHTTP`. Não instalar os dois ao mesmo tempo.
-* **Compress** — `Compress(level int, types ...string)`, portado do
+* **Compress** — `Compress(...CompressOption)`, portado do
   `middleware.Compress` do chi. Só comprime quando o `Content-Type` da
   *resposta* (não da request) bate com `types` (ou a lista padrão de
   tipos textuais/JSON quando `types` é vazio; sufixo `/*` casa
@@ -900,7 +900,7 @@ router.Use(middleware.BuildChain(middleware.ChainConfig{
     SecureHeaders: &middleware.SecureHeadersConfig{},
     RateLimit:     &middleware.RateLimitConfig{ /* ... */ },
     ETag:          true,
-    Compress:      &middleware.CompressConfig{},
+    Compress:      true,
     CORS:          &middleware.CORSConfig{ /* ... */ },
     ServiceDescPath: "/openapi.json",
     Logger:        logger,

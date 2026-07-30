@@ -70,7 +70,6 @@ linters:
         - '.*/middleware\.SecureHeadersConfig$'
         - '.*/middleware\.RateLimitConfig$'
         - '.*/middleware\.ChainConfig$'
-        - '.*/middleware\.CompressConfig$'
         - '.*/middleware\.ThrottleConfig$'
         - '.*/middleware\.ExtraMiddleware$'
         - '.*/problem\.Problem$'
@@ -97,6 +96,10 @@ linters:
         - '.*/middleware\.etagResponseWriter$'
         - '.*/patch\.bufferedResponseWriter$'
         - '.*/patch\.Config$'
+        # A caller states the preconditions the client actually sent and the
+        # state it actually tracks; requiring every field would mean writing
+        # LastModified: time.Time{} to say "not tracked", which is noise.
+        - '.*/precondition\.(Headers|State)$'
     funlen:
       # Checks the number of lines in a function.
       # If lower than 0, disable the check.

@@ -2,7 +2,6 @@ package middleware_test
 
 import (
 	"bytes"
-	"compress/gzip"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -84,10 +83,8 @@ func TestBuildChain_ETagRunsBeforeCompress(t *testing.T) {
 
 	router := routing.NewRouter()
 	router.Use(middleware.BuildChain(middleware.ChainConfig{
-		ETag: true,
-		Compress: &middleware.CompressConfig{
-			Level: gzip.DefaultCompression,
-		},
+		ETag:     true,
+		Compress: true,
 	})...)
 
 	router.GET("/body", http.HandlerFunc(func(

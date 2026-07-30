@@ -304,7 +304,16 @@ validation.RegisterCustomRule(validation.CustomRule{
 		return "invalid CPF"
 	},
 })
+
+func validateCPF(field validation.FieldContext) bool {
+	return cpfPattern.MatchString(field.Field().String())
+}
 ```
+
+`FieldContext` is arnon's own interface, so a rule never names a type from the
+validation library underneath and keeps compiling if that implementation is
+ever replaced. It exposes the field value, the tag parameter, and the parent
+and top-level structs for a cross-field check.
 
 ## Sanitization
 
@@ -353,12 +362,11 @@ old spelling compiling, it will — as a deprecated alias, removed no earlier
 than the following minor.
 
 The road to v1.0.0 is the point at which the surface stops moving, not a
-feature milestone. The open questions today are the ones that would be
-expensive to change afterwards: the configuration convention across the
-package (config struct versus functional options), whether
-`go-playground/validator/v10` types should appear in `validation`'s exported
-signatures at all, and giving the zero-argument middleware a configuration
-point. Once those settle, v1 follows.
+feature milestone. One question is still open, and it is the kind that gets
+expensive to change afterwards: whether `validation.WithConfigure` — the one
+remaining place a `go-playground/validator/v10` type appears in an exported
+signature — should stay as an escape hatch or move behind a subpackage. Once
+that settles, v1 follows.
 
 ## Rate limit storage
 

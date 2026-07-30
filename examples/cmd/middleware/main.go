@@ -80,7 +80,7 @@ func main() {
 			},
 		},
 		ETag:     true,
-		Compress: &middleware.CompressConfig{},
+		Compress: true,
 		CORS: &middleware.CORSConfig{
 			AllowedOrigins: []string{"*"},
 		},

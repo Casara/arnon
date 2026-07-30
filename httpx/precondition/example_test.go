@@ -2,7 +2,6 @@ package precondition_test
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/casara/arnon/httpx/precondition"
 )
@@ -14,19 +13,15 @@ func ExampleCheck() {
 	const currentETag = `"v2"`
 
 	stale := precondition.Check(
-		`"v1"`,
-		"",
-		currentETag,
-		time.Time{},
+		precondition.Headers{IfMatch: `"v1"`},
+		precondition.State{ETag: currentETag},
 		precondition.Config{},
 	)
 	fmt.Println(stale.StatusCode(), stale.Detail)
 
 	fresh := precondition.Check(
-		currentETag,
-		"",
-		currentETag,
-		time.Time{},
+		precondition.Headers{IfMatch: currentETag},
+		precondition.State{ETag: currentETag},
 		precondition.Config{},
 	)
 	fmt.Println(fresh)
@@ -39,10 +34,8 @@ func ExampleCheck() {
 // never satisfy it - unlike If-None-Match on a GET, which compares weakly.
 func ExampleCheck_weakETag() {
 	weak := precondition.Check(
-		`W/"v2"`,
-		"",
-		`"v2"`,
-		time.Time{},
+		precondition.Headers{IfMatch: `W/"v2"`},
+		precondition.State{ETag: `"v2"`},
 		precondition.Config{},
 	)
 
@@ -56,13 +49,15 @@ func ExampleCheck_weakETag() {
 // every write must be conditional.
 func ExampleConfig() {
 	permissive := precondition.Check(
-		"", "", `"v1"`, time.Time{},
+		precondition.Headers{},
+		precondition.State{ETag: `"v1"`},
 		precondition.Config{},
 	)
 	fmt.Println(permissive)
 
 	required := precondition.Check(
-		"", "", `"v1"`, time.Time{},
+		precondition.Headers{},
+		precondition.State{ETag: `"v1"`},
 		precondition.Config{Require: true},
 	)
 	fmt.Println(required.StatusCode(), required.Detail)

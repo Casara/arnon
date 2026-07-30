@@ -31,7 +31,7 @@ func TestCompress_CompressesAllowedContentType(t *testing.T) {
 
 	const body = "hello, compressed world"
 
-	handler := middleware.Compress(gzip.DefaultCompression)(
+	handler := middleware.Compress()(
 		writeWithContentType("application/json", body),
 	)
 
@@ -70,7 +70,7 @@ func TestCompress_PassesThroughWithoutAcceptEncoding(t *testing.T) {
 
 	const body = "plain response"
 
-	handler := middleware.Compress(gzip.DefaultCompression)(
+	handler := middleware.Compress()(
 		writeWithContentType("application/json", body),
 	)
 
@@ -92,7 +92,7 @@ func TestCompress_RangeRequestPassesThroughUnwrapped(t *testing.T) {
 
 	const body = "plain response"
 
-	handler := middleware.Compress(gzip.DefaultCompression)(
+	handler := middleware.Compress()(
 		writeWithContentType("application/json", body),
 	)
 
@@ -131,7 +131,7 @@ func TestCompress_DoesNotCorruptContentRangeOnAWrappedFileServer(t *testing.T) {
 		http.ServeContent(writer, request, "numbers.txt", time.Time{}, content)
 	})
 
-	handler := middleware.Compress(gzip.DefaultCompression)(fileHandler)
+	handler := middleware.Compress()(fileHandler)
 
 	request := httptest.NewRequest(http.MethodGet, "/numbers.txt", nil)
 	request.Header.Set("Accept-Encoding", "gzip")
@@ -165,7 +165,7 @@ func TestCompress_ExplicitQZeroDeclinesGzip(t *testing.T) {
 
 	const body = "plain response"
 
-	handler := middleware.Compress(gzip.DefaultCompression)(
+	handler := middleware.Compress()(
 		writeWithContentType("application/json", body),
 	)
 
@@ -193,7 +193,7 @@ func TestCompress_ExplicitQZeroDeclinesGzip(t *testing.T) {
 func TestCompress_WildcardAcceptEncodingMatchesGzip(t *testing.T) {
 	t.Parallel()
 
-	handler := middleware.Compress(gzip.DefaultCompression)(
+	handler := middleware.Compress()(
 		writeWithContentType("application/json", "plain response"),
 	)
 
@@ -216,7 +216,7 @@ func TestCompress_SkipsDisallowedContentType(t *testing.T) {
 
 	const body = "binary-ish data"
 
-	handler := middleware.Compress(gzip.DefaultCompression)(
+	handler := middleware.Compress()(
 		writeWithContentType("image/png", body),
 	)
 
@@ -244,7 +244,7 @@ func TestCompress_CustomTypesReplaceRatherThanExtendDefaults(t *testing.T) {
 
 	// application/json is in the default list but not in this custom,
 	// narrower list, so it must not be compressed here.
-	handler := middleware.Compress(gzip.DefaultCompression, "text/plain")(
+	handler := middleware.Compress(middleware.WithCompressibleTypes("text/plain"))(
 		writeWithContentType("application/json", "{}"),
 	)
 
@@ -266,7 +266,7 @@ func TestCompress_CustomTypesReplaceRatherThanExtendDefaults(t *testing.T) {
 func TestCompress_WildcardTypeMatchesSubtypes(t *testing.T) {
 	t.Parallel()
 
-	handler := middleware.Compress(gzip.DefaultCompression, "text/*")(
+	handler := middleware.Compress(middleware.WithCompressibleTypes("text/*"))(
 		writeWithContentType("text/plain", "plain text body"),
 	)
 
@@ -290,7 +290,7 @@ func TestCompress_RemovesContentLengthWhenCompressing(t *testing.T) {
 
 	const body = "hello, compressed world"
 
-	handler := middleware.Compress(gzip.DefaultCompression)(http.HandlerFunc(func(
+	handler := middleware.Compress()(http.HandlerFunc(func(
 		writer http.ResponseWriter,
 		_ *http.Request,
 	) {
@@ -323,5 +323,5 @@ func TestCompress_InvalidLevelPanics(t *testing.T) {
 		}
 	}()
 
-	middleware.Compress(999)
+	middleware.Compress(middleware.WithCompressionLevel(999))
 }

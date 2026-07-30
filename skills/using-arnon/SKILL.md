@@ -143,7 +143,16 @@ validation.RegisterCustomRule(validation.CustomRule{
     Message: func(param string) string { return "must not be blank" },
     Schema: &validation.SchemaEffect{Pattern: `\S`},
 })
+
+func validateNotBlank(field validation.FieldContext) bool {
+    return strings.TrimSpace(field.Field().String()) != ""
+}
 ```
+
+`validation.FieldContext` is arnon's own interface - a rule never names a type
+from the validation library underneath. It gives you `Field()` (the value),
+`Param()` (the text after `=` in the tag), and `Parent()`/`Top()` for
+cross-field checks.
 
 One registration feeds runtime validation, the RFC 9457 error mapping
 (`code`/`detail`), and the generated OpenAPI schema at the same time -
@@ -252,10 +261,8 @@ func putUser(ctx context.Context, request putUserRequest) (User, error) {
     }
 
     if problem := precondition.Check(
-        request.IfMatch,
-        "",              // If-Unmodified-Since, if you track it instead
-        current.ETag(),  // your own resource's current ETag
-        time.Time{},     // or its current modification time
+        precondition.Headers{IfMatch: request.IfMatch},
+        precondition.State{ETag: current.ETag()}, // your own resource, as just read
         precondition.Config{},
     ); problem != nil {
         return User{}, problem // *problem.Problem implements error

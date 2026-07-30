@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	validatorv10 "github.com/go-playground/validator/v10"
-
 	"github.com/casara/arnon/validation"
 )
 
@@ -40,7 +38,7 @@ func ExampleDefault() {
 func ExampleRegisterCustomRule() {
 	err := validation.RegisterCustomRule(validation.CustomRule{
 		Tag: "notblank",
-		Func: func(field validatorv10.FieldLevel) bool {
+		Func: func(field validation.FieldContext) bool {
 			return strings.TrimSpace(field.Field().String()) != ""
 		},
 		Code:    "blank",

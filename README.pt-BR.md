@@ -307,7 +307,16 @@ validation.RegisterCustomRule(validation.CustomRule{
 		return "invalid CPF"
 	},
 })
+
+func validateCPF(field validation.FieldContext) bool {
+	return cpfPattern.MatchString(field.Field().String())
+}
 ```
+
+`FieldContext` é interface do próprio arnon, então uma regra nunca nomeia um
+tipo da biblioteca de validação por baixo e continua compilando se essa
+implementação for trocada. Ela expõe o valor do campo, o parâmetro da tag, e os
+structs pai e raiz para checagem cross-field.
 
 ## Sanitização
 
@@ -355,11 +364,11 @@ na mesma entrada. Onde um rename puder manter a grafia antiga compilando, ele
 vai — como alias depreciado, removido não antes do minor seguinte.
 
 O caminho até o v1.0.0 é o ponto em que a superfície para de se mexer, não um
-marco de funcionalidades. As perguntas abertas hoje são as caras de mudar
-depois: a convenção de configuração no pacote inteiro (struct de config versus
-opções funcionais), se tipos do `go-playground/validator/v10` devem aparecer
-nas assinaturas exportadas de `validation`, e dar um ponto de configuração aos
-middlewares de zero argumentos. Fechadas essas, o v1 vem em seguida.
+marco de funcionalidades. Uma pergunta segue aberta, e é do tipo que fica cara
+de mudar depois: se o `validation.WithConfigure` — o único lugar que ainda
+nomeia um tipo do `go-playground/validator/v10` numa assinatura exportada —
+deve seguir como escape hatch ou ir para um subpacote. Fechada essa, o v1 vem
+em seguida.
 
 ## Storage do rate limit
 

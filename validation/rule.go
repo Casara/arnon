@@ -1,8 +1,6 @@
 package validation
 
 import (
-	validatorv10 "github.com/go-playground/validator/v10"
-
 	"github.com/casara/arnon/problem"
 )
 
@@ -33,8 +31,8 @@ type CustomRule struct {
 	Tag string
 
 	// Func performs the runtime validation and is registered on every
-	// validator instance created through New.
-	Func validatorv10.Func
+	// validator instance created through New. See RuleFunc and FieldContext.
+	Func RuleFunc
 
 	// Schema optionally augments the generated OpenAPI schema for
 	// fields using this tag.

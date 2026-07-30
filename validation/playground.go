@@ -30,9 +30,14 @@ func New(
 	validate := validatorv10.New()
 
 	for _, rule := range registeredCustomRules() {
+		// validatorv10.FieldLevel satisfies FieldContext structurally - same
+		// method set - so the rule is handed straight through with no
+		// adapter, and arnon's own API never names the library's type.
 		err := validate.RegisterValidation(
 			rule.Tag,
-			rule.Func,
+			func(field validatorv10.FieldLevel) bool {
+				return rule.Func(field)
+			},
 		)
 		if err != nil {
 			return nil, fmt.Errorf(

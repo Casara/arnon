@@ -3,8 +3,6 @@ package openapi_test
 import (
 	"testing"
 
-	validatorv10 "github.com/go-playground/validator/v10"
-
 	"github.com/casara/arnon/openapi"
 	"github.com/casara/arnon/validation"
 )
@@ -17,7 +15,7 @@ func TestSchemaGenerator_AppliesCustomRuleSchemaEffect(t *testing.T) {
 	err := validation.RegisterCustomRule(validation.CustomRule{
 		Tag: tag,
 
-		Func: func(validatorv10.FieldLevel) bool { return true },
+		Func: func(validation.FieldContext) bool { return true },
 
 		Schema: &validation.SchemaEffect{
 			Format:  "cpf",

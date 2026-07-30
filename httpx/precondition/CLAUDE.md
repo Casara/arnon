@@ -15,10 +15,15 @@ live in the root `AGENTS.md`.
   `PreconditionFailed(etag, modified)` is likewise called by the handler, not
   the framework), confirmed by reading huma's design before implementing this.
 * **Two entry points because `HandlerFunc` never sees `*http.Request`.**
-  `Check` takes header values already bound onto a request DTO via
-  `header:"If-Match"`/`header:"If-Unmodified-Since"` tags; `CheckRequest` is
-  the `*http.Request`-based equivalent, for a plain `http.Handler` or
+  `Check` takes the client's headers as a `Headers` value - bind them onto the
+  request DTO with `header:"If-Match"`/`header:"If-Unmodified-Since"` tags -
+  and the resource's current state as a `State`. `CheckRequest` is the
+  `*http.Request`-based equivalent, for a plain `http.Handler` or
   framework-internal code (`httpx/patch.From`).
+* **Both parameters are structs on purpose.** The arguments used to be three
+  adjacent strings; swapping any two compiled, ran, and silently approved or
+  rejected the wrong request, with no test on the caller's side likely to
+  notice. Named fields make that class of mistake impossible.
 * **`If-Match` uses strong comparison** (RFC 9110 §13.1.1) — a weak `ETag`
   (`W/"..."`) can never satisfy it, unlike `middleware.ETag`'s weak comparison
   for `If-None-Match` — and takes precedence over `If-Unmodified-Since` when

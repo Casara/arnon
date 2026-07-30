@@ -133,10 +133,10 @@ func ExampleETag() {
 // router, which answers with a real Allow header.
 func ExampleCORS() {
 	router := routing.NewRouter()
-	router.Use(routing.Middleware(middleware.CORS(middleware.CORSConfig{
+	router.Use(middleware.CORS(middleware.CORSConfig{
 		AllowedOrigins: []string{"https://app.example.com"},
 		AllowedMethods: []string{http.MethodGet},
-	})))
+	}))
 	router.GET("/users", http.HandlerFunc(func(
 		http.ResponseWriter, *http.Request,
 	) {
@@ -162,4 +162,33 @@ func ExampleCORS() {
 	// Output:
 	// preflight: 204 https://app.example.com
 	// bare OPTIONS: 405 GET, HEAD
+}
+
+// RealIP reads client-controlled headers, so it needs to know which peers are
+// allowed to set them. A request from outside the trusted networks is keyed on
+// RemoteAddr, which cannot be forged over TCP - without this, a caller reaching
+// the server directly picks its own rate-limit key on every request.
+func ExampleRealIP() {
+	handler := middleware.RealIP(
+		middleware.WithTrustedProxies("10.0.0.0/8"),
+	)(http.HandlerFunc(func(_ http.ResponseWriter, request *http.Request) {
+		fmt.Println(middleware.RealIPFromContext(request.Context()))
+	}))
+
+	// Behind the load balancer: the forwarded address is used.
+	fromProxy := httptest.NewRequest(http.MethodGet, "/", nil)
+	fromProxy.RemoteAddr = "10.1.2.3:44444"
+	fromProxy.Header.Set("X-Forwarded-For", "198.51.100.7")
+
+	handler.ServeHTTP(httptest.NewRecorder(), fromProxy)
+
+	// Straight from the internet, claiming to be someone else: ignored.
+	direct := httptest.NewRequest(http.MethodGet, "/", nil)
+	direct.RemoteAddr = "203.0.113.9:44444"
+	direct.Header.Set("X-Forwarded-For", "198.51.100.7")
+
+	handler.ServeHTTP(httptest.NewRecorder(), direct)
+	// Output:
+	// 198.51.100.7
+	// 203.0.113.9
 }

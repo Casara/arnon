@@ -60,10 +60,19 @@ var defaultCompressibleTypes = []string{
 // (http.FileServer, http.ServeContent): a plain GET still gets
 // gzipped when applicable, a Range GET is left exactly as
 // http.ServeContent produced it.
-func Compress(
-	level int,
-	types ...string,
-) routing.Middleware {
+func Compress(options ...CompressOption) routing.Middleware {
+	config := compressConfig{
+		level: gzip.DefaultCompression,
+		types: defaultCompressibleTypes,
+	}
+
+	for _, option := range options {
+		option(&config)
+	}
+
+	level := config.level
+	types := config.types
+
 	_, err := gzip.NewWriterLevel(nil, level)
 	if err != nil {
 		panic(fmt.Errorf("middleware: invalid compress level %d: %w", level, err))

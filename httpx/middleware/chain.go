@@ -1,28 +1,12 @@
 package middleware
 
 import (
-	"compress/gzip"
 	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/casara/arnon/httpx/routing"
 )
-
-// CompressConfig configures the Compress middleware for use through
-// ChainConfig/BuildChain, which - unlike Compress itself - takes
-// configuration as a struct rather than positional parameters, for
-// consistency with every other *Config type in this package.
-type CompressConfig struct {
-	// Level is the gzip compression level, as defined by
-	// compress/gzip. Zero defaults to gzip.DefaultCompression.
-	Level int
-
-	// Types restricts compression to these response Content-Type
-	// values (a trailing "/*" matches any subtype). Empty uses
-	// Compress's own default list.
-	Types []string
-}
 
 // ChainAnchor names a position in BuildChain's stage sequence, used
 // by ChainConfig.Extra to say where a custom middleware belongs
@@ -152,6 +136,14 @@ type ChainConfig struct {
 	// RealIP populates the client IP in the request context when true.
 	RealIP bool
 
+	// RealIPOptions configures RealIP, and is ignored unless RealIP is true.
+	//
+	// Set WithTrustedProxies here whenever the server is reachable directly
+	// from the internet: without it RealIP believes forwarding headers from
+	// anyone, and RateLimit - which is keyed on the result - can be walked
+	// past with a forged X-Forwarded-For per request.
+	RealIPOptions []RealIPOption
+
 	// RequestID generates/propagates X-Request-Id when true.
 	RequestID bool
 
@@ -168,8 +160,13 @@ type ChainConfig struct {
 	// ETag enables conditional GET support when true.
 	ETag bool
 
-	// Compress enables gzip compression when non-nil.
-	Compress *CompressConfig
+	// Compress enables gzip compression of textual responses when true.
+	Compress bool
+
+	// CompressOptions configures Compress, and is ignored unless Compress is
+	// true. The defaults - gzip.DefaultCompression over the usual textual
+	// content types - need no options at all.
+	CompressOptions []CompressOption
 
 	// CORS enables CORS handling when non-nil.
 	CORS *CORSConfig
@@ -227,7 +224,10 @@ func BuildChain(config ChainConfig) []routing.Middleware {
 	chain = appendStage(
 		chain, AnchorRedirectSlashes, config.RedirectSlashes, config.Extra, RedirectSlashes,
 	)
-	chain = appendStage(chain, AnchorRealIP, config.RealIP, config.Extra, RealIP)
+	chain = appendStage(
+		chain, AnchorRealIP, config.RealIP, config.Extra,
+		func() routing.Middleware { return RealIP(config.RealIPOptions...) },
+	)
 	chain = appendStage(chain, AnchorRequestID, config.RequestID, config.Extra, RequestID)
 	chain = appendStage(
 		chain, AnchorSecureHeaders, config.SecureHeaders != nil, config.Extra,
@@ -243,8 +243,8 @@ func BuildChain(config ChainConfig) []routing.Middleware {
 	)
 	chain = appendStage(chain, AnchorETag, config.ETag, config.Extra, ETag)
 	chain = appendStage(
-		chain, AnchorCompress, config.Compress != nil, config.Extra,
-		func() routing.Middleware { return newConfiguredCompress(config.Compress) },
+		chain, AnchorCompress, config.Compress, config.Extra,
+		func() routing.Middleware { return Compress(config.CompressOptions...) },
 	)
 	chain = appendStage(
 		chain, AnchorCORS, config.CORS != nil, config.Extra,
@@ -260,15 +260,6 @@ func BuildChain(config ChainConfig) []routing.Middleware {
 	)
 
 	return chain
-}
-
-func newConfiguredCompress(config *CompressConfig) routing.Middleware {
-	level := config.Level
-	if level == 0 {
-		level = gzip.DefaultCompression
-	}
-
-	return Compress(level, config.Types...)
 }
 
 // appendStage appends, in order: any extra entries anchored Before

@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/casara/arnon/httpx/routing"
 )
 
 // CORSConfig configures CORS. AllowedOrigins is the only field
@@ -38,7 +40,7 @@ type CORSConfig struct {
 }
 
 // CORS creates a CORS middleware.
-func CORS(config CORSConfig) func(http.Handler) http.Handler {
+func CORS(config CORSConfig) routing.Middleware {
 	allowedMethods := config.AllowedMethods
 
 	if len(allowedMethods) == 0 {
