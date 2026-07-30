@@ -97,7 +97,7 @@ func ExampleProblem_AddError() {
 		"Request validation failed",
 	)
 
-	details.AddError(problem.NewBodyError(
+	details = details.AddError(problem.NewBodyError(
 		"must be a valid email address",
 		"/email",
 		problem.ValidationCodeInvalidEmail,
@@ -149,4 +149,51 @@ func ExampleProblem_With_multiple() {
 	fmt.Println(string(encoded))
 	// Output:
 	// {"title":"Conflict","status":409,"detail":"insufficient funds","account":"acc_1","balance":100,"currency":"BRL"}
+}
+
+// A Problem declared once at package level is safe to derive from: every WithX
+// method returns a copy, so two concurrent requests never overwrite each
+// other's instance.
+func ExampleProblem_WithInstance() {
+	shared := problem.NewNotFound("no such user")
+
+	first := shared.WithInstance("/users/1")
+	second := shared.WithInstance("/users/2")
+
+	fmt.Printf("shared: %q\n", shared.Instance)
+	fmt.Printf("first:  %q\n", first.Instance)
+	fmt.Printf("second: %q\n", second.Instance)
+	// Output:
+	// shared: ""
+	// first:  "/users/1"
+	// second: "/users/2"
+}
+
+// A Go client decoding an arnon error response gets the extension members back
+// as well as the standard ones.
+func ExampleProblem_UnmarshalJSON() {
+	response := []byte(`{
+		"title": "Too Many Requests",
+		"status": 429,
+		"detail": "slow down",
+		"retry_after_seconds": 30
+	}`)
+
+	var details problem.Problem
+
+	err := json.Unmarshal(response, &details)
+	if err != nil {
+		fmt.Println("unmarshal:", err)
+
+		return
+	}
+
+	fmt.Println(details.StatusCode(), details.Detail)
+
+	retryAfter, found := details.Extension("retry_after_seconds")
+
+	fmt.Println(found, retryAfter)
+	// Output:
+	// 429 slow down
+	// true 30
 }

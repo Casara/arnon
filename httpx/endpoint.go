@@ -209,7 +209,7 @@ func writeValidationProblem(
 	)
 
 	for _, validationError := range validationErrors {
-		_ = problemInstance.AddError(validationError)
+		problemInstance = problemInstance.AddError(validationError)
 	}
 
 	WriteProblem(

@@ -91,10 +91,6 @@ func (problemInstance *Problem) Error() string {
 // errors.As reach the underlying cause. That cause is never serialized: it
 // stays available to the server's own logging while the client only ever sees
 // the problem document.
-// Unwrap returns the error passed to WithError, if any, so errors.Is and
-// errors.As reach the underlying cause. That cause is never serialized: it
-// stays available to the server's own logging while the client only ever sees
-// the problem document.
 func (problemInstance *Problem) Unwrap() error {
 	return problemInstance.Err
 }
@@ -110,43 +106,57 @@ func (problemInstance *Problem) StatusCode() int {
 	return problemInstance.Status
 }
 
-// WithType sets Type and returns problemInstance for chaining -
-// unlike openapi.Tag's WithX methods, this mutates in place (pointer
-// receiver) rather than returning a copy.
+// WithType returns a copy with Type set.
+//
+// Every WithX and AddX method on Problem copies rather than mutating, which is
+// what makes a package-level Problem safe to share:
+//
+//	var errNoSuchUser = problem.NewNotFound("no such user")
+//
+//	// Each request derives its own; the shared value is never touched.
+//	return errNoSuchUser.WithInstance(request.URL.Path)
+//
+// Mutating in place would make that a data race between concurrent requests,
+// and the sort that shows up as a wrong instance in someone else's response
+// rather than as a crash.
 func (problemInstance *Problem) WithType(value string) *Problem {
-	problemInstance.Type = value
+	copied := problemInstance.clone()
+	copied.Type = value
 
-	return problemInstance
+	return copied
 }
 
-// WithInstance sets Instance and returns problemInstance for chaining
-// (see WithType). httpx.WriteProblem auto-populates Instance from the
-// request path when it's still empty at write time, so an explicit
-// WithInstance call always wins over that default.
+// WithInstance returns a copy with Instance set. httpx.WriteProblem fills
+// Instance from the request path when it is still empty at write time, so an
+// explicit WithInstance always wins over that default.
 func (problemInstance *Problem) WithInstance(value string) *Problem {
-	problemInstance.Instance = value
+	copied := problemInstance.clone()
+	copied.Instance = value
 
-	return problemInstance
+	return copied
 }
 
-// WithError attaches an internal error for local logging/debugging -
-// Err is tagged `json:"-"`, so it never reaches the client, regardless
-// of what a ProblemMapper sets here.
+// WithError returns a copy carrying err as the internal cause, reachable with
+// errors.Is and errors.As. Err is tagged `json:"-"`, so it never reaches the
+// client whatever a ProblemMapper puts there.
 func (problemInstance *Problem) WithError(err error) *Problem {
-	problemInstance.Err = err
+	copied := problemInstance.clone()
+	copied.Err = err
 
-	return problemInstance
+	return copied
 }
 
-// AddError appends a field-level validation error to the problem's
-// Errors slice.
+// AddError returns a copy with validationError appended to Errors.
+//
+// It returns the new value rather than modifying the receiver, so the result
+// has to be used:
+//
+//	details = details.AddError(problem.NewBodyError(...))
 func (problemInstance *Problem) AddError(validationError ValidationError) *Problem {
-	problemInstance.Errors = append(
-		problemInstance.Errors,
-		validationError,
-	)
+	copied := problemInstance.clone()
+	copied.Errors = append(copied.Errors, validationError)
 
-	return problemInstance
+	return copied
 }
 
 // With attaches an RFC 9457 extension member to the problem, serialized
@@ -171,15 +181,30 @@ func (problemInstance *Problem) With(key string, value any) *Problem {
 		))
 	}
 
-	if problemInstance.extensions == nil {
-		problemInstance.extensions = make(
-			map[string]any,
-		)
+	copied := problemInstance.clone()
+
+	if copied.extensions == nil {
+		copied.extensions = make(map[string]any)
 	}
 
-	problemInstance.extensions[trimmedKey] = value
+	copied.extensions[trimmedKey] = value
 
-	return problemInstance
+	return copied
+}
+
+// Extension returns the extension member stored under key, and whether it was
+// present. Extension members are not exported as a field so that the standard
+// RFC 9457 members cannot be shadowed by one; this is how you read them back.
+func (problemInstance *Problem) Extension(key string) (any, bool) {
+	value, found := problemInstance.extensions[strings.TrimSpace(key)]
+
+	return value, found
+}
+
+// Extensions returns a copy of every extension member. Empty when there are
+// none. Writing to the result does not affect the problem - use With for that.
+func (problemInstance *Problem) Extensions() map[string]any {
+	return maps.Clone(problemInstance.extensions)
 }
 
 // MarshalJSON renders the problem as RFC 9457 JSON, omitting any of
@@ -313,4 +338,97 @@ func isReservedField(field string) bool {
 	default:
 		return false
 	}
+}
+
+// UnmarshalJSON parses an RFC 9457 problem document, routing every member the
+// specification does not define into the extensions map so that a round trip
+// preserves them.
+//
+// This is what a Go client consuming an arnon API uses. Without it, extension
+// members - the whole point of the RFC's extensibility - would be dropped on
+// decode, because they have no struct field to land in.
+//
+// Err is not populated: it is the server's own internal cause, never
+// serialized, so there is nothing on the wire to restore.
+func (problemInstance *Problem) UnmarshalJSON(data []byte) error {
+	var members map[string]json.RawMessage
+
+	err := json.Unmarshal(data, &members)
+	if err != nil {
+		return fmt.Errorf("unmarshal problem: %w", err)
+	}
+
+	*problemInstance = Problem{}
+
+	for key, raw := range members {
+		err = problemInstance.unmarshalMember(key, raw)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// unmarshalMember assigns one top-level member, standard or extension.
+func (problemInstance *Problem) unmarshalMember(
+	key string,
+	raw json.RawMessage,
+) error {
+	var target any
+
+	switch key {
+	case "type":
+		target = &problemInstance.Type
+	case "title":
+		target = &problemInstance.Title
+	case "status":
+		target = &problemInstance.Status
+	case "detail":
+		target = &problemInstance.Detail
+	case "instance":
+		target = &problemInstance.Instance
+	case "errors":
+		target = &problemInstance.Errors
+
+	default:
+		var value any
+
+		err := json.Unmarshal(raw, &value)
+		if err != nil {
+			return fmt.Errorf("unmarshal extension %q: %w", key, err)
+		}
+
+		if problemInstance.extensions == nil {
+			problemInstance.extensions = make(map[string]any)
+		}
+
+		problemInstance.extensions[key] = value
+
+		return nil
+	}
+
+	err := json.Unmarshal(raw, target)
+	if err != nil {
+		return fmt.Errorf("unmarshal %q: %w", key, err)
+	}
+
+	return nil
+}
+
+// clone returns an independent copy: the extensions map and the Errors slice
+// are copied too, so a value derived from a shared Problem never writes
+// through to it.
+func (problemInstance *Problem) clone() *Problem {
+	copied := *problemInstance
+
+	if problemInstance.extensions != nil {
+		copied.extensions = maps.Clone(problemInstance.extensions)
+	}
+
+	if problemInstance.Errors != nil {
+		copied.Errors = slices.Clone(problemInstance.Errors)
+	}
+
+	return &copied
 }

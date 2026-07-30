@@ -40,8 +40,9 @@ func TestWriteProblem_PreservesExplicitlySetInstance(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/api/users/42", nil)
 
-	problemInstance := problem.New(http.StatusNotFound, "Not Found", "user not found")
-	_ = problemInstance.WithInstance("urn:request:custom-id")
+	problemInstance := problem.
+		New(http.StatusNotFound, "Not Found", "user not found").
+		WithInstance("urn:request:custom-id")
 
 	httpx.WriteProblem(recorder, request, problemInstance)
 

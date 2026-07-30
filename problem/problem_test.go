@@ -258,3 +258,100 @@ func TestProblem_MarshalJSON_ExtensionOrderIsStable(t *testing.T) {
 		t.Errorf("extensions not in alphabetical order: %s", first)
 	}
 }
+
+// The reason the WithX methods copy: a package-level Problem is the natural
+// way to declare a domain error once, and mutating setters would make two
+// concurrent requests overwrite each other's instance.
+func TestProblem_SettersDoNotMutateTheReceiver(t *testing.T) {
+	t.Parallel()
+
+	shared := problem.NewNotFound("no such user").With("resource", "user")
+
+	first := shared.WithInstance("/users/1")
+	second := shared.WithInstance("/users/2").With("resource", "account")
+
+	if shared.Instance != "" {
+		t.Errorf("shared problem was mutated: instance = %q", shared.Instance)
+	}
+
+	if first.Instance != "/users/1" || second.Instance != "/users/2" {
+		t.Errorf("derived values interfered: %q and %q", first.Instance, second.Instance)
+	}
+
+	// The extensions map is copied too, not shared through the shallow copy.
+	value, _ := shared.Extension("resource")
+	if value != "user" {
+		t.Errorf("shared extensions were mutated: %v", value)
+	}
+}
+
+func TestProblem_AddErrorDoesNotMutateTheReceiver(t *testing.T) {
+	t.Parallel()
+
+	base := problem.New(http.StatusBadRequest, "Invalid", "Invalid").
+		AddError(problem.NewBodyError("first", "/a", problem.ValidationCodeRequired, nil))
+
+	derived := base.
+		AddError(problem.NewBodyError("second", "/b", problem.ValidationCodeRequired, nil))
+
+	if len(base.Errors) != 1 {
+		t.Errorf("receiver gained an error: %d", len(base.Errors))
+	}
+
+	if len(derived.Errors) != 2 {
+		t.Errorf("derived lost an error: %d", len(derived.Errors))
+	}
+}
+
+// A Go client consuming an arnon API has to get its extension members back;
+// dropping them on decode would defeat the point of RFC 9457's extensibility.
+func TestProblem_JSONRoundTripPreservesExtensions(t *testing.T) {
+	t.Parallel()
+
+	original := problem.NewConflict("insufficient funds").
+		WithType("https://example.com/probs/funds").
+		WithInstance("/accounts/7").
+		With("balance", 100.0).
+		With("currency", "BRL").
+		AddError(problem.NewBodyError("too low", "/amount", problem.ValidationCodeRequired, nil))
+
+	encoded, err := json.Marshal(original)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var decoded problem.Problem
+
+	err = json.Unmarshal(encoded, &decoded)
+	if err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if decoded.Status != original.Status ||
+		decoded.Title != original.Title ||
+		decoded.Detail != original.Detail ||
+		decoded.Type != original.Type ||
+		decoded.Instance != original.Instance {
+		t.Errorf("standard members differ: %+v", decoded)
+	}
+
+	if len(decoded.Errors) != 1 || decoded.Errors[0].Source.Field != "/amount" {
+		t.Errorf("validation errors lost: %+v", decoded.Errors)
+	}
+
+	balance, found := decoded.Extension("balance")
+	if !found || balance != 100.0 {
+		t.Errorf("extension lost: %v, found=%v", balance, found)
+	}
+
+	// Re-encoding has to produce the same bytes, which is what makes the
+	// round trip usable for a proxy or a test fixture.
+	reencoded, err := json.Marshal(&decoded)
+	if err != nil {
+		t.Fatalf("re-marshal: %v", err)
+	}
+
+	if !bytes.Equal(encoded, reencoded) {
+		t.Errorf("round trip is not stable:\n%s\n%s", encoded, reencoded)
+	}
+}

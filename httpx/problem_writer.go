@@ -34,7 +34,10 @@ func WriteProblem(
 	problemInstance *problem.Problem,
 ) {
 	if problemInstance.Instance == "" {
-		_ = problemInstance.WithInstance(request.URL.Path)
+		// WithInstance copies, so the caller's Problem is left untouched -
+		// which is what makes a package-level problem.Problem safe to return
+		// from concurrent handlers.
+		problemInstance = problemInstance.WithInstance(request.URL.Path)
 	}
 
 	buffer := &bytes.Buffer{}
