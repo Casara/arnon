@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Casara/arnon/httpx"
-	"github.com/Casara/arnon/problem"
+	"github.com/casara/arnon/httpx"
+	"github.com/casara/arnon/problem"
 )
 
 type greetRequest struct {

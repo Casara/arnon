@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Casara/arnon/httpx/middleware"
+	"github.com/casara/arnon/httpx/middleware"
 )
 
 func writeWithContentType(contentType, body string) http.Handler {

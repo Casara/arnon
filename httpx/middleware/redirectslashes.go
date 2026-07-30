@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/Casara/arnon/httpx/routing"
+	"github.com/casara/arnon/httpx/routing"
 )
 
 // RedirectSlashes redirects requests whose path has a trailing slash

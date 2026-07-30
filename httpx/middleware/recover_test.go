@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Casara/arnon/httpx/middleware"
-	"github.com/Casara/arnon/observability"
+	"github.com/casara/arnon/httpx/middleware"
+	"github.com/casara/arnon/observability"
 )
 
 func TestRecover_RecoversPanicAndRespondsWithSafeProblem(t *testing.T) {

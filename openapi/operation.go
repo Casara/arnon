@@ -42,5 +42,13 @@ type Operation struct {
 	// declared operation. Default value is `false`.
 	Deprecated bool `json:"deprecated,omitempty"`
 
+	// SuccessStatus is the status the success response is documented under.
+	// Not part of the OpenAPI specification - it is how this package knows
+	// which status to attach the response schema to, hence json:"-".
+	//
+	// httpx.Endpoint fills it in from EndpointConfig.SuccessStatus, so the
+	// document describes the status the handler actually returns without you
+	// stating it twice. Set it by hand only to document something other than
+	// what the handler does, which is almost never what you want.
 	SuccessStatus int `json:"-"`
 }

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Casara/arnon/openapi"
+	"github.com/casara/arnon/openapi"
 )
 
 // TestNewGenerator_WithServersSetsDocumentServers confirms WithServers

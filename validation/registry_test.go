@@ -6,8 +6,8 @@ import (
 
 	validatorv10 "github.com/go-playground/validator/v10"
 
-	"github.com/Casara/arnon/problem"
-	"github.com/Casara/arnon/validation"
+	"github.com/casara/arnon/problem"
+	"github.com/casara/arnon/validation"
 )
 
 func TestRegisterCustomRule_RejectsEmptyTag(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/Casara/arnon/httpx/routing"
+	"github.com/casara/arnon/httpx/routing"
 )
 
 // CompressConfig configures the Compress middleware for use through
@@ -187,9 +187,8 @@ type ChainConfig struct {
 	Extra []ExtraMiddleware
 }
 
-// BuildChain returns ArNon's recommended global middleware chain, in
-// the order documented in CLAUDE.md and
-// docs/architecture/project-context.md ("Ordem dos middlewares"):
+// BuildChain returns arnon's recommended global middleware chain, in this
+// order:
 //
 //	Recover, Timeout, StripSlashes/RedirectSlashes, RealIP, RequestID,
 //	SecureHeaders, RateLimit, Throttle, ETag, Compress, CORS,

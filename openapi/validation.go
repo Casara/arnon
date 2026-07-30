@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Casara/arnon/validation"
+	"github.com/casara/arnon/validation"
 )
 
 // applyValidationTags translates a `validate` struct tag into OpenAPI

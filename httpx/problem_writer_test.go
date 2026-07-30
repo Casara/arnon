@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/Casara/arnon/httpx"
-	"github.com/Casara/arnon/problem"
+	"github.com/casara/arnon/httpx"
+	"github.com/casara/arnon/problem"
 )
 
 func TestWriteProblem_PopulatesInstanceFromRequestPathWhenEmpty(t *testing.T) {

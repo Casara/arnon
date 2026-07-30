@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Casara/arnon/httpx/middleware"
+	"github.com/casara/arnon/httpx/middleware"
 )
 
 // blockingHandler signals on started when it begins executing, then

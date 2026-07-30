@@ -1,7 +1,7 @@
 // Package files provides the shared file download/upload handlers
 // used by examples/cmd/files: plain http.Handlers demonstrating
 // non-JSON content, which httpx.Endpoint deliberately doesn't cover
-// (it's JSON-only by design - see CLAUDE.md). None of these routes
+// (it's JSON-only by design - see httpx/CLAUDE.md). None of these routes
 // bind, sanitize, or validate anything; they're mounted directly on
 // the router, exactly like Endpoint's own doc comment says any other
 // representation should be.

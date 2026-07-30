@@ -64,10 +64,9 @@ type Tag struct {
 	Kind TagKind `json:"kind,omitempty"`
 }
 
-// WithSummary returns a copy of tag with Summary set - Tag uses a
-// value receiver here on purpose (see "Receivers" in
-// docs/architecture/project-context.md), so this never mutates the
-// original.
+// WithSummary returns a copy of tag with Summary set. Every Tag.WithX method
+// takes a value receiver on purpose, so chaining them never mutates the
+// original and a Tag is safe to share as a package-level value.
 func (tag Tag) WithSummary(summary string) Tag {
 	tag.Summary = summary
 

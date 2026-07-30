@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Casara/arnon/httpx/routing"
+	"github.com/casara/arnon/httpx/routing"
 )
 
 // stripTrailingSlash is a minimal stand-in for

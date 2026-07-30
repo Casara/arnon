@@ -7,8 +7,23 @@ import (
 	"strings"
 )
 
-// Errors returned by splitPattern while parsing a "METHOD /path" route
-// pattern, as used by Router.Handle and Group.Handle.
+// Errors reported when a "METHOD /path" route pattern given to
+// Router.Handle or Group.Handle - or to any of their verb wrappers - cannot
+// be parsed.
+//
+// These are delivered by panic, not by a return value: registering a route
+// is startup-time wiring, and a malformed pattern is a programming error
+// rather than a runtime condition, so there is no caller in a position to
+// handle it. This matches net/http.ServeMux, which likewise panics on a
+// pattern it cannot parse. They are exported so that code recovering from
+// such a panic - a test asserting on a rejected pattern, for instance - can
+// still identify the cause:
+//
+//	defer func() {
+//		if recovered, ok := recover().(error); ok {
+//			fmt.Println(errors.Is(recovered, routing.ErrInvalidMethod))
+//		}
+//	}()
 var (
 	// ErrInvalidPattern indicates the pattern is not exactly two
 	// whitespace-separated fields.

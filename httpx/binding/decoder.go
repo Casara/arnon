@@ -3,7 +3,7 @@ package binding
 import (
 	"net/http"
 
-	"github.com/Casara/arnon/problem"
+	"github.com/casara/arnon/problem"
 )
 
 // Decode binds an HTTP request into a T, reading path, query, header

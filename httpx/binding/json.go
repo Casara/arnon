@@ -7,7 +7,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/Casara/arnon/problem"
+	"github.com/casara/arnon/problem"
 )
 
 var errInvalidJSONType = errors.New(

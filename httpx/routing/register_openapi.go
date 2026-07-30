@@ -1,10 +1,6 @@
 package routing
 
-import (
-	"net/http"
-
-	"github.com/Casara/arnon/httpx"
-)
+import "net/http"
 
 func (router *Router) registerOpenAPI(
 	pattern string,
@@ -14,7 +10,7 @@ func (router *Router) registerOpenAPI(
 		return
 	}
 
-	provider, ok := handler.(httpx.OpenAPIProvider)
+	provider, ok := handler.(OpenAPIProvider)
 
 	if !ok {
 		return
@@ -33,7 +29,7 @@ func (router *Router) registerOpenAPI(
 
 	router.
 		openAPIRegistry.
-		Register(
+		RegisterTypes(
 			method,
 			path,
 			*operation,

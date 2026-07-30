@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/Casara/arnon/openapi"
+	"github.com/casara/arnon/openapi"
 )
 
 // TestHeader_RequiredMarshalsAsBoolean confirms Header.Required is a

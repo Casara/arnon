@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/Casara/arnon/sanitize"
+	"github.com/casara/arnon/sanitize"
 )
 
 func TestFromRegexp_KeepsOnlyDigits(t *testing.T) {

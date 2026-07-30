@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/Casara/arnon/problem"
+	"github.com/casara/arnon/problem"
 )
 
 // maxFieldMapDepth bounds recursion into nested body structs/

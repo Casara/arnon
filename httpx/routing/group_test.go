@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/Casara/arnon/httpx/routing"
+	"github.com/casara/arnon/httpx/routing"
 )
 
 // TestGroup_HTTPMethodsRegisterRoutes covers every convenience method
@@ -76,7 +76,7 @@ func TestGroup_HTTPMethodsRegisterRoutes(t *testing.T) {
 // from the table above: an OPTIONS request without
 // Access-Control-Request-Method is not a CORS preflight, so it always
 // reaches the mux and, in turn, the registered handler directly (see
-// CLAUDE.md on why CORS only special-cases real preflights).
+// httpx/middleware/CLAUDE.md on why CORS only special-cases real preflights).
 func TestGroup_OPTIONSRegistersRoute(t *testing.T) {
 	t.Parallel()
 

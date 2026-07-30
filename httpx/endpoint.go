@@ -5,23 +5,44 @@ import (
 	"net/http"
 	"reflect"
 
-	"github.com/Casara/arnon/httpx/binding"
-	"github.com/Casara/arnon/openapi"
-	"github.com/Casara/arnon/problem"
-	"github.com/Casara/arnon/sanitize"
-	"github.com/Casara/arnon/validation"
+	"github.com/casara/arnon/httpx/binding"
+	"github.com/casara/arnon/openapi"
+	"github.com/casara/arnon/problem"
+	"github.com/casara/arnon/sanitize"
+	"github.com/casara/arnon/validation"
 )
 
 const requestValidationFailed = "Request validation failed"
 
-// EndpointConfig configures an endpoint.
+// EndpointConfig configures an endpoint. Every field is optional: the zero
+// value produces a working endpoint with request validation, RFC 9457 error
+// responses and a 200 success status. See WithDefaults for what gets filled
+// in.
 type EndpointConfig struct {
+	// Validator checks the bound request against its `validate` struct tags.
+	// Defaults to validation.Default(), the shared instance - set this only
+	// to plug in a different implementation or one configured separately.
 	Validator validation.Validator
 
+	// ProblemMapper converts an error returned by the handler into the
+	// problem document sent to the client. Defaults to DefaultProblemMapper,
+	// which passes a *problem.Problem through unchanged and turns anything
+	// else into a 500 without leaking its message. Override it to map your
+	// own domain errors onto statuses.
 	ProblemMapper ProblemMapper
 
+	// SuccessStatus is the status written when the handler returns no error.
+	// Defaults to 200 OK; set it to 201 for a creation endpoint, and so on.
+	//
+	// The generated OpenAPI document documents the success response under this
+	// same status - it is copied onto the operation - so there is nothing to
+	// keep in sync by hand.
 	SuccessStatus int
 
+	// OpenAPI opts this route into the generated OpenAPI document. A route is
+	// only registered when this is non-nil - an empty &openapi.Operation{} is
+	// enough - so documentation is explicit per endpoint, never automatic.
+	// Leaving it nil produces a fully functional, undocumented route.
 	OpenAPI *openapi.Operation
 }
 
@@ -52,6 +73,14 @@ func (config EndpointConfig) WithDefaults() EndpointConfig {
 // calls handler, and writes the result - a success response on the
 // happy path, or an RFC 9457 Problem (via config.ProblemMapper) if
 // binding, validation, or handler itself returns an error.
+//
+// It panics if TRequest carries a `sanitize` tag naming a transform that was
+// never registered (see sanitize.Prepare and sanitize.RegisterFunc), and - via
+// the default validator it installs when config.Validator is nil - if a custom
+// validation rule is misconfigured (see validation.Default). Both are
+// startup-time programming errors: Endpoint is meant to be called while wiring
+// routes, not per request, so the panic surfaces at boot rather than on the one
+// request that happens to populate the field.
 func Endpoint[
 	TRequest any,
 	TResponse any,
@@ -148,7 +177,7 @@ func Endpoint[
 	return &endpointHandler{
 		handler: handlerFunc,
 
-		operation: config.OpenAPI,
+		operation: operationFor(config),
 
 		requestType: requestType,
 
@@ -188,4 +217,25 @@ func writeValidationProblem(
 		request,
 		problemInstance,
 	)
+}
+
+// operationFor returns the operation to publish, with SuccessStatus derived
+// from the endpoint's own so the generated document cannot disagree with what
+// the handler returns. An explicit non-zero value on the operation wins, for
+// the rare case of documenting a different status on purpose.
+//
+// The operation is copied rather than mutated: the caller's
+// EndpointConfig.OpenAPI is a pointer they may well reuse across endpoints.
+func operationFor(config EndpointConfig) *openapi.Operation {
+	if config.OpenAPI == nil {
+		return nil
+	}
+
+	operation := *config.OpenAPI
+
+	if operation.SuccessStatus == 0 {
+		operation.SuccessStatus = config.SuccessStatus
+	}
+
+	return &operation
 }

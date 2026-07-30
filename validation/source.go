@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/Casara/arnon/problem"
+	"github.com/casara/arnon/problem"
 )
 
 // resolveValidationSource determines where a field's value comes from

@@ -7,7 +7,7 @@ import (
 
 	validatorv10 "github.com/go-playground/validator/v10"
 
-	"github.com/Casara/arnon/problem"
+	"github.com/casara/arnon/problem"
 )
 
 func mapValidationErrors(

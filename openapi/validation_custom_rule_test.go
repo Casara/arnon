@@ -5,8 +5,8 @@ import (
 
 	validatorv10 "github.com/go-playground/validator/v10"
 
-	"github.com/Casara/arnon/openapi"
-	"github.com/Casara/arnon/validation"
+	"github.com/casara/arnon/openapi"
+	"github.com/casara/arnon/validation"
 )
 
 func TestSchemaGenerator_AppliesCustomRuleSchemaEffect(t *testing.T) {

@@ -9,8 +9,8 @@ import (
 	"mime"
 	"net/http"
 
-	"github.com/Casara/arnon/httpx"
-	"github.com/Casara/arnon/problem"
+	"github.com/casara/arnon/httpx"
+	"github.com/casara/arnon/problem"
 )
 
 const (

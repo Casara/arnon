@@ -1,12 +1,13 @@
 package problem_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"testing"
 
-	"github.com/Casara/arnon/problem"
+	"github.com/casara/arnon/problem"
 )
 
 func TestValidationErrorCode_StatusOverride(t *testing.T) {
@@ -221,5 +222,39 @@ func TestValidationErrorBuilders_SetExpectedSource(t *testing.T) {
 				t.Errorf("expected code %q, got %q", problem.ValidationCodeRequired, got.Code)
 			}
 		})
+	}
+}
+
+// Regression test: extension members were serialized by ranging over the
+// extensions map directly, and Go randomizes map iteration order, so the same
+// Problem produced a different byte sequence on each call.
+func TestProblem_MarshalJSON_ExtensionOrderIsStable(t *testing.T) {
+	t.Parallel()
+
+	build := func() *problem.Problem {
+		return problem.New(http.StatusConflict, "Conflict", "duplicate").
+			With("zulu", 1).
+			With("alpha", 2).
+			With("mike", 3)
+	}
+
+	first, err := json.Marshal(build())
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	for range 100 {
+		again, err := json.Marshal(build())
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+
+		if !bytes.Equal(first, again) {
+			t.Fatalf("unstable extension order:\n%s\n%s", first, again)
+		}
+	}
+
+	if !bytes.Contains(first, []byte(`"alpha":2,"mike":3,"zulu":1`)) {
+		t.Errorf("extensions not in alphabetical order: %s", first)
 	}
 }

@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/Casara/arnon/httpx/routing"
+	"github.com/casara/arnon/httpx/routing"
 )
 
 // TestRouter_HTTPMethodsRegisterRoutes covers Router's convenience

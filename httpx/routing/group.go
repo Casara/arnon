@@ -23,7 +23,12 @@ func (group *Group) Use(
 	)
 }
 
-// Handle registers a route.
+// Handle registers a route from a "METHOD /path" pattern.
+//
+// It panics if the pattern is malformed - see ErrInvalidPattern,
+// ErrInvalidMethod and ErrInvalidPath. Route registration is startup-time
+// wiring, so a bad pattern is a programming error, the same way
+// net/http.ServeMux treats one.
 func (group *Group) Handle(
 	pattern string,
 	handler http.Handler,

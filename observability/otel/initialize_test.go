@@ -10,7 +10,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
-	arnonotel "github.com/Casara/arnon/observability/otel"
+	arnonotel "github.com/casara/arnon/observability/otel"
 )
 
 // resetGlobalProviders saves the current global tracer/meter providers

@@ -3,10 +3,10 @@ package middleware
 import (
 	"net/http"
 
-	"github.com/Casara/arnon/httpx"
-	"github.com/Casara/arnon/httpx/routing"
-	"github.com/Casara/arnon/observability"
-	"github.com/Casara/arnon/problem"
+	"github.com/casara/arnon/httpx"
+	"github.com/casara/arnon/httpx/routing"
+	"github.com/casara/arnon/observability"
+	"github.com/casara/arnon/problem"
 )
 
 // Recover handles panics.

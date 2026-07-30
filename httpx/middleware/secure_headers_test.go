@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Casara/arnon/httpx/middleware"
+	"github.com/casara/arnon/httpx/middleware"
 )
 
 func TestSecureHeaders_SetsDefaultHeaders(t *testing.T) {

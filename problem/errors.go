@@ -5,19 +5,25 @@ import (
 	"net/http"
 )
 
-// Errors returned by Problem.With when an extension key is invalid.
+// Errors reported by Problem.With when an extension key is invalid.
+//
+// Like the route pattern errors in httpx/routing, these are delivered by
+// panic rather than by a return value: an extension key is written in the
+// source, not received from a client, so an invalid one is a programming
+// error that no caller is positioned to handle. They stay exported so that
+// code recovering from the panic can identify the cause with errors.Is.
 var (
 	// ErrEmptyExtensionKey indicates that With was called with a blank
 	// or whitespace-only key.
 	ErrEmptyExtensionKey = errors.New(
-		"problem extension key cannot be empty",
+		"problem: extension key cannot be empty",
 	)
 
 	// ErrReservedExtensionKey indicates that With was called with a key
 	// that collides with one of the standard RFC 9457 fields (type,
 	// title, status, detail, instance, errors).
 	ErrReservedExtensionKey = errors.New(
-		"problem extension key is reserved",
+		"problem: extension key is reserved",
 	)
 )
 

@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Casara/arnon/httpx"
-	"github.com/Casara/arnon/httpx/routing"
-	"github.com/Casara/arnon/problem"
+	"github.com/casara/arnon/httpx"
+	"github.com/casara/arnon/httpx/routing"
+	"github.com/casara/arnon/problem"
 )
 
 // ThrottleConfig configures Throttle. Limit is the only required

@@ -3,7 +3,7 @@ package openapi_test
 import (
 	"testing"
 
-	"github.com/Casara/arnon/openapi"
+	"github.com/casara/arnon/openapi"
 )
 
 // TestParseTypedValue_ConvertsEveryKindItSupports drives

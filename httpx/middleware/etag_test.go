@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Casara/arnon/httpx/middleware"
+	"github.com/casara/arnon/httpx/middleware"
 )
 
 func writeBody(body string) http.Handler {

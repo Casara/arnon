@@ -14,8 +14,8 @@
 
 <div align="center">
 
-[![CI](https://github.com/Casara/arnon/actions/workflows/ci.yml/badge.svg)](https://github.com/Casara/arnon/actions/workflows/ci.yml)
-[![Go Reference](https://pkg.go.dev/badge/github.com/Casara/arnon.svg)](https://pkg.go.dev/github.com/Casara/arnon)
+[![CI](https://github.com/casara/arnon/actions/workflows/ci.yml/badge.svg)](https://github.com/casara/arnon/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/casara/arnon.svg)](https://pkg.go.dev/github.com/casara/arnon)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 </div>
@@ -122,10 +122,23 @@ e carro pelo motor.
 ## Instalação
 
 ```sh
-go get github.com/Casara/arnon
+go get github.com/casara/arnon
 ```
 
 Requer Go 1.26 ou superior.
+
+A integração com OpenTelemetry é um **módulo separado**, então o SDK do OTel e
+os exportadores OTLP/gRPC ficam fora do seu grafo de dependências a menos que
+você os peça:
+
+```sh
+go get github.com/casara/arnon/observability/otel
+```
+
+Você só precisa dele para exportar traces e métricas. O `observability` em si —
+os contadores, histogramas e atributos que os middlewares registram — vem no
+módulo principal. Ver
+[docs/architecture/adr-0001-module-layout.md](docs/architecture/adr-0001-module-layout.md).
 
 ## Início rápido
 
@@ -138,9 +151,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Casara/arnon/httpx"
-	"github.com/Casara/arnon/httpx/routing"
-	"github.com/Casara/arnon/openapi"
+	"github.com/casara/arnon/httpx"
+	"github.com/casara/arnon/httpx/routing"
+	"github.com/casara/arnon/openapi"
 )
 
 const readHeaderTimeout = 5 * time.Second
@@ -168,7 +181,7 @@ func main() {
 	})
 
 	router := routing.NewRouter(
-		routing.WithOpenAPI(openapi.NewRegistry(generator)),
+		routing.WithOpenAPI(generator),
 	)
 
 	router.POST("/users", httpx.Endpoint(
@@ -177,7 +190,6 @@ func main() {
 			SuccessStatus: http.StatusCreated,
 			OpenAPI: &openapi.Operation{
 				Summary:       "Create a user",
-				SuccessStatus: http.StatusCreated,
 			},
 		},
 	))
@@ -185,7 +197,7 @@ func main() {
 	document := generator.Generate()
 
 	router.GET("/openapi.json", openapi.NewHandler(&document))
-	router.GET("/docs", openapi.NewDocsHandler(nil))
+	router.GET("/docs", openapi.NewDocsHandler(openapi.DocsConfig{}))
 
 	server := &http.Server{
 		Addr:              ":8080",
@@ -269,7 +281,7 @@ responsabilidade única:
 
 O grafo de dependências permitido entre esses pacotes está documentado
 em [.go-arch-lint.yml](.go-arch-lint.yml) (diagrama em
-[CLAUDE.md](CLAUDE.md#grafo-de-dependências-entre-pacotes)) e é
+[AGENTS.md](AGENTS.md#package-dependency-graph)) e é
 verificado em CI.
 
 Mais contexto sobre decisões arquiteturais está em
@@ -323,6 +335,69 @@ sanitize.RegisterFunc(
 Um campo struct é sempre recursado; um campo slice/array/map precisa
 que a tag comece com `dive` (`sanitize:"dive,trim"` num `[]string`),
 seguindo a mesma convenção do `validate`.
+
+## Estabilidade da API
+
+O `arnon` é publicado como **v0.x**, e em Semantic Versioning isso tem um
+significado específico que vale dizer explicitamente em vez de deixar você
+inferir: **um release minor pode quebrar a API pública.** Fixe uma versão, leia
+o [CHANGELOG](CHANGELOG.md) antes de atualizar, e conte com pequenos ajustes
+mecânicos quando fizer isso.
+
+O que conta como API pública: todo símbolo exportado dos módulos publicados —
+`problem`, `sanitize`, `validation`, `openapi`, `httpx` e seus subpacotes,
+`observability`, e `github.com/casara/arnon/observability/otel`. Não é público:
+`examples/` (módulo separado, não publicado), qualquer coisa sob um diretório
+`internal/`, e o texto exato de mensagens de erro e de log.
+
+Quebras aparecem em `### Changed` ou `### Removed` no changelog, com a migração
+na mesma entrada. Onde um rename puder manter a grafia antiga compilando, ele
+vai — como alias depreciado, removido não antes do minor seguinte.
+
+O caminho até o v1.0.0 é o ponto em que a superfície para de se mexer, não um
+marco de funcionalidades. As perguntas abertas hoje são as caras de mudar
+depois: a convenção de configuração no pacote inteiro (struct de config versus
+opções funcionais), se tipos do `go-playground/validator/v10` devem aparecer
+nas assinaturas exportadas de `validation`, e dar um ponto de configuração aos
+middlewares de zero argumentos. Fechadas essas, o v1 vem em seguida.
+
+## Storage do rate limit
+
+O `RateLimit` mantém o algoritmo de janela deslizante no `arnon` e deixa as
+contagens para um `LimitCounter` que você fornece. O default é em memória, então
+só é correto para uma instância; qualquer coisa com mais de uma réplica precisa
+de storage compartilhado.
+
+**O `LimitCounter` do `arnon` é a mesma interface do
+[`go-chi/httprate`](https://github.com/go-chi/httprate)**, método por método e
+de propósito. Interfaces em Go são estruturais, então um backend existente do
+httprate funciona aqui sem adaptador:
+
+```go
+counter, err := httprateredis.NewRedisLimitCounter(&httprateredis.Config{
+	Host: "localhost",
+	Port: 6379,
+})
+if err != nil {
+	return err
+}
+
+router.Use(middleware.RateLimit(middleware.RateLimitConfig{
+	RequestLimit: 100,
+	WindowLength: time.Minute,
+	Counter:      counter,
+}))
+```
+
+Isso já cobre Redis, e qualquer coisa que fale o protocolo dele (Valkey, por
+exemplo). É também por isso que este projeto não traz backend de storage
+próprio: duplicar um pacote mantido adicionaria dependência, um release a
+coordenar e superfície de CVE, sem ganho para quem usa. Uma asserção de
+compilação em `httpx/middleware/limitcounter_compat_test.go` impede que as duas
+interfaces divirjam.
+
+Escrever o seu funciona na direção inversa — implemente os quatro métodos e o
+resultado serve os dois projetos.
 
 ## Skill para assistentes de IA
 

@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/Casara/arnon/openapi"
+	"github.com/casara/arnon/openapi"
 )
 
 func TestGenerator_RegistersProblemSchemasOnceForDefaultResponses(t *testing.T) {

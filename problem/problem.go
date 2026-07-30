@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"reflect"
+	"slices"
 	"strings"
 )
 
@@ -53,6 +55,14 @@ func New(
 	}
 }
 
+// Error renders the problem as "status title: detail", so a Problem can be
+// returned wherever an error is expected - a typed httpx.HandlerFunc, most
+// commonly - and still read well in a log line. The response body sent to the
+// client is the JSON from MarshalJSON, not this string.
+// Error renders the problem as "status title: detail", so a Problem can be
+// returned wherever an error is expected - a typed httpx.HandlerFunc, most
+// commonly - and still read well in a log line. The response body sent to the
+// client is the JSON from MarshalJSON, not this string.
 func (problemInstance *Problem) Error() string {
 	statusCode := problemInstance.StatusCode()
 
@@ -77,6 +87,14 @@ func (problemInstance *Problem) Error() string {
 	)
 }
 
+// Unwrap returns the error passed to WithError, if any, so errors.Is and
+// errors.As reach the underlying cause. That cause is never serialized: it
+// stays available to the server's own logging while the client only ever sees
+// the problem document.
+// Unwrap returns the error passed to WithError, if any, so errors.Is and
+// errors.As reach the underlying cause. That cause is never serialized: it
+// stays available to the server's own logging while the client only ever sees
+// the problem document.
 func (problemInstance *Problem) Unwrap() error {
 	return problemInstance.Err
 }
@@ -238,7 +256,15 @@ func (problemInstance *Problem) MarshalJSON() ([]byte, error) {
 		isFirst = false
 	}
 
-	for key, value := range problemInstance.extensions {
+	// Sorted rather than ranged over directly: Go randomizes map iteration
+	// order, so the same Problem would otherwise serialize to a different byte
+	// sequence on each call. That breaks golden tests of error responses and
+	// makes two identical requests return different bytes. RFC 9457 does not
+	// order extension members, so any stable order will do; alphabetical is
+	// the one a reader can predict.
+	for _, key := range slices.Sorted(maps.Keys(problemInstance.extensions)) {
+		value := problemInstance.extensions[key]
+
 		if !isFirst {
 			buffer.WriteByte(',')
 		}

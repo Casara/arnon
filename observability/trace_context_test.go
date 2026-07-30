@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Casara/arnon/observability"
+	"github.com/casara/arnon/observability"
 )
 
 func TestTraceContext_RoundTripsThroughContext(t *testing.T) {

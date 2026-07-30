@@ -7,10 +7,11 @@ import (
 
 	"go.opentelemetry.io/otel"
 
+	"github.com/casara/arnon/observability"
+
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
-	"github.com/Casara/arnon/observability"
-	arnonotel "github.com/Casara/arnon/observability/otel"
+	arnonotel "github.com/casara/arnon/observability/otel"
 )
 
 // TestNewHandler_PropagatesTraceAndSpanIDIntoContext installs a real

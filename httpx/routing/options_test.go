@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Casara/arnon/httpx/routing"
-	"github.com/Casara/arnon/openapi"
+	"github.com/casara/arnon/httpx/routing"
+	"github.com/casara/arnon/openapi"
 )
 
 // fakeOpenAPIHandler implements httpx.OpenAPIProvider so tests can
@@ -44,7 +44,7 @@ func TestWithOpenAPI_RegistersOperationsWithGenerator(t *testing.T) {
 	t.Parallel()
 
 	generator := openapi.NewGenerator(openapi.Info{Title: "Test API", Version: "1.0.0"})
-	registry := openapi.NewRegistry(generator)
+	registry := generator
 
 	router := routing.NewRouter(routing.WithOpenAPI(registry))
 
@@ -65,12 +65,12 @@ func TestWithOpenAPI_RegistersOperationsWithGenerator(t *testing.T) {
 // TestWithOpenAPI_NilOperationSkipsRegistration confirms a handler
 // that implements OpenAPIProvider but opts out of documentation
 // (returns a nil *openapi.Operation) is not registered - OpenAPI
-// registration is opt-in per endpoint (see CLAUDE.md).
+// registration is opt-in per endpoint (see httpx/CLAUDE.md).
 func TestWithOpenAPI_NilOperationSkipsRegistration(t *testing.T) {
 	t.Parallel()
 
 	generator := openapi.NewGenerator(openapi.Info{Title: "Test API", Version: "1.0.0"})
-	registry := openapi.NewRegistry(generator)
+	registry := generator
 
 	router := routing.NewRouter(routing.WithOpenAPI(registry))
 

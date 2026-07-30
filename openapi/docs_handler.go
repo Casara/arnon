@@ -11,30 +11,12 @@ type DocsHandler struct {
 	config DocsConfig
 }
 
-// NewDocsHandler creates a docs handler.
-func NewDocsHandler(config *DocsConfig) *DocsHandler {
-	cfg := defaultDocsConfig()
-
-	if config != nil {
-		if config.Title != "" {
-			cfg.Title = config.Title
-		}
-
-		if config.OpenAPIURL != "" {
-			cfg.OpenAPIURL = config.OpenAPIURL
-		}
-
-		if config.FaviconURL != "" {
-			cfg.FaviconURL = config.FaviconURL
-		}
-
-		if config.LogoURL != "" {
-			cfg.LogoURL = config.LogoURL
-		}
-	}
-
+// NewDocsHandler creates a handler serving the Stoplight Elements
+// documentation UI. The zero DocsConfig works; every empty field is filled in
+// with its default.
+func NewDocsHandler(config DocsConfig) *DocsHandler {
 	return &DocsHandler{
-		config: cfg,
+		config: config.withDefaults(),
 	}
 }
 
@@ -60,9 +42,11 @@ func (handler *DocsHandler) ServeHTTP(
 func buildHTML(
 	config DocsConfig,
 ) string {
-	scriptURL := "https://unpkg.com/@stoplight/elements/web-components.min.js"
+	scriptURL := "https://unpkg.com/@stoplight/elements@" +
+		config.ElementsVersion + "/web-components.min.js"
 
-	cssURL := "https://unpkg.com/@stoplight/elements/styles.min.css"
+	cssURL := "https://unpkg.com/@stoplight/elements@" +
+		config.ElementsVersion + "/styles.min.css"
 
 	faviconHTML := ""
 

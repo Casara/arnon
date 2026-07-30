@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Casara/arnon/httpx/binding"
-	"github.com/Casara/arnon/problem"
+	"github.com/casara/arnon/httpx/binding"
+	"github.com/casara/arnon/problem"
 )
 
 type decodeRequest struct {

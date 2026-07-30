@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/Casara/arnon/openapi"
+	"github.com/casara/arnon/openapi"
 )
 
 // TestHandler_ServeHTTPWritesJSONDocument confirms the Handler serves
@@ -64,7 +64,7 @@ func TestHandler_ServeHTTPWritesInternalServerErrorOnEncodeFailure(t *testing.T)
 	nan := math.NaN()
 
 	document := openapi.Document{
-		OpenAPI: openapi.OpenAPIVersion3_2,
+		OpenAPI: openapi.SpecVersion32,
 		Info:    openapi.Info{Title: "Broken", Version: "1.0.0"},
 		Paths:   map[string]openapi.PathItem{},
 		Components: openapi.Components{

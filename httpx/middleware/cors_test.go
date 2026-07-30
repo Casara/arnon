@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Casara/arnon/httpx/middleware"
-	"github.com/Casara/arnon/httpx/routing"
+	"github.com/casara/arnon/httpx/middleware"
+	"github.com/casara/arnon/httpx/routing"
 )
 
 func TestCORS_PreflightRequestGetsNoContentAndHeaders(t *testing.T) {

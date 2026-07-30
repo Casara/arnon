@@ -42,6 +42,23 @@ linters:
       # even if all enum members are not listed.
       # Default: false
       default-signifies-exhaustive: true
+    gomoddirectives:
+      # Allow local `replace` directives.
+      # Default: false
+      #
+      # This repository is three modules (see go.work and
+      # docs/architecture/adr-0001-module-layout.md), and the two submodules
+      # resolve github.com/casara/arnon from the working tree:
+      #
+      #   observability/otel - only until the root module's first tag exists;
+      #     the release checklist in the ADR swaps the replace for a real
+      #     version at tag time.
+      #   examples - permanently, since that module is never published.
+      #
+      # Without this, every lint run on a submodule fails on a directive that
+      # is deliberate. Re-check this setting once both modules are tagged: at
+      # that point only examples/ should still carry a local replace.
+      replace-local: true
     exhaustruct:
       exclude:
         # std
@@ -206,6 +223,15 @@ linters:
           # them produces wide gaps that hurt readability rather than
           # help it.
           - tagalign
+      # example_test.go files are documentation first: they are rendered
+      # verbatim on pkg.go.dev, so every line of error-handling boilerplate
+      # is a line the reader has to skip past to reach the point. The Go
+      # stdlib's own examples write `fmt.Fprint(w, ...)` unchecked for the
+      # same reason. Narrowed to example_test.go rather than all tests -
+      # a real test that ignores an error is still a bug.
+      - path: example_test\.go
+        linters:
+          - errcheck
 
 formatters:
   enable:
@@ -225,7 +251,7 @@ formatters:
       sections:
         - standard # Standard section: captures all standard packages.
         - default # Default section: contains all imports that could not be matched to another section type.
-        - prefix(github.com/Casara/arnon) # Custom section: groups all imports with the specified Prefix.
+        - prefix(github.com/casara/arnon) # Custom section: groups all imports with the specified Prefix.
         - blank # Blank section: contains all blank imports. This section is not present unless explicitly enabled.
         - dot # Dot section: contains all dot imports. This section is not present unless explicitly enabled.
         - alias # Alias section: contains all alias imports. This section is not present unless explicitly enabled.
@@ -251,14 +277,14 @@ formatters:
           replacement: "a[b:]"
     gofumpt:
       # Module path which contains the source code being formatted.
-      module-path: github.com/Casara/arnon
+      module-path: github.com/casara/arnon
       # Choose whether to use the extra rules.
       extra-rules: true
       # A list of prefixes, which, if set, checks import paths
       # with the given prefixes are grouped after 3rd-party packages.
     goimports:
       local-prefixes:
-        - github.com/Casara/arnon
+        - github.com/casara/arnon
     golines:
       # Target maximum line length.
       max-len: 100

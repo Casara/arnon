@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Casara/arnon/httpx/routing"
-	"github.com/Casara/arnon/observability"
+	"github.com/casara/arnon/httpx/routing"
+	"github.com/casara/arnon/observability"
 )
 
 // Logging logs HTTP requests using a structured logger.

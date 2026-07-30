@@ -6,10 +6,34 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/Casara/arnon/httpx/routing"
+	"github.com/casara/arnon/httpx/routing"
 )
 
 // RealIP extracts client IP.
+//
+// # Only use this behind a trusted proxy
+//
+// The first three sources below are request headers, which a client controls
+// completely. RealIP trusts them unconditionally: it has no list of trusted
+// proxies, so it cannot tell a header set by your own load balancer from one
+// the caller invented.
+//
+// That is safe when every request reaches the server through a proxy that
+// *overwrites* these headers - the normal setup behind a CDN, an ingress
+// controller or a cloud load balancer. It is not safe on a server reachable
+// directly from the internet: there, a caller can send an arbitrary
+// X-Forwarded-For on every request and defeat anything keyed on the result.
+// RateLimit is keyed on it by default, so the practical consequence is that
+// the rate limit stops working - each forged header looks like a brand-new
+// client. SecureHeaders, CORS and the rest are unaffected.
+//
+// If the server is directly exposed, leave RealIP out of the chain: RateLimit
+// then falls back to request.RemoteAddr, which cannot be forged over TCP.
+//
+// A trusted-proxy list is planned; until then this is a deployment
+// constraint, not something the middleware can check for you.
+//
+// # Source order
 //
 // Sources are tried in order, falling through whenever one is absent:
 //

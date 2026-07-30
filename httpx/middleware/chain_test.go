@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Casara/arnon/httpx/middleware"
-	"github.com/Casara/arnon/httpx/routing"
+	"github.com/casara/arnon/httpx/middleware"
+	"github.com/casara/arnon/httpx/routing"
 )
 
 func TestBuildChain_EmptyConfigProducesEmptyChain(t *testing.T) {

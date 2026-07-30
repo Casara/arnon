@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Casara/arnon/httpx"
-	"github.com/Casara/arnon/httpx/precondition"
-	"github.com/Casara/arnon/problem"
+	"github.com/casara/arnon/httpx"
+	"github.com/casara/arnon/httpx/precondition"
+	"github.com/casara/arnon/problem"
 )
 
 // Config configures From.

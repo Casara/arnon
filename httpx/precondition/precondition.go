@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Casara/arnon/problem"
+	"github.com/casara/arnon/problem"
 )
 
 // Config configures Check/CheckRequest.

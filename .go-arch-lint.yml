@@ -71,13 +71,13 @@ deps:
       - sanitize
       - validation
 
-  # The router registers OpenAPI operations contributed by handlers
-  # that implement httpx.OpenAPIProvider (see
-  # httpx/routing/register_openapi.go) - the one bottom-up edge in this
-  # graph.
+  # The router registers OpenAPI operations contributed by handlers that
+  # implement routing.OpenAPIProvider. That interface is declared here, in the
+  # consuming package, so the router needs nothing from httpx: a handler
+  # satisfies it structurally, without importing routing. The graph is
+  # strictly layered as a result - there is no bottom-up edge.
   httpx-routing:
     mayDependOn:
-      - httpx
       - openapi
 
   # Standard middleware (CORS, recovery, request ID, logging, ...).

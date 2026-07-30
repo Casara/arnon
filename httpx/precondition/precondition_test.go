@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Casara/arnon/httpx/precondition"
+	"github.com/casara/arnon/httpx/precondition"
 )
 
 func TestCheck_BothAbsentAllowsRequestByDefault(t *testing.T) {

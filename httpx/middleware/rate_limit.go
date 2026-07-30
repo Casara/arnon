@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Casara/arnon/httpx"
-	"github.com/Casara/arnon/httpx/routing"
-	"github.com/Casara/arnon/problem"
+	"github.com/casara/arnon/httpx"
+	"github.com/casara/arnon/httpx/routing"
+	"github.com/casara/arnon/problem"
 )
 
 const (
@@ -19,21 +19,39 @@ const (
 	ipv6TotalBits  = 128
 )
 
-// LimitCounter is the storage backend RateLimit records and reads
-// request counts from.
+// LimitCounter is the storage behind RateLimit's sliding window: the algorithm
+// lives in this package, the counts live wherever you put them. A nil
+// RateLimitConfig.Counter uses NewLocalLimitCounter, which is in-memory and
+// therefore correct only for a single instance.
 //
-// The default, used when RateLimitConfig.Counter is nil, is an
-// in-memory implementation returned by NewLocalLimitCounter - correct
-// for a single instance, but each instance enforces its own
-// independent limit. Implement this interface yourself to back
-// RateLimit with shared storage (Redis, Memcached, ...) across
-// multiple instances.
+// # It is the same interface as go-chi/httprate's
 //
-// This mirrors github.com/go-chi/httprate's LimitCounter interface by
-// design: an existing httprate storage backend (e.g.
-// github.com/go-chi/httprate-redis) needs only trivial changes to
-// satisfy this one too, and the reverse holds for a backend written
-// for arnon.
+// This is deliberate, method for method. Go interfaces are structural, so an
+// existing httprate backend already satisfies this one with no adapter:
+//
+//	counter, err := httprateredis.NewRedisLimitCounter(&httprateredis.Config{
+//		Host: "localhost",
+//		Port: 6379,
+//	})
+//	if err != nil {
+//		return err
+//	}
+//
+//	router.Use(middleware.RateLimit(middleware.RateLimitConfig{
+//		RequestLimit: 100,
+//		WindowLength: time.Minute,
+//		Counter:      counter,
+//	}))
+//
+// That is why this package ships no Redis, Valkey or Memcached backend of its
+// own: github.com/go-chi/httprate-redis already covers Redis and anything
+// speaking its protocol, and duplicating it here would add a dependency, a
+// release to coordinate and a CVE surface for no gain. The compatibility is
+// pinned by a compile-time assertion in limitcounter_compat_test.go, so it
+// cannot drift silently.
+//
+// Writing your own works the same way in reverse: implement these four methods
+// and the result serves both projects.
 type LimitCounter interface {
 	// Config is called once, when the counter is installed, with the
 	// configured request limit and window length.
@@ -69,6 +87,13 @@ type RateLimitConfig struct {
 	// KeyFunc extracts the rate-limiting key (e.g. client IP) from a
 	// request. Defaults to using RealIPFromContext (falling back to
 	// request.RemoteAddr), canonicalized via CanonicalizeIP.
+	//
+	// That default is only as trustworthy as RealIP is in your deployment:
+	// RealIP reads client-controlled headers and has no trusted-proxy list,
+	// so on a directly-exposed server a caller can forge a new key per
+	// request and slip past the limit entirely. See RealIP's documentation.
+	// Without RealIP in the chain the fallback is request.RemoteAddr, which
+	// cannot be forged over TCP.
 	KeyFunc func(*http.Request) string
 
 	// Counter is the storage backend. Defaults to an in-memory

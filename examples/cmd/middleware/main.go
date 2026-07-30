@@ -7,11 +7,10 @@
 //
 // The global chain is built with middleware.BuildChain instead of a
 // hand-ordered middleware.Router.Use(...) call: BuildChain hardcodes
-// the same relative order documented in CLAUDE.md ("Ordem dos
-// middlewares"), so enabling/disabling entries here can't
-// accidentally break that order - see docs/architecture/project-context.md
-// for why each constraint exists (RequestID before Logging, ETag
-// before Compress, Recover outermost, ...).
+// the same relative order every time, so enabling/disabling entries here
+// can't accidentally break it - see docs/architecture/project-context.md,
+// "Middleware order", for why each constraint exists (RequestID before
+// Logging, ETag before Compress, Recover outermost, ...).
 //
 // It also demonstrates ChainConfig.Extra (serverBrandMiddleware
 // below): a hand-written middleware arnon has no field for, inserted
@@ -24,13 +23,14 @@ import (
 	"os"
 	"time"
 
-	"github.com/Casara/arnon/examples/internal/customvalidators"
-	"github.com/Casara/arnon/examples/internal/logging"
-	"github.com/Casara/arnon/examples/internal/users"
-	"github.com/Casara/arnon/httpx"
-	"github.com/Casara/arnon/httpx/middleware"
-	"github.com/Casara/arnon/httpx/routing"
-	"github.com/Casara/arnon/openapi"
+	"github.com/casara/arnon/httpx"
+	"github.com/casara/arnon/httpx/middleware"
+	"github.com/casara/arnon/httpx/routing"
+	"github.com/casara/arnon/openapi"
+
+	"github.com/casara/arnon/examples/internal/customvalidators"
+	"github.com/casara/arnon/examples/internal/logging"
+	"github.com/casara/arnon/examples/internal/users"
 )
 
 const (
@@ -55,7 +55,7 @@ func main() {
 	})
 
 	router := routing.NewRouter(
-		routing.WithOpenAPI(openapi.NewRegistry(generator)),
+		routing.WithOpenAPI(generator),
 	)
 
 	router.Use(middleware.BuildChain(middleware.ChainConfig{
@@ -109,15 +109,8 @@ func main() {
 			// the opt-in per endpoint, everything inside it (schemas,
 			// parameters, default responses) is still generated
 			// automatically.
-			//
-			// SuccessStatus is repeated here because
-			// EndpointConfig.SuccessStatus (what the handler actually
-			// returns) and Operation.SuccessStatus (what the generated
-			// doc documents) are independent fields; keep them in sync
-			// by hand until the framework unifies them.
 			OpenAPI: &openapi.Operation{
-				Summary:       "Create a user",
-				SuccessStatus: http.StatusCreated,
+				Summary: "Create a user",
 			},
 		},
 	))
@@ -137,7 +130,7 @@ func main() {
 	document := generator.Generate()
 
 	router.GET("/openapi.json", openapi.NewHandler(&document))
-	router.GET("/docs", openapi.NewDocsHandler(nil))
+	router.GET("/docs", openapi.NewDocsHandler(openapi.DocsConfig{}))
 
 	server := &http.Server{
 		Addr:              ":8080",

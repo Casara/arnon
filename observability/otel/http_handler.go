@@ -7,13 +7,13 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Casara/arnon/observability"
+	"github.com/casara/arnon/observability"
 )
 
 // NewHandler wraps an HTTP handler with OpenTelemetry instrumentation.
 //
 // Besides creating and propagating HTTP spans through otelhttp, this
-// adapter exposes trace information through pkg/observability so that
+// adapter exposes trace information through the observability package so that
 // other framework components can access trace identifiers without
 // directly depending on OpenTelemetry APIs.
 //
@@ -39,8 +39,8 @@ func NewHandler(
 // traceContextHandler bridges OpenTelemetry tracing information into the
 // observability package.
 //
-// The foundation intentionally exposes tracing information through
-// pkg/observability rather than OpenTelemetry APIs. This handler extracts
+// arnon intentionally exposes tracing information through
+// the observability package rather than OpenTelemetry APIs. This handler extracts
 // identifiers from the active span and makes them available through the
 // observability context helpers.
 type traceContextHandler struct {

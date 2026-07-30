@@ -12,7 +12,7 @@ import (
 // request's Content-Type is neither JSON Merge Patch (RFC 7386) nor
 // JSON Patch (RFC 6902), nor left absent/plain JSON (which defaults
 // to Merge Patch).
-var ErrUnsupportedContentType = errors.New("unsupported patch content type")
+var ErrUnsupportedContentType = errors.New("patch: unsupported patch content type")
 
 const (
 	contentTypeJSON       = "application/json"

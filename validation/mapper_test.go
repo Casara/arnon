@@ -3,8 +3,8 @@ package validation_test
 import (
 	"testing"
 
-	"github.com/Casara/arnon/problem"
-	"github.com/Casara/arnon/validation"
+	"github.com/casara/arnon/problem"
+	"github.com/casara/arnon/validation"
 )
 
 func TestPlaygroundValidator_MapsBuiltinTags(t *testing.T) {

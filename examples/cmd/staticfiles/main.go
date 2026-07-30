@@ -29,10 +29,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/Casara/arnon/examples/internal/logging"
-	"github.com/Casara/arnon/httpx"
-	"github.com/Casara/arnon/httpx/middleware"
-	"github.com/Casara/arnon/httpx/routing"
+	"github.com/casara/arnon/httpx"
+	"github.com/casara/arnon/httpx/middleware"
+	"github.com/casara/arnon/httpx/routing"
+
+	"github.com/casara/arnon/examples/internal/logging"
 )
 
 //go:embed assets

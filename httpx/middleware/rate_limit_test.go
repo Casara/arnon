@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Casara/arnon/httpx/middleware"
-	"github.com/Casara/arnon/problem"
+	"github.com/casara/arnon/httpx/middleware"
+	"github.com/casara/arnon/problem"
 )
 
 func TestRateLimit_AllowsUpToLimitThenRejectsWithinWindow(t *testing.T) {

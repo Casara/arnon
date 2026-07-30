@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Casara/arnon/openapi"
+	"github.com/casara/arnon/openapi"
 )
 
 // TestNewDocsHandler_NilConfigUsesDefaults confirms a nil *DocsConfig
@@ -15,7 +15,7 @@ import (
 func TestNewDocsHandler_NilConfigUsesDefaults(t *testing.T) {
 	t.Parallel()
 
-	handler := openapi.NewDocsHandler(nil)
+	handler := openapi.NewDocsHandler(openapi.DocsConfig{})
 
 	recorder := httptest.NewRecorder()
 
@@ -55,7 +55,7 @@ func TestNewDocsHandler_NilConfigUsesDefaults(t *testing.T) {
 func TestNewDocsHandler_PartialConfigOverridesOnlySetFields(t *testing.T) {
 	t.Parallel()
 
-	handler := openapi.NewDocsHandler(&openapi.DocsConfig{
+	handler := openapi.NewDocsHandler(openapi.DocsConfig{
 		Title: "Custom Docs",
 	})
 
@@ -79,7 +79,7 @@ func TestNewDocsHandler_PartialConfigOverridesOnlySetFields(t *testing.T) {
 func TestNewDocsHandler_FullConfigSetsFaviconAndLogo(t *testing.T) {
 	t.Parallel()
 
-	handler := openapi.NewDocsHandler(&openapi.DocsConfig{
+	handler := openapi.NewDocsHandler(openapi.DocsConfig{
 		Title:      "Full Docs",
 		OpenAPIURL: "/spec.json",
 		FaviconURL: "/favicon.ico",

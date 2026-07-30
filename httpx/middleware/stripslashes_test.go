@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/Casara/arnon/httpx/middleware"
+	"github.com/casara/arnon/httpx/middleware"
 )
 
 func TestStripSlashes_RemovesTrailingSlash(t *testing.T) {

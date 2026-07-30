@@ -10,7 +10,7 @@ import (
 
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 
-	"github.com/Casara/arnon/observability"
+	"github.com/casara/arnon/observability"
 )
 
 // TestCounter_AddRecordsValueAndAttributes drives a real

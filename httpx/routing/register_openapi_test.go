@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/Casara/arnon/httpx/routing"
-	"github.com/Casara/arnon/openapi"
+	"github.com/casara/arnon/httpx/routing"
+	"github.com/casara/arnon/openapi"
 )
 
 // TestRegisterOpenAPI_NoRegistryIsANoOp confirms that routes register
@@ -30,7 +30,7 @@ func TestRegisterOpenAPI_HandlerWithoutProviderIsSkipped(t *testing.T) {
 	t.Parallel()
 
 	generator := openapi.NewGenerator(openapi.Info{Title: "Test API", Version: "1.0.0"})
-	registry := openapi.NewRegistry(generator)
+	registry := generator
 
 	router := routing.NewRouter(routing.WithOpenAPI(registry))
 
@@ -60,7 +60,7 @@ func TestRegisterOpenAPI_ConnectRegistersRouteWithoutPathOperation(t *testing.T)
 	t.Parallel()
 
 	generator := openapi.NewGenerator(openapi.Info{Title: "Test API", Version: "1.0.0"})
-	registry := openapi.NewRegistry(generator)
+	registry := generator
 
 	router := routing.NewRouter(routing.WithOpenAPI(registry))
 

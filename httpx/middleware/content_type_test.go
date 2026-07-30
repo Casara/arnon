@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Casara/arnon/httpx/middleware"
+	"github.com/casara/arnon/httpx/middleware"
 )
 
 func TestAllowContentType_AllowsListedType(t *testing.T) {

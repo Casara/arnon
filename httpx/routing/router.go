@@ -1,10 +1,6 @@
 package routing
 
-import (
-	"net/http"
-
-	"github.com/Casara/arnon/openapi"
-)
+import "net/http"
 
 // MethodQuery represents a custom QUERY HTTP method.
 //
@@ -18,12 +14,9 @@ type Router struct {
 
 	middlewares []Middleware
 
-	openAPIRegistry *openapi.Registry
+	openAPIRegistry OpenAPIRegistrar
 
-	instrumentHandler func(
-		http.Handler,
-		string,
-	) http.Handler
+	instrumentHandler Instrumenter
 }
 
 // NewRouter creates a router.
@@ -72,7 +65,12 @@ func (router *Router) Use(
 	)
 }
 
-// Handle registers a route.
+// Handle registers a route from a "METHOD /path" pattern.
+//
+// It panics if the pattern is malformed - see ErrInvalidPattern,
+// ErrInvalidMethod and ErrInvalidPath. Route registration is startup-time
+// wiring, so a bad pattern is a programming error, the same way
+// net/http.ServeMux treats one.
 func (router *Router) Handle(
 	pattern string,
 	handler http.Handler,

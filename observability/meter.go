@@ -5,7 +5,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
-const meterName = "github.com/Casara/arnon"
+const meterName = "github.com/casara/arnon"
 
 func meter() metric.Meter {
 	return otel.Meter(

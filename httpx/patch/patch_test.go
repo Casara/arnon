@@ -9,9 +9,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/Casara/arnon/httpx/patch"
-	"github.com/Casara/arnon/httpx/routing"
-	"github.com/Casara/arnon/problem"
+	"github.com/casara/arnon/httpx/patch"
+	"github.com/casara/arnon/httpx/routing"
+	"github.com/casara/arnon/problem"
 )
 
 // memoryResource is a tiny, thread-safe in-memory JSON document backing

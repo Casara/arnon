@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Casara/arnon/httpx/routing"
+	"github.com/casara/arnon/httpx/routing"
 )
 
 // SecureHeadersConfig configures SecureHeaders. The zero value is

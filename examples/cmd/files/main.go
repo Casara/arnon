@@ -3,7 +3,7 @@
 // upload with a validated content-type allow-list.
 //
 // None of this goes through httpx.Endpoint, which is JSON-only by
-// design (see CLAUDE.md, "httpx.Endpoint is JSON-only by design").
+// design (see httpx/CLAUDE.md).
 // Every route here is a plain http.Handler mounted directly on the
 // router, exactly like Endpoint's own doc comment says any other
 // representation should be - so there's no OpenAPI generation in
@@ -18,10 +18,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/Casara/arnon/examples/internal/files"
-	"github.com/Casara/arnon/examples/internal/logging"
-	"github.com/Casara/arnon/httpx/middleware"
-	"github.com/Casara/arnon/httpx/routing"
+	"github.com/casara/arnon/httpx/middleware"
+	"github.com/casara/arnon/httpx/routing"
+
+	"github.com/casara/arnon/examples/internal/files"
+	"github.com/casara/arnon/examples/internal/logging"
 )
 
 const (

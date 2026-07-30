@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Casara/arnon/sanitize"
+	"github.com/casara/arnon/sanitize"
 )
 
 func TestRegisterFunc_RejectsEmptyTag(t *testing.T) {

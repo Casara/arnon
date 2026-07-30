@@ -10,12 +10,13 @@ import (
 	"os"
 	"time"
 
-	"github.com/Casara/arnon/examples/internal/customvalidators"
-	"github.com/Casara/arnon/examples/internal/logging"
-	"github.com/Casara/arnon/examples/internal/users"
-	"github.com/Casara/arnon/httpx"
-	"github.com/Casara/arnon/httpx/routing"
-	"github.com/Casara/arnon/openapi"
+	"github.com/casara/arnon/httpx"
+	"github.com/casara/arnon/httpx/routing"
+	"github.com/casara/arnon/openapi"
+
+	"github.com/casara/arnon/examples/internal/customvalidators"
+	"github.com/casara/arnon/examples/internal/logging"
+	"github.com/casara/arnon/examples/internal/users"
 )
 
 const readHeaderTimeout = 5 * time.Second
@@ -43,7 +44,7 @@ func main() {
 	)
 
 	router := routing.NewRouter(
-		routing.WithOpenAPI(openapi.NewRegistry(generator)),
+		routing.WithOpenAPI(generator),
 	)
 
 	router.POST("/users", httpx.Endpoint(
@@ -55,15 +56,8 @@ func main() {
 			// opt-in per endpoint, everything inside it (schemas,
 			// parameters, default responses) is still generated
 			// automatically.
-			//
-			// SuccessStatus is repeated here because
-			// EndpointConfig.SuccessStatus (what the handler actually
-			// returns) and Operation.SuccessStatus (what the generated
-			// doc documents) are independent fields; keep them in sync
-			// by hand until the framework unifies them.
 			OpenAPI: &openapi.Operation{
-				Summary:       "Create a user",
-				SuccessStatus: http.StatusCreated,
+				Summary: "Create a user",
 			},
 		},
 	))
@@ -84,7 +78,7 @@ func main() {
 	document := generator.Generate()
 
 	router.GET("/openapi.json", openapi.NewHandler(&document))
-	router.GET("/docs", openapi.NewDocsHandler(nil))
+	router.GET("/docs", openapi.NewDocsHandler(openapi.DocsConfig{}))
 
 	server := &http.Server{
 		Addr:              ":8080",

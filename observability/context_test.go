@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/Casara/arnon/observability"
+	"github.com/casara/arnon/observability"
 )
 
 func TestLoggerFromContext_ReturnsStoredLogger(t *testing.T) {

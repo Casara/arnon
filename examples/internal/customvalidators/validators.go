@@ -5,9 +5,9 @@ package customvalidators
 import (
 	"strings"
 
-	validatorv10 "github.com/go-playground/validator/v10"
+	"github.com/casara/arnon/validation"
 
-	"github.com/Casara/arnon/validation"
+	validatorv10 "github.com/go-playground/validator/v10"
 )
 
 // RegisterCustomValidators registers the framework-wide custom

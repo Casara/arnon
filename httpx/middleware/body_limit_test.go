@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Casara/arnon/httpx/middleware"
+	"github.com/casara/arnon/httpx/middleware"
 )
 
 func TestMaxBodyBytes_RejectsKnownOversizedContentLengthImmediately(t *testing.T) {

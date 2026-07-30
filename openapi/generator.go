@@ -26,7 +26,7 @@ type Generator struct {
 func NewGenerator(info Info, opts ...GeneratorOption) *Generator {
 	generator := &Generator{
 		document: Document{
-			OpenAPI: OpenAPIVersion3_2,
+			OpenAPI: SpecVersion32,
 
 			Info: info,
 

@@ -1,10 +1,10 @@
-// Package otel provides OpenTelemetry integrations for the foundation.
+// Package otel provides OpenTelemetry integrations for arnon.
 //
 // The package contains adapters, middleware and helpers that integrate
-// the foundation with the OpenTelemetry ecosystem.
+// arnon with the OpenTelemetry ecosystem.
 //
 // OpenTelemetry-specific APIs and types should remain contained within
 // this package whenever possible. Other packages should depend on the
-// abstractions exposed by pkg/observability instead of directly using
+// abstractions exposed by the observability package instead of directly using
 // OpenTelemetry APIs.
 package otel

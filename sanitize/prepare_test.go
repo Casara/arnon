@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Casara/arnon/sanitize"
+	"github.com/casara/arnon/sanitize"
 )
 
 func TestPrepare_AcceptsKnownTags(t *testing.T) {

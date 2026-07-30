@@ -30,14 +30,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Casara/arnon/examples/internal/logging"
-	"github.com/Casara/arnon/httpx"
-	"github.com/Casara/arnon/httpx/middleware"
-	"github.com/Casara/arnon/httpx/patch"
-	"github.com/Casara/arnon/httpx/precondition"
-	"github.com/Casara/arnon/httpx/routing"
-	"github.com/Casara/arnon/openapi"
-	"github.com/Casara/arnon/problem"
+	"github.com/casara/arnon/httpx"
+	"github.com/casara/arnon/httpx/middleware"
+	"github.com/casara/arnon/httpx/patch"
+	"github.com/casara/arnon/httpx/precondition"
+	"github.com/casara/arnon/httpx/routing"
+	"github.com/casara/arnon/openapi"
+	"github.com/casara/arnon/problem"
+
+	"github.com/casara/arnon/examples/internal/logging"
 )
 
 const readHeaderTimeout = 5 * time.Second
@@ -205,7 +206,7 @@ func main() {
 	})
 
 	router := routing.NewRouter(
-		routing.WithOpenAPI(openapi.NewRegistry(generator)),
+		routing.WithOpenAPI(generator),
 	)
 
 	getHandler := httpx.Endpoint(profileStore.get, httpx.EndpointConfig{
@@ -240,7 +241,7 @@ func main() {
 	document := generator.Generate()
 
 	router.GET("/openapi.json", openapi.NewHandler(&document))
-	router.GET("/docs", openapi.NewDocsHandler(nil))
+	router.GET("/docs", openapi.NewDocsHandler(openapi.DocsConfig{}))
 
 	server := &http.Server{
 		Addr:              ":8080",

@@ -33,15 +33,16 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Casara/arnon/examples/internal/customvalidators"
-	"github.com/Casara/arnon/examples/internal/logging"
-	"github.com/Casara/arnon/examples/internal/users"
-	"github.com/Casara/arnon/httpx"
-	"github.com/Casara/arnon/httpx/middleware"
-	"github.com/Casara/arnon/httpx/routing"
-	"github.com/Casara/arnon/observability"
-	"github.com/Casara/arnon/observability/otel"
-	"github.com/Casara/arnon/openapi"
+	"github.com/casara/arnon/httpx"
+	"github.com/casara/arnon/httpx/middleware"
+	"github.com/casara/arnon/httpx/routing"
+	"github.com/casara/arnon/observability"
+	"github.com/casara/arnon/observability/otel"
+	"github.com/casara/arnon/openapi"
+
+	"github.com/casara/arnon/examples/internal/customvalidators"
+	"github.com/casara/arnon/examples/internal/logging"
+	"github.com/casara/arnon/examples/internal/users"
 )
 
 const (
@@ -136,7 +137,7 @@ func main() {
 	})
 
 	router := routing.NewRouter(
-		routing.WithOpenAPI(openapi.NewRegistry(generator)),
+		routing.WithOpenAPI(generator),
 		routing.WithInstrumentation(otel.NewHandler),
 	)
 
@@ -165,8 +166,7 @@ func main() {
 		httpx.EndpointConfig{
 			SuccessStatus: http.StatusCreated,
 			OpenAPI: &openapi.Operation{
-				Summary:       "Create a user",
-				SuccessStatus: http.StatusCreated,
+				Summary: "Create a user",
 			},
 		},
 	))
@@ -174,7 +174,7 @@ func main() {
 	document := generator.Generate()
 
 	router.GET("/openapi.json", openapi.NewHandler(&document))
-	router.GET("/docs", openapi.NewDocsHandler(nil))
+	router.GET("/docs", openapi.NewDocsHandler(openapi.DocsConfig{}))
 
 	server := &http.Server{
 		Addr:              ":8080",

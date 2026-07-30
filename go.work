@@ -1,0 +1,17 @@
+// This workspace ties arnon's three modules together for local development and
+// CI. It is committed on purpose: until the root module's first tag exists,
+// the submodules' `require github.com/casara/arnon v0.0.0` cannot resolve from
+// the module proxy, so without the workspace the repository does not build.
+//
+// Consumers never see this file - `go.work` is ignored outside the workspace
+// root, so it has no effect on anyone who runs `go get github.com/casara/arnon`.
+//
+// See docs/architecture/adr-0001-module-layout.md for the release ordering:
+// tag the root module first, then bump the submodules' require, then tag them.
+go 1.26
+
+use (
+	.
+	./examples
+	./observability/otel
+)

@@ -3,7 +3,7 @@ package sanitize_test
 import (
 	"testing"
 
-	"github.com/Casara/arnon/sanitize"
+	"github.com/casara/arnon/sanitize"
 )
 
 func TestApply_TrimsTopLevelStringField(t *testing.T) {
