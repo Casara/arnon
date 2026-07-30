@@ -1,4 +1,4 @@
-# Foundation Go - Contexto do Projeto
+# arnon - Contexto do Projeto
 
 *[Read in English](project-context.md)*
 
@@ -135,14 +135,13 @@ gerado se `EndpointConfig.OpenAPI` for preenchido (mesmo que com um
 `&openapi.Operation{}` vazio). Isso é intencional: o desenvolvedor decide
 explicitamente quais rotas são públicas na documentação.
 
-#### `SuccessStatus` existe em dois lugares
+#### `SuccessStatus` é declarado uma vez
 
-`EndpointConfig.SuccessStatus` (o status HTTP que o handler de fato
-retorna) e `openapi.Operation.SuccessStatus` (o status que o documento
-OpenAPI gerado descreve como resposta de sucesso) são campos
-independentes. Hoje é responsabilidade do desenvolvedor mantê-los
-sincronizados manualmente; ver `examples/cmd/basic/main.go`. Uma
-unificação futura desses dois campos é candidata a melhoria.
+`EndpointConfig.SuccessStatus` é o status que o handler retorna, e é também o
+que o documento gerado descreve como resposta de sucesso: o `Endpoint` copia o
+valor para a operação que publica. O `openapi.Operation` ainda carrega o campo,
+para um documento poder descrever deliberadamente outro status, mas o caso
+comum exige declarar uma vez só.
 
 ---
 
@@ -239,7 +238,7 @@ framework.
 
 ### Sintaxe da tag
 
-`sanitize:"trim,lower"` encadeia transformações nomeadas, resolvidas
+`sanitize:"trim,email"` encadeia transformações nomeadas, resolvidas
 contra o registro que `sanitize.RegisterFunc` alimenta - o mesmo padrão
 de registro único de `validation.RegisterCustomRule`. Built-in: `trim`
 (`strings.TrimSpace`) e `email` (trim + lowercase). Deliberadamente
@@ -1342,7 +1341,7 @@ Planejado:
 #### Mutação
 
 * `gremlins` já está integrado (`make test-mutation`, ver
-  `CLAUDE.md`); falta uma rodada completa pelo código pra encontrar e
+  `AGENTS.md`); falta uma rodada completa pelo código pra encontrar e
   tratar os mutantes sobreviventes.
 
 ---
@@ -1351,11 +1350,18 @@ Planejado:
 
 Implementado:
 
-* `.golangci.yml`: conjunto curado de linters (não `--enable-all`),
-  ajustado ao estilo do projeto (ex.: `funlen`/`cyclop` com limites
-  compatíveis com o formato vertical adotado; `ireturn` permitindo os
-  retornos de interface que são decisão de design, como
-  `validation.Validator`).
+* `.golangci.yml`: todos os linters ligados (`default: all`), com uma
+  lista curta de `disable` em vez de uma de `enable` — um `enable`
+  explícito enumerando o mesmo conjunto seria inerte e sairia de sincronia
+  em silêncio toda vez que o upstream adicionasse um linter. Quatro estão
+  desabilitados, cada um com o motivo no próprio arquivo
+  (`depguard`/`gomodguard` porque o `.go-arch-lint.yml` já expressa o
+  grafo de dependências diretamente). O resto é ajustado ao estilo do
+  projeto (ex.: `funlen`/`cyclop` com limites compatíveis com o formato
+  vertical adotado; `ireturn` permitindo os retornos de interface que são
+  decisão de design, como `validation.Validator`). Consequência que vale
+  saber: atualizar o golangci-lint pode revelar falhas novas, já que
+  linters novos do upstream entram automaticamente.
 * `.go-arch-lint.yml`: modela o grafo de dependências real entre os
   pacotes do `arnon` e falha o build se uma dependência não permitida
   for introduzida.

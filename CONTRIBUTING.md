@@ -9,7 +9,7 @@ participating, you're expected to follow it.
 
 Read, in this order:
 
-1. [CLAUDE.md](CLAUDE.md) — commands, package dependency graph,
+1. [AGENTS.md](AGENTS.md) — commands, package dependency graph,
    non-obvious design decisions.
 2. [docs/architecture/project-context.md](docs/architecture/project-context.md) —
    the project's functional/architectural spec and current state.
@@ -24,7 +24,7 @@ Read, in this order:
 `make help` lists every command. Before opening a PR, run:
 
 ```sh
-make check     # lint + arch-lint + tests with race detector
+make check     # lint + arch-lint + verify-docs + tests with race detector
 make lint-md   # markdown lint (requires Node.js >= 20)
 ```
 
@@ -92,6 +92,25 @@ fix(routing): complete splitPattern's method whitelist
 docs(readme): explain why arnon exists before comparing frameworks
 test(openapi): cover dive-redirected schema constraints
 ```
+
+## Changing the public API
+
+The project is on **v0.x**, so a breaking change is allowed — see
+[API stability](README.md#api-stability) for what that means for users. It
+still has to be deliberate and visible:
+
+* Say so in the PR description, and add a `### Changed` or `### Removed`
+  entry to `CHANGELOG.md` with the migration in the same entry.
+* Where a rename can keep the old spelling compiling, keep it as a
+  deprecated alias rather than deleting it outright.
+* Prefer an additive change when one exists: a new field on a config struct,
+  a variadic option, a new constructor alongside the old one.
+* Everything in the doc-sync list of [AGENTS.md](AGENTS.md) applies. An
+  `Example` function is the cheapest way to prove the new shape works —
+  `make check` runs them.
+
+Error strings and log messages are explicitly *not* part of the public API;
+matching on their text is not supported.
 
 ## Pull requests
 

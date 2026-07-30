@@ -11,7 +11,7 @@ major versions still receive patches.
 Please **do not** open a public issue for a security vulnerability.
 
 Use GitHub's private vulnerability reporting instead: go to the
-[Security tab](https://github.com/Casara/arnon/security) of this
+[Security tab](https://github.com/casara/arnon/security) of this
 repository and select "Report a vulnerability." This opens a private
 advisory visible only to the maintainers until a fix is ready.
 

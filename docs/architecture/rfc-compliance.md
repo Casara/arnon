@@ -44,7 +44,7 @@ stdlib "should" do) — the results are noted where relevant.
 ## RFC 9457 — Problem Details for HTTP APIs
 
 The central RFC for `arnon` — it's the framework's only error format
-(`CLAUDE.md`). Every HTTP error, from any middleware or from
+(`httpx/CLAUDE.md`). Every HTTP error, from any middleware or from
 `httpx.Endpoint`, becomes a `problem.Problem` serialized by
 `httpx.WriteProblem` as `application/problem+json; charset=utf-8`.
 
@@ -510,7 +510,7 @@ to see a literal `&` in an API's JSON response.
 Not implemented. `httpx.Endpoint` binds, validates, and serializes
 exactly one representation per typed endpoint — JSON (RFC 8259) —
 with no per-endpoint negotiation between wire formats, a deliberate
-scope decision (`CLAUDE.md`, "`httpx.Endpoint` is JSON-only by
+scope decision (`httpx/CLAUDE.md`, "`httpx.Endpoint` is JSON-only by
 design"). Whoever needs CBOR (or XML, or anything else) mounts a
 plain `http.Handler`, the same escape hatch as any other non-JSON
 content (see `examples/cmd/files`) — but that means losing

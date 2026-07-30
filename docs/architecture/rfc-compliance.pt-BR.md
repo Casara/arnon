@@ -45,7 +45,7 @@ relevante.
 ## RFC 9457 — Problem Details for HTTP APIs
 
 RFC central pro `arnon` — é o único formato de erro do framework
-(`CLAUDE.md`). Todo erro HTTP, de qualquer middleware ou do
+(`httpx/CLAUDE.md`). Todo erro HTTP, de qualquer middleware ou do
 `httpx.Endpoint`, vira um `problem.Problem` serializado por
 `httpx.WriteProblem` como `application/problem+json; charset=utf-8`.
 
@@ -515,7 +515,7 @@ pra quem espera ver `&` literal numa resposta JSON de API.
 Não implementado. `httpx.Endpoint` faz bind, valida e serializa
 exatamente uma representação por endpoint tipado — JSON (RFC 8259) —
 sem negociação entre formatos de wire por endpoint, uma decisão de
-escopo deliberada (`CLAUDE.md`, "`httpx.Endpoint` é JSON-only por
+escopo deliberada (`httpx/CLAUDE.md`, "`httpx.Endpoint` é JSON-only por
 design"). Quem precisar de CBOR (ou XML, ou qualquer outra coisa)
 monta um `http.Handler` puro, o mesmo escape hatch de qualquer outro
 conteúdo não-JSON (ver `examples/cmd/files`) — mas isso significa

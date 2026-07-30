@@ -1,4 +1,4 @@
-# Foundation Go - Project Context
+# arnon - Project Context
 
 *[Leia em português](project-context.pt-BR.md)*
 
@@ -134,14 +134,13 @@ document if `EndpointConfig.OpenAPI` is populated (even with an empty
 `&openapi.Operation{}`). This is intentional: the developer explicitly
 decides which routes are public in the documentation.
 
-#### `SuccessStatus` exists in two places
+#### `SuccessStatus` is declared once
 
-`EndpointConfig.SuccessStatus` (the HTTP status the handler actually
-returns) and `openapi.Operation.SuccessStatus` (the status the generated
-OpenAPI document describes as the success response) are independent
-fields. Today it's the developer's responsibility to keep them
-synchronized manually; see `examples/cmd/basic/main.go`. A future
-unification of these two fields is a candidate for improvement.
+`EndpointConfig.SuccessStatus` is the status the handler returns, and it is
+also what the generated document describes the success response under:
+`Endpoint` copies it onto the operation it publishes. `openapi.Operation` still
+carries the field, so a document can deliberately describe a different status,
+but the common case needs it stated once.
 
 ---
 
@@ -235,7 +234,7 @@ a field there is just Go code, no framework hook needed.
 
 ### Tag syntax
 
-`sanitize:"trim,lower"` chains named transforms, resolved against the
+`sanitize:"trim,email"` chains named transforms, resolved against the
 registry `sanitize.RegisterFunc` feeds - the same single-registry
 pattern as `validation.RegisterCustomRule`. Built-in: `trim`
 (`strings.TrimSpace`) and `email` (trim + lowercase). Deliberately
@@ -1337,7 +1336,7 @@ Planned:
 #### Mutation
 
 * `gremlins` is already wired up (`make test-mutation`, see
-  `CLAUDE.md`); a full pass across the codebase to find and address
+  `AGENTS.md`); a full pass across the codebase to find and address
   surviving mutants hasn't been done yet.
 
 ---
@@ -1346,11 +1345,18 @@ Planned:
 
 Implemented:
 
-* `.golangci.yml`: a curated set of linters (not `--enable-all`),
-  tuned to the project's style (e.g. `funlen`/`cyclop` with limits
-  compatible with the adopted vertical format; `ireturn` allowing the
-  interface returns that are a design decision, like
-  `validation.Validator`).
+* `.golangci.yml`: every linter on (`default: all`), with a short
+  `disable` list rather than an `enable` one — an explicit `enable`
+  enumerating the same set would be inert and would silently drift out
+  of sync every time upstream adds a linter. Four are disabled, each
+  with its reason in the file (`depguard`/`gomodguard` because
+  `.go-arch-lint.yml` expresses the dependency graph directly). The
+  rest is tuned to the project's style (e.g. `funlen`/`cyclop` with
+  limits compatible with the adopted vertical format; `ireturn`
+  allowing the interface returns that are a design decision, like
+  `validation.Validator`). Consequence worth knowing: upgrading
+  golangci-lint can surface new failures, since new upstream linters
+  are picked up automatically.
 * `.go-arch-lint.yml`: models arnon's actual dependency graph between
   packages and fails the build if a disallowed dependency is
   introduced.

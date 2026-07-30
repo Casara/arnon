@@ -9,7 +9,7 @@ participar, espera-se que você o siga.
 
 Leia, nesta ordem:
 
-1. [CLAUDE.md](CLAUDE.md) — comandos, grafo de dependências entre
+1. [AGENTS.md](AGENTS.md) — comandos, grafo de dependências entre
    pacotes, decisões de design não óbvias.
 2. [docs/architecture/project-context.md](docs/architecture/project-context.md) —
    especificação funcional/arquitetural e estado atual do projeto.
@@ -24,7 +24,7 @@ Leia, nesta ordem:
 `make help` lista todos os comandos. Antes de abrir um PR, rode:
 
 ```sh
-make check     # lint + arch-lint + testes com race detector
+make check     # lint + arch-lint + verify-docs + testes com race detector
 make lint-md   # lint de markdown (requer Node.js >= 20)
 ```
 
@@ -92,6 +92,25 @@ fix(routing): complete splitPattern's method whitelist
 docs(readme): explain why arnon exists before comparing frameworks
 test(openapi): cover dive-redirected schema constraints
 ```
+
+## Mudando a API pública
+
+O projeto está em **v0.x**, então uma quebra é permitida — ver
+[Estabilidade da API](README.pt-BR.md#estabilidade-da-api) para o que isso
+significa para quem usa. Mesmo assim ela precisa ser deliberada e visível:
+
+* Diga isso na descrição do PR, e adicione uma entrada `### Changed` ou
+  `### Removed` no `CHANGELOG.md`, com a migração na mesma entrada.
+* Onde um rename puder manter a grafia antiga compilando, mantenha como alias
+  depreciado em vez de apagar de uma vez.
+* Prefira mudança aditiva quando existir uma: campo novo numa struct de
+  config, opção variádica, construtor novo ao lado do antigo.
+* Tudo na lista de sincronização de docs do [AGENTS.md](AGENTS.md) se aplica.
+  Uma função `Example` é a forma mais barata de provar que o formato novo
+  funciona — o `make check` roda elas.
+
+Mensagens de erro e de log explicitamente **não** fazem parte da API pública;
+casar com o texto delas não é suportado.
 
 ## Pull requests
 

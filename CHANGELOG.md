@@ -63,5 +63,30 @@ Initial public release.
   applied globally alongside it), `examples/cmd/patch` (derived `PATCH`).
 - A Claude Skill (`skills/using-arnon`) documenting how to consume
   arnon idiomatically in a project that depends on it.
+- `docs/architecture/adr-0001-module-layout.md`, the project's first
+  architecture decision record.
+- 26 runnable `Example` functions across `problem`, `sanitize`,
+  `validation`, `httpx`, `httpx/routing`, `httpx/middleware`,
+  `httpx/patch` and `httpx/precondition`. They render on pkg.go.dev, and
+  each asserts its own output, so `make test` fails if a status code,
+  header or JSON shape ever stops matching what the docs show.
+- `make verify-docs`, which compiles every self-contained `package main`
+  program embedded in the project's Markdown against the working tree,
+  and reports how many illustrative fragments it could not verify.
+  Wired into `make check`, so CI runs it on every PR.
+- `make vuln`, running `govulncheck` across all three modules, plus a
+  `govulncheck` job in CI. It reports only vulnerabilities reachable
+  from this code, so a finding is worth acting on rather than triaging.
+- `.github/dependabot.yml`, watching all three modules and the GitHub
+  Actions workflow. Dev tools pinned in the `Makefile`
+  (golangci-lint, go-arch-lint, gremlins, markdownlint-cli2) are still
+  updated by hand - Dependabot cannot see them.
+- A stated API stability policy for v0.x in both READMEs: what counts as
+  the public surface, how a breaking change is communicated, and what
+  reaching v1.0.0 depends on.
+- `AGENTS.md` plus per-package `CLAUDE.md` files, so coding agents and
+  human contributors read the same conventions, and
+  `docs/architecture/adr-0001-module-layout.md` recording why the
+  repository is three modules and the release ordering that imposes.
 
-[Unreleased]: https://github.com/Casara/arnon/commits/main
+[Unreleased]: https://github.com/casara/arnon/commits/main
