@@ -112,6 +112,59 @@ significa para quem usa. Mesmo assim ela precisa ser deliberada e visível:
 Mensagens de erro e de log explicitamente **não** fazem parte da API pública;
 casar com o texto delas não é suportado.
 
+## Como uma mudança é feita
+
+O histórico deste repositório segue um ciclo, e vale dizê-lo porque ele não é
+visível pelo código: **explorar, planejar, implementar, commitar.** Ler o
+`project-context.md` e o `CLAUDE.md` do pacote antes de tocar em qualquer coisa
+é o passo "explorar", e é onde a maior parte do custo é evitada — vários
+invariantes daqui existem porque uma tentativa anterior errou neles.
+
+Dois hábitos importam mais que o ciclo em si:
+
+* **Entregue a funcionalidade, seu exemplo e sua documentação juntos.** O
+  histórico mostra isso em trios: a mudança no pacote, depois `examples/cmd/*`,
+  depois as docs. O PR que deixa o terceiro pra depois é o que fica obsoleto.
+* **Prefira um `Example` a prosa.** O `make check` compila e roda todo
+  `Example`, comparando o bloco `// Output:`, então é a única documentação que
+  a toolchain consegue manter honesta. Escrever os deste repositório revelou
+  três erros que estavam nas docs, compilando normalmente.
+
+## Revisão
+
+O projeto tem um mantenedor só, então "revisão" não é um portão que uma segunda
+pessoa abre — é o que as checagens e o diff precisam deixar óbvio sozinhos.
+
+* **O CI precisa estar verde antes do merge.** `check` (nos três módulos),
+  `govulncheck` e `markdown lint`. Run vermelho não é mergeado e consertado
+  depois.
+* **O mantenedor faz o merge**, com squash, pra `main` manter um commit por
+  mudança. É por isso que commit intermediário de branch de trabalho não
+  precisa seguir a convenção à risca, enquanto a mensagem do squash precisa.
+* **Mudança em símbolo exportado é lida contra a lista de sincronização de
+  docs** do [AGENTS.md](AGENTS.md), não só contra os testes. O `make doc-sync`
+  imprime o que um diff que mexeu na superfície pública deixou pra trás.
+
+## Contribuindo com assistente de IA
+
+Este projeto é construído com um, e não há o que esconder ou declarar sobre
+isso: o código é julgado igual de qualquer forma, e um PR não é marcado.
+
+O que se pede é o mesmo que se pede a qualquer um:
+
+* **Entenda o que você está submetendo.** Se você não consegue explicar por que
+  a mudança está certa, ela não está pronta — independente do que a escreveu.
+* **Não deixe a ferramenta rediscutir decisão já tomada.** O `AGENTS.md` e os
+  `CLAUDE.md` por pacote existem porque várias dessas decisões foram tomadas,
+  revertidas e tomadas de novo. PR que reintroduz uma é fechado com um
+  ponteiro, não com debate.
+* **Rode as checagens localmente.** `make check` e `make lint-md`, antes de
+  abrir o PR e não depois do CI reclamar.
+
+O `AGENTS.md` é lido direto por Codex e Cursor; o `CLAUDE.md` o importa pro
+Claude Code. Qualquer coisa que você adicione pra um deles pertence ao
+`AGENTS.md`, pros outros receberem também.
+
 ## Pull requests
 
 * `make check` verde é obrigatório, não opcional. Se a mudança tocar

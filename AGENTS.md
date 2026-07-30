@@ -34,6 +34,7 @@ make coverage      # generates coverage.html (profiles of all modules merged)
 make lint          # golangci-lint v2, version pinned in the Makefile
 make lint-md       # markdownlint-cli2, requires Node.js >= 20
 make verify-docs   # compiles the Go programs embedded in the Markdown
+make doc-sync      # lists docs an exported-API change left behind
 make arch-lint     # go-arch-lint check
 make test-mutation # gremlins, writes mutation.json
 make check         # lint + arch-lint + test-race (minimum before a commit)
@@ -186,6 +187,15 @@ What is still on you:
   behavior.
 * This file, the per-directory `CLAUDE.md` covering the package you changed, and
   the dependency graph above if the change adds or removes an import.
+
+`make doc-sync` prints which of the above a diff touching the exported surface
+has not touched. It never fails: a change can legitimately leave all of them
+alone, and a check that cried wolf would be ignored. A `Stop` hook in
+`.claude/settings.json` surfaces the same output at the end of a turn.
+
+For a closer look, the `api-surface-reviewer` subagent
+(`.claude/agents/`) reads the diff in a clean context and reports what changed
+in the exported API with `file:line`, and which documentation contradicts it.
 
 Treat updating these as part of the same change, not a follow-up — a stale code
 example is a bug in the documentation.

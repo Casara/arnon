@@ -112,6 +112,59 @@ still has to be deliberate and visible:
 Error strings and log messages are explicitly *not* part of the public API;
 matching on their text is not supported.
 
+## How a change gets made
+
+The history of this repository follows one loop, and it is worth stating
+because it is not visible from the code: **explore, plan, implement, commit.**
+Reading `project-context.md` and the package's own `CLAUDE.md` before touching
+anything is the "explore" step, and it is where most of the cost is avoided —
+several invariants here exist because a previous attempt got them wrong.
+
+Two habits matter more than the loop itself:
+
+* **Land a feature, its example and its documentation together.** The history
+  shows this as triples: the package change, then `examples/cmd/*`, then the
+  docs. A PR that leaves the third for later is the one that goes stale.
+* **Prefer an `Example` over prose.** `make check` compiles and runs every
+  `Example`, comparing its `// Output:` block, so it is the only documentation
+  the toolchain can keep honest. Writing the ones in this repository caught
+  three errors that had been sitting in the docs, compiling fine.
+
+## Review
+
+This project has a single maintainer, so "review" is not a gate a second
+person opens — it is what the checks and the diff have to make obvious on
+their own.
+
+* **CI has to be green before merge.** `check` (across all three modules),
+  `govulncheck` and `markdown lint`. A red run is not merged and then fixed.
+* **The maintainer merges**, squashing the branch so `main` keeps one commit
+  per change. That is why an intermediate commit on a work branch does not
+  have to follow the convention strictly, while the squashed message does.
+* **A change to an exported symbol gets read against the doc-sync list**
+  in [AGENTS.md](AGENTS.md), not just against the tests. `make doc-sync`
+  prints what a diff touching the public surface has left behind.
+
+## Contributing with an AI assistant
+
+This project is built with one, and there is nothing to hide or disclose about
+that: the code is judged the same either way, and a PR is not marked.
+
+What is asked is the same thing asked of anyone:
+
+* **Understand what you are submitting.** If you cannot explain why a change is
+  correct, it is not ready — regardless of what wrote it.
+* **Do not let a tool re-litigate a settled decision.** The `AGENTS.md` and the
+  per-package `CLAUDE.md` files exist because several of these decisions were
+  made once, reverted, and made again. A PR reintroducing one gets closed with
+  a pointer, not a debate.
+* **Run the checks locally.** `make check` and `make lint-md`, before opening
+  the PR rather than after CI says so.
+
+`AGENTS.md` is read by Codex and Cursor directly; `CLAUDE.md` imports it for
+Claude Code. Anything you add for one of them belongs in `AGENTS.md`, so the
+others get it too.
+
 ## Pull requests
 
 * `make check` passing is mandatory, not optional. If the change

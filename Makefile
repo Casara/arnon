@@ -38,7 +38,7 @@ MODULES     := . observability/otel examples
 # examples/cmd/*/requests.hurl), not with go test.
 LIB_MODULES := . observability/otel
 
-.PHONY: help build run fmt lint lint-fix lint-md verify-docs arch-lint vuln test test-race coverage \
+.PHONY: help build run fmt lint lint-fix lint-md verify-docs doc-sync arch-lint vuln test test-race coverage \
 	test-mutation test-mutation-dry-run check clean
 
 help: ## Show this help
@@ -77,6 +77,12 @@ verify-docs: ## Compile every self-contained Go program embedded in the Markdown
 # runnable Example functions in each package's example_test.go cover the rest,
 # and run under `make test`.
 	@bash scripts/verify-docs.sh
+
+doc-sync: ## List documentation a change to the exported API has left behind
+# Deliberately never fails: a diff can touch an exported symbol without any of
+# the listed files needing an edit, and a check that cries wolf gets ignored.
+# It covers the residue verify-docs cannot - fragments and prose.
+	@bash scripts/doc-sync-check.sh
 
 arch-lint: ## Check the package dependency graph (.go-arch-lint.yml)
 # One run from the root covers all three modules: go-arch-lint resolves
