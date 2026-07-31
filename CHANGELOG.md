@@ -2,13 +2,15 @@
 
 All notable changes to this project are documented here.
 
-The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
-this project follows [Semantic Versioning](https://semver.org/) once the
-first tag is cut.
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
+the versioning follows [Semantic Versioning](https://semver.org/). While the
+project is on 0.x, a minor release may break the public API — see the API
+stability section in the README.
 
-## [Unreleased]
+## [0.1.0] - 2026-07-30
 
-Initial public release.
+First public release. Everything below is new: there is no previous version to
+compare against.
 
 ### Added
 
@@ -21,7 +23,12 @@ Initial public release.
   (JSON Pointer).
 - OpenAPI 3.2.0 document generation via reflection, opt-in per
   endpoint, with schema inference from `validate` struct tags
-  (including `dive`-validated collections).
+  (including `dive`-validated collections). `openapi.WithSpecVersion`
+  emits 3.1.1 instead, for tooling that has not caught up; the document
+  is otherwise identical, since nothing generated uses a 3.2-only
+  construct. A route stays documented when its handler is wrapped in
+  this project's middleware, which builds its result with
+  `routing.Wrap` so the router can find the endpoint underneath.
 - A router (`httpx/routing`) built directly on `net/http.ServeMux`,
   with route groups and per-route/per-group middleware.
 - Guaranteed middleware ordering via `middleware.BuildChain`, with
@@ -50,7 +57,9 @@ Initial public release.
 - `PATCH` derived from an existing `GET`+`PUT` pair (`httpx/patch.From`):
   RFC 7386 (JSON Merge Patch) and RFC 6902 (JSON Patch), selected by
   the incoming request's Content-Type, via internal request replay -
-  neither the `GET` nor the `PUT` handler needs to change.
+  neither the `GET` nor the `PUT` handler needs to change. Setting
+  `patch.Config.OpenAPI` documents the derived route, taking its
+  schemas from the `PUT` endpoint so the two cannot disagree.
 - Write preconditions (`httpx/precondition.Check`/`CheckRequest`): RFC
   9110 §13.1.1/§13.1.4 `If-Match`/`If-Unmodified-Since`, with opt-in
   `428 Precondition Required` (`Config.Require`). `httpx/patch.From`
@@ -89,4 +98,4 @@ Initial public release.
   `docs/architecture/adr-0001-module-layout.md` recording why the
   repository is three modules and the release ordering that imposes.
 
-[Unreleased]: https://github.com/casara/arnon/commits/main
+[0.1.0]: https://github.com/casara/arnon/releases/tag/v0.1.0
