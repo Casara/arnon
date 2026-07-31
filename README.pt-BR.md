@@ -59,7 +59,7 @@ não é "opinativo ou não", é **de onde vem cada opinião** e **quão caro
   (RFC 9110), semântica exata de preflight em `CORS`, OpenAPI 3.2.0
   desde o design inicial. Detalhe completo, RFC por RFC — incluindo o
   que ainda não está 100% conforme — em
-  [docs/architecture/rfc-compliance.md](docs/architecture/rfc-compliance.md).
+  [docs/architecture/rfc-compliance.md](docs/architecture/rfc-compliance.pt-BR.md).
 * **Onde não existe RFC, ainda assim o padrão da linguagem — não algo
   reinventado.** `arnon` roda em cima de `net/http.Server` direto:
   `Router` implementa `http.Handler`, então é só
@@ -73,7 +73,7 @@ não é "opinativo ou não", é **de onde vem cada opinião** e **quão caro
   por código, mas `ChainConfig.Extra`/`ChainAnchor` deixa inserir
   middleware customizada numa posição específica sem editar a cadeia
   embutida (detalhe em
-  [docs/architecture/project-context.md](docs/architecture/project-context.md),
+  [docs/architecture/project-context.md](docs/architecture/project-context.pt-BR.md),
   seção "Ordem dos middlewares"). Validação: `validation.RegisterCustomRule`
   é o único mecanismo — não existe um segundo caminho paralelo pra
   registrar regra customizada. Rate limit: o algoritmo (janela
@@ -285,7 +285,7 @@ em [.go-arch-lint.yml](.go-arch-lint.yml) (diagrama em
 verificado em CI.
 
 Mais contexto sobre decisões arquiteturais está em
-[docs/architecture/project-context.md](docs/architecture/project-context.md).
+[docs/architecture/project-context.md](docs/architecture/project-context.pt-BR.md).
 
 ## Validação customizada
 
@@ -440,9 +440,9 @@ instalação global nem poluir o `go.mod` do módulo com dependências que
 só existem em tempo de desenvolvimento.
 
 Convenções de estilo estão documentadas em
-[docs/coding-style.md](docs/coding-style.md); fluxo de branch e
+[docs/coding-style.md](docs/coding-style.pt-BR.md); fluxo de branch e
 convenção de commit (Conventional Commits) em
-[CONTRIBUTING.md](CONTRIBUTING.md).
+[CONTRIBUTING.md](CONTRIBUTING.pt-BR.md).
 
 Histórico de mudanças em [CHANGELOG.md](CHANGELOG.md). Pra reportar
 vulnerabilidade, siga [SECURITY.md](SECURITY.md) (não abra issue

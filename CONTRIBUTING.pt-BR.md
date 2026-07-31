@@ -11,10 +11,10 @@ Leia, nesta ordem:
 
 1. [AGENTS.md](AGENTS.md) — comandos, grafo de dependências entre
    pacotes, decisões de design não óbvias.
-2. [docs/architecture/project-context.md](docs/architecture/project-context.md) —
+2. [docs/architecture/project-context.md](docs/architecture/project-context.pt-BR.md) —
    especificação funcional/arquitetural e estado atual do projeto.
-3. [docs/coding-style.md](docs/coding-style.md) — convenções de código.
-4. [docs/architecture/rfc-compliance.md](docs/architecture/rfc-compliance.md) —
+3. [docs/coding-style.md](docs/coding-style.pt-BR.md) — convenções de código.
+4. [docs/architecture/rfc-compliance.md](docs/architecture/rfc-compliance.pt-BR.md) —
    se a mudança tocar formato de erro, negociação de conteúdo, cache
    ou qualquer coisa RFC-adjacente, o comportamento já documentado ali
    é o que não pode regredir.
