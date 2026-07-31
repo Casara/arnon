@@ -217,14 +217,11 @@ func main() {
 		OpenAPI:       &openapi.Operation{Summary: "Replace a profile"},
 	})
 
-	// getHandler is wrapped in ETag *before* being used anywhere, so
-	// every caller - a direct client GET, and patch.From's own internal
-	// GET below - sees the same ETag. This does mean the route no
-	// longer implements httpx.OpenAPIProvider (the wrapped handler is a
-	// plain http.HandlerFunc), so it won't show up in /openapi.json -
-	// an accepted trade-off for this example, per httpx/patch.From's
-	// own doc comment ("wrap get/put themselves" is the documented way
-	// to combine From with middleware).
+	// getHandler is wrapped in ETag *before* being used anywhere, so every
+	// caller - a direct client GET, and patch.From's own internal GET below -
+	// sees the same ETag. The route still shows up in /openapi.json: arnon's
+	// middleware builds its result with routing.Wrap, so the router can walk
+	// past the wrapper and find the endpoint underneath.
 	getHandlerWithETag := middleware.ETag()(getHandler)
 
 	router.GET("/profiles/{id}", getHandlerWithETag)
@@ -234,7 +231,13 @@ func main() {
 	// any change to support it. Using getHandlerWithETag (not the bare
 	// getHandler) here is what lets patch.From's internal GET see a
 	// real ETag to check the incoming PATCH's own If-Match against.
-	router.PATCH("/profiles/{id}", patch.From(getHandlerWithETag, putHandler, patch.Config{}))
+	router.PATCH("/profiles/{id}", patch.From(
+		getHandlerWithETag,
+		putHandler,
+		patch.Config{
+			OpenAPI: &openapi.Operation{Summary: "Patch a profile"},
+		},
+	))
 
 	document := generator.Generate()
 

@@ -10,6 +10,7 @@ import (
 
 	"github.com/casara/arnon/httpx"
 	"github.com/casara/arnon/httpx/precondition"
+	"github.com/casara/arnon/openapi"
 	"github.com/casara/arnon/problem"
 )
 
@@ -23,6 +24,17 @@ type Config struct {
 	// describes a problem with the client's own request body, the
 	// same category binding/validation errors already fall into.
 	OnApplyError func(err error) *problem.Problem
+
+	// OpenAPI, when set, registers the derived PATCH in the generated document,
+	// the same way EndpointConfig.OpenAPI does for a typed endpoint. Leaving it
+	// nil produces a working, undocumented route.
+	//
+	// The request and response schemas are taken from put, so they cannot
+	// disagree with the replacement the patch ultimately performs. That
+	// requires put to be the httpx.Endpoint itself rather than a
+	// middleware-wrapped handler; From panics otherwise, rather than silently
+	// registering nothing.
+	OpenAPI *openapi.Operation
 }
 
 // From derives a PATCH http.Handler from an existing GET and PUT
@@ -62,7 +74,7 @@ func From(
 		onApplyError = defaultOnApplyError
 	}
 
-	return http.HandlerFunc(func(
+	handler := http.HandlerFunc(func(
 		writer http.ResponseWriter,
 		request *http.Request,
 	) {
@@ -135,6 +147,12 @@ func From(
 
 		put.ServeHTTP(writer, putRequest)
 	})
+
+	if config.OpenAPI == nil {
+		return handler
+	}
+
+	return describe(handler, put, config.OpenAPI)
 }
 
 // writeApplyError reports a failure to apply the incoming patch

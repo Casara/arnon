@@ -87,7 +87,7 @@ func Compress(options ...CompressOption) routing.Middleware {
 	return func(
 		next http.Handler,
 	) http.Handler {
-		return http.HandlerFunc(func(
+		return routing.Wrap(next, http.HandlerFunc(func(
 			writer http.ResponseWriter,
 			request *http.Request,
 		) {
@@ -121,7 +121,7 @@ func Compress(options ...CompressOption) routing.Middleware {
 				compressWriter,
 				request,
 			)
-		})
+		}))
 	}
 }
 

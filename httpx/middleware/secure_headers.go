@@ -43,7 +43,7 @@ func SecureHeaders(
 	return func(
 		next http.Handler,
 	) http.Handler {
-		return http.HandlerFunc(func(
+		return routing.Wrap(next, http.HandlerFunc(func(
 			writer http.ResponseWriter,
 			request *http.Request,
 		) {
@@ -78,6 +78,6 @@ func SecureHeaders(
 				writer,
 				request,
 			)
-		})
+		}))
 	}
 }

@@ -13,6 +13,15 @@ live in the root `AGENTS.md`. Subdirectories carry their own file:
 * **OpenAPI registration is opt-in per endpoint.** A route only appears in the
   generated document if `EndpointConfig.OpenAPI` is set, even to an empty
   `&openapi.Operation{}`.
+* **Every middleware must build its result with `routing.Wrap`, or it drops
+  the route out of the OpenAPI document.** `registerOpenAPI` finds the
+  operation by walking the handler chain for a `routing.OpenAPIProvider`; a
+  bare `http.HandlerFunc` closure implements nothing and ends the walk, so the
+  route is registered *without* being documented, silently. `Wrap` exposes
+  `Unwrap() http.Handler` (the `errors.Unwrap` convention) so the walk can
+  continue. A new middleware that returns `http.HandlerFunc(...)` directly is
+  the regression to watch for. Third-party middleware still hides what it
+  wraps - `Group.Use` is the answer there.
 * **`EndpointConfig.SuccessStatus` and `openapi.Operation.SuccessStatus` are
   independent fields.** Nothing syncs them; when you change one, check the
   other (see `examples/cmd/basic/main.go`).

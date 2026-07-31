@@ -57,7 +57,7 @@ func RealIP(options ...RealIPOption) routing.Middleware {
 	return func(
 		next http.Handler,
 	) http.Handler {
-		return http.HandlerFunc(func(
+		return routing.Wrap(next, http.HandlerFunc(func(
 			writer http.ResponseWriter,
 			request *http.Request,
 		) {
@@ -105,7 +105,7 @@ func RealIP(options ...RealIPOption) routing.Middleware {
 				writer,
 				request.WithContext(ctx),
 			)
-		})
+		}))
 	}
 }
 

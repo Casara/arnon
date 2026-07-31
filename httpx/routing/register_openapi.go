@@ -10,7 +10,10 @@ func (router *Router) registerOpenAPI(
 		return
 	}
 
-	provider, ok := handler.(OpenAPIProvider)
+	// Walks the middleware chain rather than asserting on the outermost
+	// handler: wrapping an endpoint by hand would otherwise drop it out of the
+	// document with no error. See Wrap.
+	provider, ok := unwrapToProvider(handler)
 
 	if !ok {
 		return

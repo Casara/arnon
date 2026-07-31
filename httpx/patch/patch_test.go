@@ -2,17 +2,33 @@ package patch_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"sync"
 	"testing"
 
+	"github.com/casara/arnon/httpx"
+	"github.com/casara/arnon/httpx/middleware"
 	"github.com/casara/arnon/httpx/patch"
 	"github.com/casara/arnon/httpx/routing"
+	"github.com/casara/arnon/openapi"
 	"github.com/casara/arnon/problem"
 )
+
+// Minimal typed request/response for the documentation tests at the end of
+// this file: From takes the PATCH's schemas from the PUT endpoint.
+type putProfileRequest struct {
+	ID   string `path:"id"`
+	Name string `          json:"name"`
+}
+
+type profileResponse struct {
+	Name string `json:"name"`
+}
 
 // memoryResource is a tiny, thread-safe in-memory JSON document backing
 // the GET/PUT test handlers below - just enough real state for From to
@@ -743,5 +759,109 @@ func TestFrom_IfUnmodifiedSinceBeforeInternalGetsLastModifiedReturns412WithoutCa
 
 	if putCalled {
 		t.Error("expected put to never be called when If-Unmodified-Since is not satisfied")
+	}
+}
+
+// A derived PATCH has to be able to appear in the generated document, or the
+// route silently exists without being documented.
+func TestFrom_WithOpenAPIDescribesItself(t *testing.T) {
+	t.Parallel()
+
+	put := httpx.Endpoint(
+		func(_ context.Context, request putProfileRequest) (profileResponse, error) {
+			return profileResponse{Name: request.Name}, nil
+		},
+		httpx.EndpointConfig{OpenAPI: &openapi.Operation{Summary: "Replace"}},
+	)
+
+	handler := patch.From(
+		http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
+		put,
+		patch.Config{OpenAPI: &openapi.Operation{Summary: "Patch a profile"}},
+	)
+
+	described, ok := handler.(interface {
+		OpenAPIOperation() *openapi.Operation
+		RequestType() reflect.Type
+		ResponseType() reflect.Type
+	})
+	if !ok {
+		t.Fatalf("handler does not describe itself: %T", handler)
+	}
+
+	if described.OpenAPIOperation().Summary != "Patch a profile" {
+		t.Errorf("wrong operation: %+v", described.OpenAPIOperation())
+	}
+
+	// The schemas come from put, so they cannot disagree with the replacement
+	// the patch ultimately performs.
+	if described.RequestType() != reflect.TypeFor[putProfileRequest]() {
+		t.Errorf("request type not taken from put: %v", described.RequestType())
+	}
+
+	if described.ResponseType() != reflect.TypeFor[profileResponse]() {
+		t.Errorf("response type not taken from put: %v", described.ResponseType())
+	}
+}
+
+// Without OpenAPI set the route still works, undocumented - which is the same
+// opt-in rule httpx.Endpoint follows.
+func TestFrom_WithoutOpenAPIStaysUndocumented(t *testing.T) {
+	t.Parallel()
+
+	handler := patch.From(
+		http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
+		http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
+		patch.Config{},
+	)
+
+	if _, ok := handler.(interface{ OpenAPIOperation() *openapi.Operation }); ok {
+		t.Error("handler describes itself despite Config.OpenAPI being nil")
+	}
+}
+
+// Asking for documentation while passing a put that cannot supply the schemas
+// is a wiring mistake, and failing loudly beats registering nothing.
+func TestFrom_OpenAPIWithUntypedPutPanics(t *testing.T) {
+	t.Parallel()
+
+	defer func() {
+		if recover() == nil {
+			t.Error("expected a panic")
+		}
+	}()
+
+	patch.From(
+		http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
+		http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
+		patch.Config{OpenAPI: &openapi.Operation{Summary: "Patch"}},
+	)
+}
+
+// A put wrapped in arnon middleware still supplies the schemas, because the
+// middleware keeps the endpoint reachable.
+func TestFrom_WithOpenAPIUnwrapsMiddlewareAroundPut(t *testing.T) {
+	t.Parallel()
+
+	put := httpx.Endpoint(
+		func(_ context.Context, request putProfileRequest) (profileResponse, error) {
+			return profileResponse{Name: request.Name}, nil
+		},
+		httpx.EndpointConfig{OpenAPI: &openapi.Operation{Summary: "Replace"}},
+	)
+
+	handler := patch.From(
+		http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
+		middleware.ETag()(put),
+		patch.Config{OpenAPI: &openapi.Operation{Summary: "Patch"}},
+	)
+
+	described, ok := handler.(interface{ RequestType() reflect.Type })
+	if !ok {
+		t.Fatalf("wrapped put was not unwrapped: %T", handler)
+	}
+
+	if described.RequestType() != reflect.TypeFor[putProfileRequest]() {
+		t.Errorf("wrong request type: %v", described.RequestType())
 	}
 }

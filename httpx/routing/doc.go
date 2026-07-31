@@ -17,6 +17,22 @@
 // For the recommended global chain, and the ordering constraints between its
 // entries, use httpx/middleware.BuildChain rather than assembling one by hand.
 //
+// # Middleware and the generated document
+//
+// A route is documented when its handler implements OpenAPIProvider. Wrapping
+// a handler would normally hide that, since a middleware returns a closure and
+// a closure implements nothing - so every middleware in httpx/middleware
+// builds its result with Wrap, which keeps the decorated handler reachable.
+// The router follows that chain, and a wrapped endpoint stays documented:
+//
+//	router.GET("/users/{id}", middleware.ETag()(endpoint))            // documented
+//	router.GET("/users/{id}", middleware.NoCache()(middleware.ETag()(endpoint))) // documented
+//
+// Third-party middleware returning a bare http.HandlerFunc still hides what it
+// wraps, and the route silently stops appearing in the document. Installing
+// per-route middleware on a Group avoids the question entirely, and is the
+// more robust option when you do not control the middleware.
+//
 // # Patterns
 //
 // A pattern is "METHOD /path". The verb methods (GET, POST, ...) are thin

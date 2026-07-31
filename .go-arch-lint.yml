@@ -94,10 +94,14 @@ deps:
   # JSON Patch / RFC 7386 JSON Merge Patch), by request replay - never
   # goes through httpx-routing, it only ever calls the two given
   # http.Handlers directly.
+  # openapi is here so Config.OpenAPI can name an Operation: a derived PATCH
+  # has to be describable, or it could never appear in the generated document.
+  # Downward edge, same direction httpx already depends in.
   httpx-patch:
     mayDependOn:
       - httpx
       - httpx-precondition
+      - openapi
       - problem
     canUse:
       - json-patch
