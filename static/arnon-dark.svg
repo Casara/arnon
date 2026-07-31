@@ -1,11 +1,28 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
 <svg viewBox="0 0 340 110" width="340" height="105" version="1.1" xmlns="http://www.w3.org/2000/svg" xml:space="preserve">
-  <!-- Dark-mode variant - see arnon-light.svg for why this is a separate file. -->
-  <line x1="14" y1="80" x2="28" y2="56" stroke="#e08a54" stroke-width="7" stroke-linecap="round"/>
-  <line x1="38" y1="80" x2="52" y2="40" stroke="#e08a54" stroke-width="7" stroke-linecap="round"/>
-  <line x1="62" y1="80" x2="76" y2="52" stroke="#e08a54" stroke-width="7" stroke-linecap="round"/>
-  <line x1="86" y1="80" x2="100" y2="62" stroke="#e08a54" stroke-width="7" stroke-linecap="round"/>
-  <line x1="8" y1="80" x2="104" y2="80" stroke="#ede7da" stroke-width="8" stroke-linecap="round"/>
-  <text x="140" y="90" style="font-family: ui-monospace, &apos;SF Mono&apos;, &apos;Cascadia Code&apos;, &apos;JetBrains Mono&apos;, Consolas, monospace; font-weight: 700; font-size: 46px; fill: #ede7da; letter-spacing: 3px;">ARNON</text>
+  <!--
+    Dark-mode variant - see arnon-light.svg for why this is a separate
+    file and why the wordmark is paths rather than <text>.
+
+    The left bank is #7fb3bd rather than the #ede7da the previous
+    line-art logo used for the same element: as a large solid fill,
+    cream reads as a third colour and the two banks stop being
+    teal-and-terracotta, which is the whole mark.
+  -->
+  <g transform="translate(8 11) scale(0.7857)">
+    <g transform="translate(6 6)">
+      <path fill="#7fb3bd" d="M 8 0 H 53 C 53 20, 31 30, 31 50 C 31 70, 57 78, 57 100 H 8 A 8 8 0 0 1 0 92 V 8 A 8 8 0 0 1 8 0 Z"/>
+      <path fill="#e08a54" d="M 65 0 H 92 A 8 8 0 0 1 100 8 V 92 A 8 8 0 0 1 92 100 H 69 C 69 78, 43 70, 43 50 C 43 30, 65 20, 65 0 Z"/>
+    </g>
+  </g>
+  <g fill="none" stroke="#ede7da" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 124.5 78 L 137.5 32 L 150.5 78"/>
+    <path d="M 130.5 62 H 144.5"/>
+    <path d="M 168.5 78 V 32 H 183.5 A 10 10 0 0 1 183.5 52 H 168.5"/>
+    <path d="M 181.5 52 L 194.5 78"/>
+    <path d="M 212.5 78 V 32 L 238.5 78 V 32"/>
+    <path d="M 269.5 32 A 13 23 0 1 1 269.49 32 Z"/>
+    <path d="M 300.5 78 V 32 L 326.5 78 V 32"/>
+  </g>
 </svg>

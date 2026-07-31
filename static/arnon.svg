@@ -2,26 +2,42 @@
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
 <svg viewBox="0 0 340 110" width="340" height="105" version="1.1" xmlns="http://www.w3.org/2000/svg" xml:space="preserve">
   <!--
-    "O limiar": uma linha (a borda) com hastes só acima dela, nada
-    embaixo - o framework valida/tipa na borda e não desce mais fundo
-    que o handler. Ver docs/architecture/project-context.md.
+    "O limiar": duas margens e o canal entre elas - o Arnon como vau, a
+    travessia onde a requisição é tipada, validada e devolvida em
+    Problem Details. O canal é transparente, não branco, então a marca
+    funciona sobre qualquer fundo.
+
+    Este arquivo se adapta ao tema por prefers-color-scheme, o que só
+    funciona quando o SVG está embutido inline num documento HTML. Num
+    <img> - que é como o GitHub renderiza um README - a media query não
+    é confiável, por isso os READMEs usam <picture> com
+    arnon-light.svg / arnon-dark.svg em vez deste arquivo.
   -->
   <defs>
     <style>
-      .threshold { stroke: #123a41; stroke-width: 8; stroke-linecap: round; fill: none; }
-      .reed { stroke: #c1622d; stroke-width: 7; stroke-linecap: round; fill: none; }
-      .wordmark { font-family: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas, monospace; font-weight: 700; font-size: 46px; fill: #123a41; letter-spacing: 3px; }
+      .bank-left { fill: #123a41; }
+      .bank-right { fill: #c1622d; }
+      .wordmark { fill: none; stroke: #123a41; stroke-width: 9; stroke-linecap: round; stroke-linejoin: round; }
       @media (prefers-color-scheme: dark) {
-        .threshold { stroke: #ede7da; }
-        .reed { stroke: #e08a54; }
-        .wordmark { fill: #ede7da; }
+        .bank-left { fill: #7fb3bd; }
+        .bank-right { fill: #e08a54; }
+        .wordmark { stroke: #ede7da; }
       }
     </style>
   </defs>
-  <line x1="14" y1="80" x2="28" y2="56" class="reed"/>
-  <line x1="38" y1="80" x2="52" y2="40" class="reed"/>
-  <line x1="62" y1="80" x2="76" y2="52" class="reed"/>
-  <line x1="86" y1="80" x2="100" y2="62" class="reed"/>
-  <line x1="8" y1="80" x2="104" y2="80" class="threshold"/>
-  <text x="140" y="90" class="wordmark">ARNON</text>
+  <g transform="translate(8 11) scale(0.7857)">
+    <g transform="translate(6 6)">
+      <path class="bank-left" d="M 8 0 H 53 C 53 20, 31 30, 31 50 C 31 70, 57 78, 57 100 H 8 A 8 8 0 0 1 0 92 V 8 A 8 8 0 0 1 8 0 Z"/>
+      <path class="bank-right" d="M 65 0 H 92 A 8 8 0 0 1 100 8 V 92 A 8 8 0 0 1 92 100 H 69 C 69 78, 43 70, 43 50 C 43 30, 65 20, 65 0 Z"/>
+    </g>
+  </g>
+  <g class="wordmark">
+    <path d="M 124.5 78 L 137.5 32 L 150.5 78"/>
+    <path d="M 130.5 62 H 144.5"/>
+    <path d="M 168.5 78 V 32 H 183.5 A 10 10 0 0 1 183.5 52 H 168.5"/>
+    <path d="M 181.5 52 L 194.5 78"/>
+    <path d="M 212.5 78 V 32 L 238.5 78 V 32"/>
+    <path d="M 269.5 32 A 13 23 0 1 1 269.49 32 Z"/>
+    <path d="M 300.5 78 V 32 L 326.5 78 V 32"/>
+  </g>
 </svg>
