@@ -8,6 +8,7 @@
 
     // Linters
     "gael-lopes-da-silva.spaced",
+    "usernamehw.errorlens",
 
     // Markdown
     "bierner.emojisense",
@@ -21,12 +22,12 @@
     "yzane.markdown-pdf",
 
     // Programming languages
+    "42crunch.vscode-openapi",
     "golang.go",
     "ms-vscode.makefile-tools",
     "redhat.vscode-yaml",
 
     // SCM
-    "ahmadawais.emoji-log-vscode",
     "eamodio.gitlens",
     "github.vscode-pull-request-github",
     "mhutchie.git-graph",
