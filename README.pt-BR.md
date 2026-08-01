@@ -26,6 +26,18 @@
 
 ## Por que Arnon
 
+> "...porque o Arnom é o limite de Moabe, entre Moabe e os amorreus."
+>
+> — [Números 21:13](https://www.bibliaonline.com.br/ara/nm/21/13+) (ARA)
+
+O Arnom é um rio de fronteira: a linha onde um território acaba e
+começa o próximo. Uma API HTTP fica sobre esse mesmo tipo de linha — a
+borda onde bytes sem tipo, vindos de fora, viram valores tipados
+dentro, e onde uma falha precisa ser respondida num formato que o
+outro lado já entende. É daí que vem o nome (grafado `Arnom` nas
+traduções em português), é isso que a tagline quer dizer, e é por isso
+que o logo são duas margens e a travessia entre elas.
+
 `arnon` não começou como "vamos construir um framework". Começou como
 uma API de um sistema financeiro real, sobre o fuego. Nesse projeto,
 apontar o campo exato de um erro de validação via RFC 6901 (JSON

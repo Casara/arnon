@@ -26,6 +26,17 @@
 
 ## Why Arnon
 
+> "...for Arnon is the border of Moab, between Moab and the Amorites."
+>
+> — [Numbers 21:13](https://www.bibliaonline.com.br/kjv/nm/21/13+) (KJV)
+
+The Arnon is a boundary river: the line where one territory ends and
+the next begins. An HTTP API sits on that same kind of line — the edge
+where untyped bytes from outside become typed values inside, and where
+a failure has to be answered in a format the other side already
+understands. That's where the name comes from, what the tagline means,
+and why the logo is two banks and the crossing between them.
+
 `arnon` didn't start as "let's build a framework." It started as an
 API for a real financial system, on top of fuego. In that project,
 pointing at the exact field of a validation error via RFC 6901 (JSON
