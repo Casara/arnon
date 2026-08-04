@@ -10,14 +10,8 @@ module github.com/casara/arnon/observability/otel
 
 go 1.26
 
-// Until the root module carries its first tag there is no version of
-// github.com/casara/arnon to require, so the dependency is satisfied from the
-// working tree. The release checklist in the ADR replaces both lines below
-// with a real version at tag time.
-replace github.com/casara/arnon => ../..
-
 require (
-	github.com/casara/arnon v0.0.0-00010101000000-000000000000
+	github.com/casara/arnon v0.1.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0
 	go.opentelemetry.io/contrib/instrumentation/runtime v0.69.0
 	go.opentelemetry.io/otel v1.44.0
