@@ -7,7 +7,7 @@ the versioning follows [Semantic Versioning](https://semver.org/). While the
 project is on 0.x, a minor release may break the public API — see the API
 stability section in the README.
 
-## [0.1.0] - 2026-07-30
+## [0.1.0] - 2026-08-04
 
 First public release. Everything below is new: there is no previous version to
 compare against.
@@ -65,11 +65,15 @@ compare against.
   `428 Precondition Required` (`Config.Require`). `httpx/patch.From`
   uses this to reject a `PATCH` whose `If-Match` no longer matches the
   resource, before ever applying the patch.
-- Six runnable examples: `examples/cmd/basic`, `examples/cmd/middleware`,
+- Eight runnable examples: `examples/cmd/basic`, `examples/cmd/middleware`,
   `examples/cmd/observability`, `examples/cmd/files` (non-JSON content:
   file download/upload as plain `http.Handler`s), `examples/cmd/staticfiles`
   (serving static assets via `http.FileServer`, with `ETag`/`Compress`
-  applied globally alongside it), `examples/cmd/patch` (derived `PATCH`).
+  applied globally alongside it), `examples/cmd/patch` (derived `PATCH`),
+  `examples/cmd/custom-validator` (the built-in validator swapped for
+  ozzo-validation via `EndpointConfig.Validator`), `examples/cmd/custom-errors`
+  (errors answered outside RFC 9457, by reusing
+  `binding`/`sanitize`/`validation` directly instead of `httpx.Endpoint`).
 - A Claude Skill (`skills/using-arnon`) documenting how to consume
   arnon idiomatically in a project that depends on it.
 - `docs/architecture/adr-0001-module-layout.md`, the project's first
