@@ -1,0 +1,28 @@
+# Minimal OpenTelemetry Collector config for this example: receive
+# OTLP/gRPC from the example server and print every trace and metric
+# to the collector's own stdout via the debug exporter, so telemetry
+# is visible without running a separate backend (Jaeger, Prometheus,
+# ...).
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  batch:
+
+exporters:
+  debug:
+    verbosity: detailed
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug]

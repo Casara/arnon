@@ -1,0 +1,1398 @@
+# arnon - Project Context
+
+*[Leia em português](project-context.pt-BR.md)*
+
+## Overview
+
+`arnon` is a modern foundation for APIs and microservices in Go, focused on:
+
+* Excellent developer experience.
+* Strong OpenAPI integration.
+* First-class observability.
+* Little boilerplate.
+* Sensible conventions.
+* Independent, decoupled components.
+* Ease of testing.
+
+Distributed as an open source library for the Go community. This is
+its first public release, with no production track record yet — see
+README.md for a detailed comparison against more mature alternatives
+before adopting it for anything business-critical.
+
+---
+
+## Architectural Principles
+
+### Simplicity before abstraction
+
+Abstractions should only be added when there is real gain.
+
+Avoid over-engineering.
+
+---
+
+### Inference over configuration
+
+The framework should infer as much as possible through:
+
+* reflection
+* tags
+* validators
+* Go types
+
+Explicit configuration should exist only to override behavior.
+
+---
+
+### Hybrid OpenAPI
+
+OpenAPI documentation should be generated automatically whenever possible.
+
+The developer can supplement or override metadata manually.
+
+Example:
+
+* request body generated automatically
+* default responses generated automatically
+* schemas generated automatically
+* customized operation when necessary
+
+---
+
+### RFC 9457 as the error standard
+
+All HTTP errors must converge to Problem Details.
+
+The framework uses RFC 9457 as the official error representation standard.
+
+---
+
+### OpenAPI 3.2.0
+
+The adopted version is OpenAPI 3.2.0.
+
+Reasons:
+
+* It's arnon's first public version, with no previous consumers to migrate.
+* It's possible to adopt more modern features of the specification.
+* Tooling support for 3.2 (parsers, client generators, documentation UIs)
+  should grow over time — see the note under "Stoplight" below for where
+  it currently stands.
+
+---
+
+## Current State
+
+### HTTP
+
+Implemented:
+
+* Router
+* Route Groups
+* Middleware Chain
+* Endpoint helper
+* Request binding
+* Request validation
+* JSON responses
+* Problem Details
+* Problem Mapper
+
+---
+
+### Endpoint Helper
+
+Endpoints use a typed signature.
+
+Conceptual example:
+
+```go
+func(
+    context.Context,
+    RequestDTO,
+) (
+    ResponseDTO,
+    error,
+)
+```
+
+The endpoint automatically performs:
+
+* binding
+* validation
+* serialization
+* error handling
+* mapping to Problem Details
+
+The defaults (default validator, `DefaultProblemMapper`, status 200) come from
+`EndpointConfig.WithDefaults()`, called internally by `Endpoint()`.
+None of them need to be configured manually for the common case.
+
+#### OpenAPI registration is opt-in per endpoint
+
+Unlike binding/validation, a route only enters the generated OpenAPI
+document if `EndpointConfig.OpenAPI` is populated (even with an empty
+`&openapi.Operation{}`). This is intentional: the developer explicitly
+decides which routes are public in the documentation.
+
+#### `SuccessStatus` is declared once
+
+`EndpointConfig.SuccessStatus` is the status the handler returns, and it is
+also what the generated document describes the success response under:
+`Endpoint` copies it onto the operation it publishes. `openapi.Operation` still
+carries the field, so a document can deliberately describe a different status,
+but the common case needs it stated once.
+
+---
+
+### Validation
+
+Validation happens through validators. The default validator
+(`validation.Default()`) uses `github.com/go-playground/validator/v10`
+under the hood.
+
+Validator information is reused in OpenAPI generation.
+
+#### Custom Validators
+
+Custom validation rules (tags that `validator/v10` doesn't know
+natively) are registered once, via `validation.RegisterCustomRule(rule)`,
+typically during application bootstrap. A single registration feeds
+three points at once:
+
+1. **Runtime**: the rule's `Func` is automatically applied to every
+   validator created by `validation.New()`/`validation.Default()` from
+   the moment of registration onward.
+2. **Error mapping**: the rule's `Code` and `Message` define the
+   code/detail returned in `problem.ValidationError` when the rule
+   fails, instead of the generic `validation_failed` fallback.
+3. **OpenAPI**: `Schema` (a `*validation.SchemaEffect` with `Format`
+   and/or `Pattern`) enriches the generated schema for fields that use
+   the tag, the same way it already happens today for
+   `email`/`uuid`/`url`.
+
+The internal `validator.Validate` instance used by `PlaygroundValidator`
+is deliberately not exposed for direct registration: OpenAPI generation
+reprocesses the `validate` tag independently of the runtime validator,
+so a rule registered only on the raw instance would apply at request
+time while staying invisible to the generated schema.
+`RegisterCustomRule` is the single point that keeps all three in sync.
+
+#### Why `ValidationError` has `detail` + `code` + `source` + `meta`
+
+Each field has a deliberately different role, it's not redundancy:
+
+* `detail` — human-readable English text. It is not a stable contract:
+  API consumers should not parse it.
+* `code` — stable, i18n-friendly vocabulary (`required`, `min_length`,
+  ...). It is deliberately decoupled from `validator/v10`'s internal tag
+  names, so as not to leak implementation detail or break the contract
+  if the underlying validation library is ever swapped out.
+* `meta` — structured rule values (e.g. `min`) so consumers can build
+  their own localized message without having to parse `detail`.
+
+#### `min`/`max` is length, not numeric value
+
+`validate:"min=1,max=100"` on an `int` is a common semantic mistake:
+`validator/v10`'s `min`/`max` always mean string/slice/map length, never
+the numeric value itself — `validation/mapper.go` maps both
+unconditionally to `ValidationCodeMinLength`/`MaxLength`, with the
+message "must contain at least/most N characters", even when applied to
+a numeric field. To constrain the *value* of a number, the correct tag
+is `gt`/`gte`/`lt`/`lte`.
+
+#### Validator error mapping: explicit rules + fallback
+
+`mapFieldError` (`validation/mapper.go`) explicitly maps a fixed set of
+known tags; any tag not covered (a `validator/v10` built-in without a
+dedicated mapping, or a custom rule registered directly on the
+underlying `*validator.Validate` instead of via
+`validation.RegisterCustomRule`) falls back to a generic
+(`ValidationCodeValidationFailed`, with `meta.rule`/`meta.param`). The
+fallback exists deliberately so as to never expose `validator/v10`'s raw
+error string (format like `Key: 'Foo.Bar' Error:Field validation...`)
+as `detail` — that would leak implementation detail and break the
+guarantee that `code` is a stable vocabulary.
+
+---
+
+## Sanitization
+
+`sanitize.Apply` runs between `binding.Decode` and validation inside
+`httpx.Endpoint`, so a validator like `required`/`min` sees the value a
+client actually intends, not raw bytes that happen to satisfy the
+check without meaning to (e.g. `"C "` passing `min=2` on its untrimmed
+length, even though the intended value is a single character).
+
+Scope is deliberately narrow: a sanitizer only does the cleanup a
+validator needs to make a correct decision. Anything that doesn't
+affect whether validation passes - display formatting, computed
+fields, masking sensitive data in a response - belongs in the handler,
+not here. This is also why there's no fuego-style "Output
+Transformation": the handler already has full write access to the
+response type before `Endpoint` serializes it, so masking or computing
+a field there is just Go code, no framework hook needed.
+
+### Tag syntax
+
+`sanitize:"trim,email"` chains named transforms, resolved against the
+registry `sanitize.RegisterFunc` feeds - the same single-registry
+pattern as `validation.RegisterCustomRule`. Built-in: `trim`
+(`strings.TrimSpace`) and `email` (trim + lowercase). Deliberately
+minimal - no `lower`/`upper`/`title` etc. shipped by default, since
+those are business decisions (lowercasing a `Name` would be wrong),
+not universal normalization; register your own via `RegisterFunc`.
+
+`sanitize.FromRegexp(pattern)` returns a sanitizer that removes every
+substring matching a pre-compiled `*regexp.Regexp` - the equivalent of
+mrz1836/go-sanitize's `CustomCompiled`, minus embedding the pattern in
+the tag string itself (which would collide with the tag's own
+comma-separated syntax, and force a recompile on every request the way
+that library's own `Custom` does).
+
+### Recursion
+
+A struct field is always recursed into, matching how `validator/v10`
+dives into a nested struct automatically (no tag needed on the struct
+field itself). A slice/array/map field needs its tag to start with
+`dive` to apply the remaining tokens to each element, matching
+`validate`'s own convention (`sanitize:"dive,trim"` on `[]string`,
+`sanitize:"dive"` alone on `[]SomeStruct` to recurse into each
+element's own tagged fields). Bounded by the same kind of depth limit
+(`sanitize.maxDepth`, 16) as `validation.maxFieldMapDepth`, for the
+same reason: guarantee termination against a self-referential struct
+instead of recursing until the stack overflows.
+
+Scoped to `string` fields (and `*string`) for v1 - no numeric/bool
+directives like some sanitizer libraries offer (`max`/`min`/`def`):
+that overlaps with `validate:"gt/gte/lt/lte"` and would conflict with
+what the `default` OpenAPI tag already means.
+
+### Fail fast, not silently
+
+`httpx.Endpoint` calls `sanitize.Prepare(reflect.TypeFor[TRequest]())`
+once, at construction time, and panics if any `sanitize` tag reachable
+from the type references an unregistered function - mirroring
+`middleware.BuildChain`'s "panic at construction, not mid-request"
+discipline. `Prepare` walks the `reflect.Type` structurally rather than
+a live value specifically so a nested pointer-to-struct field is
+checked even when it would be nil at runtime - `Apply` (which runs per
+request, against the real, possibly-nil value) can't offer that
+guarantee, and silently skips an unrecognized tag instead of erroring
+on every request.
+
+---
+
+## OpenAPI
+
+### What's Implemented
+
+Implemented:
+
+* automatic schema generation
+* automatic request body generation
+* automatic response generation
+* automatic query parameter generation
+* automatic path parameter generation
+* automatic header parameter generation
+* automatic error schema generation
+
+---
+
+### Schema Features
+
+Implemented:
+
+* type
+* format
+* description
+* nullable
+* deprecated
+* readOnly
+* writeOnly
+* default
+* example
+* enum
+* required
+* properties
+* additionalProperties
+* items
+* minimum
+* maximum
+* exclusiveMinimum
+* exclusiveMaximum
+* minLength
+* maxLength
+* minItems
+* maxItems
+* pattern
+
+`required` in the schema comes exclusively from the `validate:"required"`
+tag — never from `json:"...,omitempty"`. These are independent
+concerns: `omitempty` only controls JSON serialization (omitting a
+zero-value field), it is not used as a proxy for "optional field" in the
+generated schema (unlike some other Go frameworks).
+
+---
+
+### Automatic Inference
+
+The framework automatically infers information from validators.
+
+Currently:
+
+#### email
+
+```go
+validate:"email"
+```
+
+↓
+
+```yaml
+format: email
+```
+
+---
+
+#### uuid
+
+```go
+validate:"uuid"
+```
+
+↓
+
+```yaml
+format: uuid
+```
+
+---
+
+#### url
+
+```go
+validate:"url"
+```
+
+↓
+
+```yaml
+format: uri
+```
+
+---
+
+#### `dive` redirects the constraint to the element's schema
+
+```go
+Tags []string `validate:"dive,min=2"`
+```
+
+↓
+
+```yaml
+type: array
+items:
+  type: string
+  minLength: 2   # not minItems
+```
+
+`applyValidationTags` (`openapi/validation.go`) tracks whether it has
+already passed through a `dive` in the `validate` tag; from that point
+on, `min`/`max`/`len`/`gt`/`gte`/`lt`/`lte`/`oneof`/`email`/`uuid`/`url`/
+custom rule redirect to `schema.Items` instead of the field's schema —
+without this, `applyMin`/`applyMax` only look at `schema.Type`
+(`"array"` with or without `dive`), so `dive,min=2` would turn into
+`minItems: 2` (array with 2+ elements) instead of `minLength: 2` on each
+element (the schema would lie about its own contract: the runtime
+already validated correctly, only the documented schema was wrong).
+`dive,dive` (slice of slice) descends two `Items` levels, and a
+`required` after `dive` does not mark the field as required in the
+schema (there's no OpenAPI equivalent for "no element may be
+zero-value").
+
+---
+
+#### Not automatically inferred: `Pattern` and `Tags`
+
+`Schema.Pattern` is only set when a custom rule explicitly declares one
+via `RegisterCustomRule`'s `SchemaEffect.Pattern` (see "Custom
+Validators" above) — a built-in tag like
+`validate:"regexp=^[a-z]+$"` has no dedicated case in
+`applyValidationTags` and produces no schema constraint on its own.
+`Operation.Tags` works the same way: always set explicitly per
+operation (see "OpenAPI Tags" below), never derived automatically from
+a route group, path prefix, or handler name.
+
+---
+
+### The `example` Tag
+
+Examples are converted to the correct type.
+
+Examples:
+
+```go
+example:"1"
+```
+
+↓
+
+```yaml
+example: 1
+```
+
+---
+
+```go
+example:"true"
+```
+
+↓
+
+```yaml
+example: true
+```
+
+---
+
+```go
+example:"1.5"
+```
+
+↓
+
+```yaml
+example: 1.5
+```
+
+---
+
+### Default
+
+Defaults are also converted to the correct type.
+
+Examples:
+
+```go
+default:"20"
+```
+
+↓
+
+```yaml
+default: 20
+```
+
+---
+
+### OpenAPI Tags
+
+The OpenAPI 3.2 model was adopted.
+
+Supported fields:
+
+* name
+* summary
+* description
+* externalDocs
+* parent
+* kind
+
+Supported kinds:
+
+* nav
+* badge
+* audience
+
+---
+
+### Document-Level Fields
+
+`openapi.NewGenerator(info, opts...)` takes `GeneratorOption`s (mirrors
+`routing.Option`/`routing.WithOpenAPI`) to set document-level fields
+beyond `Info`:
+
+* `WithServers(...Server)` — sets `Document.Servers`, the API's base
+  URL(s).
+* `WithExternalDocs(*ExternalDocs)` — sets `Document.ExternalDocs`.
+
+See `examples/cmd/basic` for `WithServers` in use.
+
+---
+
+### Documentation UI
+
+Adopted tool:
+
+Stoplight Elements
+
+Reasons:
+
+* better visual experience
+* modern OpenAPI support
+* more advanced support than Swagger UI
+
+---
+
+#### Current features
+
+* customizable title
+* customizable logo
+* customizable favicon
+* embed mode
+* CDN mode
+
+---
+
+### Not Yet Implemented
+
+Audited against the OpenAPI 3.2 Object Model; grouped by how much each
+gap matters:
+
+#### Real gaps, worth closing (not done yet)
+
+* **`Components`** only implements `Schemas` — which is genuinely used
+  (registered per type and referenced via `$ref`, see
+  `Generator.registerSchema`). The spec's Components Object also
+  covers `responses`, `parameters`, `examples`, `requestBodies`,
+  `headers`, `securitySchemes`, `links`, `callbacks`, `pathItems` —
+  none of those exist at all, not even as unused types.
+* **`Response.Headers`/`Header`/`Link` are never populated by the
+  generator.** `Header` (`Description`, `Required bool`, `Schema
+  *Schema`) is usable on its own — a caller can hand-author
+  `Operation.Responses["200"].Headers[...]` today — but nothing in
+  `generator.go`/`reflection.go` ever fills it automatically.
+  `RateLimit`, `ETag`, `ServiceDesc`, `CORS`, and others all add real
+  response headers (`X-RateLimit-*`, `ETag`, `Link`,
+  `Access-Control-Allow-Origin`, ...), and none of that shows up in the
+  generated document. Not a quick field-add: the reflection-based
+  generator only looks at the Go request/response struct for a given
+  endpoint, with no visibility into which middleware are active on
+  that route — closing this needs a real design decision on how a
+  middleware would declare "I add this response header" to the
+  generator.
+
+#### Depend on Auth, which is already deferred
+
+* **`Operation.Security`/`Document.Security`** (per-operation and
+  global security requirements) and **`Components.SecuritySchemes`**
+  (no `SecurityScheme` type exists at all) — all three only become
+  useful together, and only once arnon has *some* notion of an auth
+  scheme, which doesn't exist yet (Bearer/Basic auth is already
+  tracked as deferred elsewhere). Implementing just the
+  `Operation`-level field without the rest would produce a schema that
+  always looks unauthenticated, which is worse than not having the
+  field at all.
+* **`Document.Webhooks`** (3.1+) and **`Operation`/`Components.Callbacks`**
+  (out-of-band, webhook-style callbacks tied to an operation) — no
+  registration mechanism for either exists, and there's been no
+  discussion of arnon exposing webhook/callback endpoints at all —
+  lower priority than Security, since at least one real user-facing
+  feature (auth) already motivates fixing that gap, while nothing
+  today motivates callbacks.
+* **`Document.JSONSchemaDialect`** (3.1+, declares which JSON Schema
+  version the document's schemas follow) — unused, since arnon doesn't
+  yet emit schema keywords specific to a dialect (see below).
+
+#### Accepted, not planned
+
+* **Full JSON Schema 2020-12 dialect** (`oneOf`/`anyOf`/`allOf`/`not`,
+  `const`, `discriminator`, `xml`, `prefixItems`,
+  `contentEncoding`/`contentMediaType`, schema-level `title`) —
+  `Schema` only covers the "plain struct/slice/map/primitive" shape a
+  reflection-based, code-first generator naturally produces. Go has no
+  native sum type to map to `oneOf`, so this gap tracks a real
+  limitation of the code-first approach itself, not an oversight —
+  revisit only if a concrete use case needs it.
+* **`Parameter` `style`/`explode`/`allowReserved`/`allowEmptyValue`/
+  `content`** (OpenAPI's own array/object query-serialization rules) —
+  arnon's binding (`httpx/binding`) never consults these; it binds
+  query/header values directly from Go struct tags, independent of
+  what the generated schema says. Implementing them would only affect
+  what the document *describes*, not what arnon actually accepts —
+  low value until arnon's binding itself grows style-aware parsing.
+  `Parameter.In` also never produces `"cookie"` (cookie binding isn't
+  implemented) or `"body"` (not a valid Parameter Object location per
+  the spec in the first place; body fields go into `RequestBody`).
+* **`Operation.Servers`/`Operation.ExternalDocs`** (per-operation
+  overrides of the document-level fields) — real gaps, but low
+  priority; `ExternalDocs` in particular would be cheap to add (the
+  type already exists, just isn't exposed on `Operation`) if a need
+  comes up.
+
+---
+
+## Problem Details
+
+### Standard
+
+RFC 9457
+
+---
+
+### Schemas
+
+Implemented:
+
+#### Problem
+
+Represents an HTTP error.
+
+---
+
+#### ValidationError
+
+Represents a single validation error.
+
+---
+
+#### ValidationSource
+
+Represents the origin of the error.
+
+Example:
+
+```json
+{
+  "in": "body",
+  "field": "/name"
+}
+```
+
+`field` only uses JSON Pointer syntax (RFC 6901: `/name`,
+`/address/city`, `/items/0/name`, `/tags/1`, `/meta/x~1y`) when `in` is
+`"body"` — it's the only hierarchical `in`. Each segment's name (the
+`json` tag, not the Go field name) is escaped via `~0`/`~1` per RFC
+6901 §3 (`validation.escapeJSONPointerToken`) — without this, a field
+literally named `"a/b"` would turn into `/a/b`, indistinguishable from
+two segments; the same applies to a map key (`Meta["x/y"]` →
+`/meta/x~1y`, unlike a slice index, which never needs escaping since
+it's always a digit). `buildFieldMap` (`validation/field_map.go`) walks
+the *actual value* of the request (not just the type — it needs the
+real size of a slice/array/map), recursing into a nested struct (value
+or pointer), a slice/array element (struct or primitive), and a map
+entry with a string key (struct or primitive), composing the pointer
+level by level — including a slice/map of primitives with `dive`
+(`Tags[1]`, `Meta["x"]`), since `validator/v10` reports an element error
+without a field segment after the index/key, so it needs its own entry
+in the map instead of just recursion. The cross-reference with
+`validator/v10`'s error uses `FieldError.StructNamespace()` with the
+root type name removed (`validation.structFieldNamespace`), not
+`StructField()` (which only gives the leaf field name, no path); the
+format of `StructNamespace()` for a slice/map element (raw key, no
+escaping, in the namespace — only the final pointer is escaped) was
+confirmed empirically, not assumed. Limited to `maxFieldMapDepth` (16)
+levels (struct, index, and key all count toward the same limit), just
+to guarantee termination even with a self-referencing struct. Since it
+now walks the actual value, the cost scales with the size of any
+slice/map reachable in the request — but only on the error path
+(`mapValidationErrors` only runs after there's already at least one
+error), it does not affect a successful request. **Current
+limitation**: a non-string map key (`map[int]T`) falls back to the
+field-name fallback — JSON only has string keys anyway, a rare case in
+a request DTO. For
+`path`/`query`/`header`
+(`NewPathError`/`NewQueryError`/`NewHeaderError` in `problem/validation.go`),
+`field` is always the raw field name (`id`, `page`, `Authorization`),
+with no `/` prefix (it's not a JSON Pointer, so there's no reason to
+escape it). RFC details in
+[docs/architecture/rfc-compliance.md](rfc-compliance.md).
+
+---
+
+### Automatic responses
+
+Endpoints automatically receive:
+
+#### 400
+
+Bad Request
+
+```http
+application/problem+json
+```
+
+---
+
+#### 500
+
+Internal Server Error
+
+```http
+application/problem+json
+```
+
+---
+
+### Example Responses
+
+Each response has its own example.
+
+Example:
+
+400 → validation error
+
+500 → internal error
+
+---
+
+## Middleware
+
+All in `httpx/middleware`, built as `routing.Middleware`
+(`func(http.Handler) http.Handler`), applied via `Router.Use`
+(global, runs before routing) or `Group.Use` (per-group).
+
+### Implemented
+
+* **CORS** — configurable (`CORSConfig.AllowedOrigins`, etc). Only
+  intercepts `OPTIONS` with `204` when it's a real preflight
+  (`Access-Control-Request-Method` present, Fetch spec §4.1); a "bare"
+  `OPTIONS` falls through to `next`, reaching the `mux` (which returns a
+  real `405`+`Allow` reflecting the methods registered for the path, or
+  triggers an explicit user `OPTIONS` handler, if any). Always adds
+  `Vary: Origin` (the response always depends on the request's
+  `Origin`, since `Access-Control-Allow-Origin` echoes the received
+  value instead of using a literal `*` — necessary to support
+  `AllowCredentials`).
+* **Logging** — structured logger (`slog`), enriched with
+  `request_id`/`real_ip`/`trace_id`/`span_id` when the corresponding
+  middlewares are installed.
+* **RealIP** — extracts the client IP, checking in this order:
+  `Forwarded` (RFC 7239, the IETF standard) → `X-Forwarded-For` →
+  `X-Real-IP` → `RemoteAddr`. Available via `RealIPFromContext`.
+* **RequestID** — generates/propagates `X-Request-Id`, available via
+  `RequestIDFromContext`.
+* **Recover** — recovers from panics, converts them into a 500 Problem
+  Details (`problem.NewInternal("")`, generic detail) and logs the
+  panic value via `observability.LoggerFromContext` — never includes
+  the raw panic value in the response (RFC 9457 §3.1.5).
+* **Timeout** — request timeout; a custom implementation (no longer
+  uses stdlib's `http.TimeoutHandler`) that responds with Problem
+  Details instead of plain text on timeout.
+* **StripSlashes** / **RedirectSlashes** — two ways of handling a
+  trailing slash in the path: `StripSlashes` normalizes silently (no
+  round trip), `RedirectSlashes` redirects (308, preserves method and
+  body). Both need to run as *global* middleware (pre-routing) to work
+  — see the note in "Important Decisions" about `Router.ServeHTTP`. Do
+  not install both at the same time.
+* **Compress** — `Compress(...CompressOption)`, ported from
+  chi's `middleware.Compress`. Only compresses when the *response's*
+  `Content-Type` (not the request's) matches `types` (or the default
+  list of textual/JSON types when `types` is empty; a `/*` suffix
+  matches subtypes, e.g. `text/*`) — this avoids spending CPU
+  compressing content that wouldn't benefit (images, etc). An invalid
+  `level` panics at middleware creation (a configuration error, not a
+  runtime one). Removes `Content-Length` from the response when
+  compression is applied. `Accept-Encoding` is parsed for real
+  (`acceptsGzip`, parsing `;q=` and the `*` wildcard, RFC 9110 §12.5.3),
+  not with a simple `strings.Contains` — an explicit `gzip;q=0` is a
+  refusal, not acceptance. Absence of the header still means "don't
+  compress" (the conservative default that already existed, unchanged
+  by this precision).
+* **NoCache** — ported from chi's `middleware.NoCache`: besides the
+  response headers (full `Cache-Control`, `Pragma`,
+  `X-Accel-Expires`, `Expires` at the Unix epoch), it also removes the
+  conditional headers from the *request* (`ETag`, `If-Modified-Since`,
+  `If-Match`, `If-None-Match`, `If-Range`, `If-Unmodified-Since`)
+  before calling the handler — this prevents any downstream code from
+  responding conditionally/cached, which would contradict the
+  middleware's intent.
+* **AllowContentType** — allow-list of accepted `Content-Type` on the
+  request, 415 otherwise. Requests without `Content-Type` pass
+  (binding already tolerates a missing body).
+* **MaxBodyBytes** — request body size limit. When `Content-Length` is
+  known and already exceeds the limit, rejects immediately with 413.
+  When it isn't (chunked, or a client lying about the size), it uses
+  `http.MaxBytesReader` as a second line of defense; the overflow is
+  only noticed during reading (inside JSON binding), but it still
+  correctly becomes a 413, via
+  `problem.ValidationErrorCode.StatusOverride()` — see "Binding errors
+  do not carry an HTTP status by default" in "Important Decisions".
+* **SecureHeaders** — `X-Content-Type-Options`, `X-Frame-Options`,
+  `Referrer-Policy` always; `Strict-Transport-Security` only if
+  explicitly configured (HSTS breaks local development over plain HTTP
+  if enabled by default).
+* **Throttle** — limit on *concurrent* requests (semaphore), with
+  optional backlog (`BacklogLimit`/`BacklogTimeout`) to queue instead
+  of rejecting immediately. Not time-based rate limiting — see
+  `RateLimit` for that.
+* **RateLimit** — real rate limiting
+  (`RequestLimit`/`WindowLength` per client key, `KeyFunc` defaulting
+  to `RealIPFromContext` → `RemoteAddr`, canonicalized via
+  `CanonicalizeIP`). A sliding-window-counter algorithm adapted from
+  `go-chi/httprate`: two fixed windows (current and previous) per key,
+  with the previous window's count weighted by its overlap with the
+  current sliding window. The algorithm (`checkRateLimit`) is separated
+  from storage via the `LimitCounter` interface
+  (`Config`/`Increment`/`IncrementBy`/`Get`), deliberately mirroring the
+  interface of the same name in `go-chi/httprate` — a backend already
+  written for httprate (e.g. `go-chi/httprate-redis`) needs only
+  trivial changes to serve arnon. A nil `RateLimitConfig.Counter` uses
+  the in-memory default (`NewLocalLimitCounter`, exported): memory is
+  self-limited, old windows are discarded in bulk (not key by key)
+  whenever time advances into a new window, so inactive keys are
+  automatically removed within two windows, with no need for manual
+  eviction/TTL — but this is only correct for a single instance;
+  deployments with multiple instances need a `LimitCounter` with shared
+  storage (Redis, Valkey, Memcached, ...), implemented as a separate Go
+  module (arnon's core never depends on a specific storage backend).
+  A `Counter` error (`Get`/`IncrementBy`) becomes a `problem.Problem`
+  via `RateLimitConfig.OnCounterError` (default: 503 Service
+  Unavailable, without leaking the error message; configurable).
+  `CanonicalizeIP` reduces IPv6 addresses to their /64 prefix (an IPv6
+  client controls an entire /64 via SLAAC; without this it could
+  rotate addresses within its own block to dodge the limit). The
+  response always includes
+  `X-RateLimit-Limit`/`X-RateLimit-Remaining`/`X-RateLimit-Reset`, and
+  `Retry-After` (RFC 6585) on 429. Implemented in
+  `httpx/middleware/rate_limit.go`, with no external dependency (only
+  `sync`/`time`/`net`/`math` from the stdlib in the core; external
+  storage adapters live outside the module).
+* **ETag** — conditional GET (RFC 9111/9110 §13). Only acts on
+  `GET`/`HEAD` and on 2xx responses; buffers the handler's entire body
+  (needs the complete body to hash it), computes a strong ETag via
+  FNV-1a 64-bit (stdlib `hash/fnv`) and compares it against
+  `If-None-Match` using weak comparison (ignores a `W/` prefix on
+  either side, per RFC 9110 §13.1.2). On a match (or
+  `If-None-Match: *`), responds `304 Not Modified` with no body;
+  otherwise, responds with the full body plus the `ETag` header. An
+  `ETag` already set by the handler is respected instead of
+  recalculated. When combined with `Compress`: install `ETag` first
+  (more external), to hash the already-compressed bytes, consistent
+  with the `Vary: Accept-Encoding` that `Compress` already sets.
+  Combining with `NoCache` on the same route defeats the purpose of
+  both. Implemented in `httpx/middleware/etag.go`.
+* **ServiceDesc** — adds a `Link: <path>; rel="service-desc"`
+  (RFC 8631) header to every response, pointing to the OpenAPI document
+  (e.g. `/openapi.json`), enabling automatic discovery by a
+  generic client/tool that already understands `Link` headers. Uses
+  `header.Add`, not `Set`, so it adds to any other existing `Link`
+  headers instead of replacing them. Implemented in
+  `httpx/middleware/service_desc.go`.
+
+### Middleware order
+
+The relative order of global middlewares (`Router.Use`) matters —
+several have real dependencies on each other (context that one
+populates and another reads, bytes that one needs to see before
+another transforms them). Two ways to enforce this, in order of
+preference:
+
+#### `middleware.BuildChain` — order guaranteed by code, not by discipline
+
+`middleware.BuildChain(config middleware.ChainConfig) []routing.Middleware`
+(`httpx/middleware/chain.go`) always assembles the recommended global
+chain in the right order — each `ChainConfig` field is
+optional/independent (nil or `false` = "not mentioned", not
+"disabled"), but the relative position of whichever ones are included
+never changes, because the order is decided by `BuildChain`'s code, not
+by whoever calls `router.Use(...)`. Usage:
+
+```go
+router.Use(middleware.BuildChain(middleware.ChainConfig{
+    Recover:       true,
+    RealIP:        true,
+    RequestID:     true,
+    SecureHeaders: &middleware.SecureHeadersConfig{},
+    RateLimit:     &middleware.RateLimitConfig{ /* ... */ },
+    ETag:          true,
+    Compress:      true,
+    CORS:          &middleware.CORSConfig{ /* ... */ },
+    ServiceDescPath: "/openapi.json",
+    Logger:        logger,
+})...)
+```
+
+`BuildChain` also **prevents at runtime** the only mutually exclusive
+combination that exists today: setting `StripSlashes` and
+`RedirectSlashes` together causes an immediate panic (at chain
+creation, not in the middle of a request).
+
+What `BuildChain` does and does not guarantee: any call with the same
+subset of fields populated always produces the same relative order
+between them — this is genuinely tested in
+`httpx/middleware/chain_test.go` (not just documented), verifying
+observable behavior (`RequestID` appearing in `Logging`'s log, `ETag`
+hashing bytes already compressed by `Compress`, `Recover` catching a
+panic from anywhere in the chain, `SecureHeaders` appearing even on a
+`429` response from `RateLimit`). What is not guaranteed: a chain
+assembled manually with `router.Use(mw1, mw2, ...)`, entirely outside
+`BuildChain`, remains the responsibility of whoever writes it — there
+is no (nor would it be reasonable to build, given that
+`routing.Middleware` is just `func(http.Handler) http.Handler`, with no
+runtime identity of its own) static validation that blocks a malformed
+manual call. `BuildChain` (including `Extra`, below) is the recommended
+path precisely so this isn't needed in most cases.
+
+Group middlewares (`AllowContentType`, `MaxBodyBytes`, `NoCache`) are
+deliberately left out of `BuildChain`: they're scoped to a specific
+group (e.g. only `/api`, not `/openapi.json`/`/docs`) by design, and
+don't make sense as part of the global chain. There's no relevant order
+between them (they're independent), so they don't need their own
+builder — use `group.Use(...)` directly.
+
+#### Custom middleware with an order requirement — `ChainConfig.Extra`
+
+`BuildChain` only knows about arnon's built-in middlewares — if a
+custom or third-party middleware needs to run at a specific position
+relative to a built-in one (e.g. "after `RateLimit`, before `ETag`"),
+that can be done in two ways:
+
+**1. Split the call.** Since `Router.Use(...)` accumulates on every
+call (call order is preserved) and each `ChainConfig` field is
+independent of the others, you can call `BuildChain` twice with
+complementary subsets of fields, with the custom middleware in
+between:
+
+```go
+router.Use(middleware.BuildChain(middleware.ChainConfig{
+    Recover: true, RealIP: true, RequestID: true, RateLimit: &cfg,
+})...)
+router.Use(xpto.Middleware()) // precisa vir depois do RateLimit, antes do ETag
+router.Use(middleware.BuildChain(middleware.ChainConfig{
+    ETag: true, Compress: &cCfg, CORS: &corsCfg, Logger: logger,
+})...)
+```
+
+**2. `ChainConfig.Extra` — same result, in a single call.** Each
+position in `BuildChain` has a named `ChainAnchor`
+(`AnchorRecover`, `AnchorTimeout`, `AnchorStripSlashes`,
+`AnchorRedirectSlashes`, `AnchorRealIP`, `AnchorRequestID`,
+`AnchorSecureHeaders`, `AnchorRateLimit`, `AnchorThrottle`,
+`AnchorETag`, `AnchorCompress`, `AnchorCORS`, `AnchorServiceDesc`,
+`AnchorLogging`, in the same order as the list below). An
+`ExtraMiddleware{Middleware: ..., Before: Anchor...}` or `{...,
+After: Anchor...}` inserts the custom middleware right before/after
+that point:
+
+```go
+router.Use(middleware.BuildChain(middleware.ChainConfig{
+    Recover: true, RealIP: true, RequestID: true,
+    RateLimit: &cfg,
+    Extra: []middleware.ExtraMiddleware{
+        {Middleware: xpto.Middleware(), After: middleware.AnchorRateLimit},
+    },
+    ETag: true, Compress: &cCfg, CORS: &corsCfg, Logger: logger,
+})...)
+```
+
+A `ChainAnchor` names a *position*, not the presence of a specific
+middleware — `Extra` anchored at `AnchorETag` still lands in the right
+place even if `ChainConfig.ETag` is `false` on that call. `BuildChain`
+validates each `ExtraMiddleware` and panics (at chain creation, not in
+the middle of a request) if: neither `Before` nor `After` is set, both
+are set at the same time, or the referenced anchor isn't one of the
+`AnchorXxx` constants — this last case exists because a typo in the
+anchor name, without this validation, would simply drop the custom
+middleware from the chain silently. Multiple `Extra` entries anchored
+at the same point stack in the order they appear in the slice.
+
+Both approaches produce the same result; `Extra` just avoids having to
+split the call and remember which fields go in each half. Both remain,
+ultimately, "where in the code the middleware gets called" — `Extra`
+adds no verification beyond "this anchor exists and is well-formed",
+it does not validate whether the custom middleware itself is safe to
+run at that position (that remains the judgment of whoever writes it,
+as in any other language without a type system that can model
+"execution order").
+
+#### The order itself, and why
+
+From the most external (runs first, wraps everything) to the most
+internal (runs last, closest to the handler):
+
+1. **`Recover`** — needs to wrap literally everything below it to
+   catch a panic from any middleware, not just the final handler.
+   Accepted trade-off: since it runs before `RequestID`/`Logging`, it
+   doesn't have `request_id`/`trace_id` in the panic log, unless
+   repositioned to after those two (see the note under `Recover`,
+   below).
+2. **`Timeout`** — the deadline must apply to the entire chain below
+   it, and `Timeout` itself re-raises (`panic`) the handler's panic
+   outward, expecting a more external `Recover` to catch it. Without a
+   `Recover` anywhere in the chain, that repanic still doesn't crash
+   the process: `net/http`'s own per-connection recovery
+   (`net/http.conn.serve`) catches it, logs the stack trace to the
+   server's error log, and closes that one connection - every other
+   in-flight request is unaffected, but the client sees the connection
+   drop instead of a Problem Details response, and the log entry has
+   no `request_id`/`trace_id` correlation. Installing `Recover` is what
+   turns that into a proper 500.
+3. **`StripSlashes`/`RedirectSlashes`** (mutually exclusive) — needs
+   to normalize the path before anything that depends on it,
+   including the `mux`'s own routing.
+4. **`RealIP`** — populates context that `RateLimit` (keyed by IP) and
+   `Logging` (`real_ip` in the log) read later.
+5. **`RequestID`** — populates context that `Logging` (`request_id` in
+   the log) reads later.
+6. **`SecureHeaders`** — cheap, wants to appear on every response,
+   including errors generated by any middleware below it (a `429`
+   from `RateLimit`, a `404` from the `mux`).
+7. **`RateLimit`**/**`Throttle`** — reject early, before any real work
+   (including before `ETag`/`Compress` spend CPU on a response that
+   won't even be accepted).
+8. **`ETag`** — needs to come before `Compress` to hash the bytes that
+   actually go out on the wire (already compressed), not the
+   pre-compression version — consistent with the
+   `Vary: Accept-Encoding` that `Compress` sets.
+9. **`Compress`**.
+10. **`CORS`** — intercepts preflight (`OPTIONS` with
+    `Access-Control-Request-Method`) before the `mux`; an `OPTIONS`
+    that isn't a preflight falls through to the `mux`, so this
+    position doesn't block the real `405`+`Allow` discussed in
+    `docs/architecture/rfc-compliance.md`.
+11. **`ServiceDesc`** — only adds a header, with no strong position
+    dependency; sits near the end by convention.
+12. **`Logging`** — deliberately the most internal of the group above:
+    it only assembles its log attributes (including what
+    `RealIP`/`RequestID` populated) once, before calling `next`, so it
+    needs to be last to already see everything the others left in the
+    context.
+
+Note on `Recover` + correlation: since it's the most external (item
+1), it *cannot* see the `request_id`/`trace_id` that
+`RequestID`/`Logging` (items 5 and 12) only populate after it has
+already run its pre-processing logic. Anyone who needs this must give
+up `BuildChain` for this specific part and assemble `Recover` manually
+after `RequestID` — a real trade-off (loses the guarantee of catching
+a panic from anywhere, gains correlation in the panic log), not a
+configuration that can have it both ways at once.
+
+**Maintenance**: every new global middleware needs to gain a field in
+`ChainConfig`, a corresponding `ChainAnchor` (also added to
+`validChainAnchors`), and an `appendStage(...)` call at the right
+position inside `BuildChain` — otherwise it becomes inaccessible via
+`BuildChain`/`Extra` and this doc section becomes outdated. Group
+middleware (`AllowContentType`-like) doesn't need this.
+
+### Planned / deferred
+
+* **Authentication (Bearer/Basic)** — deferred, see "Security" below.
+
+---
+
+## Important Decisions
+
+### Global middleware wraps the entire mux, not each route
+
+`Router.Use` (global middleware) is applied in `Router.ServeHTTP`,
+wrapping the entire `mux` — not in `router.register`, per route. This
+is what allows pre-routing middleware (`StripSlashes`,
+`RedirectSlashes`) to work, and makes routes not found (404) also pass
+through `RequestID`/`Logging`/`RateLimit`/etc. Group middleware
+(`Group.Use`) continues to be applied per-route in `router.register`,
+since `net/http.ServeMux` has no notion of prefix. Do not go back to
+merging `router.middlewares` inside `register()` — that would
+duplicate execution.
+
+### Binding errors do not carry an HTTP status by default
+
+`httpx.Endpoint` maps every `binding.Decode` error to 400
+(`writeValidationProblem`, in `httpx/endpoint.go`), regardless of the
+specific `problem.ValidationError` code. The exception is
+`problem.ValidationErrorCode.StatusOverride()`
+(`problem/validation_code.go`): if any error has a code with an
+override (today only `ValidationCodePayloadTooLarge` → 413), that
+status replaces the default 400. This is what lets `MaxBodyBytes`
+return 413 even when the body overflows during reading (chunked),
+without needing to change `binding.Decode`'s signature. When adding a
+new validation code that should imply a status other than 400, add the
+case in `StatusOverride()` instead of inventing another mechanism.
+
+### `WriteProblem` requires `*http.Request` to auto-populate `Problem.Instance`
+
+`httpx.WriteProblem(writer, request, problemInstance)` has taken the
+request since 2026-07-15 (a signature change — acceptable because the
+framework hasn't had a public release yet). If
+`problemInstance.Instance` is empty, it gets filled with
+`request.URL.Path` before serializing, never overwriting a value
+already set via `.WithInstance(...)`. `httpx` cannot depend on
+`httpx/middleware`/`observability` (see the dependency graph above),
+so `request_id`/`trace_id` can't be used here — path is what's
+achievable without widening that boundary. Every new `WriteProblem`
+call site must pass the request.
+
+### `httpx.Endpoint` is JSON-only by design; `Accept` negotiation formalizes this
+
+`Endpoint()` checks the `Accept` header (`httpx/accept.go`,
+`acceptsJSON`) before doing any binding and responds `406 Not
+Acceptable` (Problem Details) when the client explicitly excludes
+`application/json` (e.g. `Accept: application/xml` alone, or
+`application/json;q=0`). A missing, empty `Accept`, or one that
+includes `application/json`/`application/*`/`*/*` with `q > 0` passes
+normally — RFC 9110 §12.5.1 says a missing header means "accepts
+anything". The parser follows the "most specific match wins" rule: an
+exact entry beats `application/*`, which beats `*/*`.
+
+This is not (and should not become) negotiation of multiple
+representations of the same endpoint — `Endpoint()` still only ever
+produces JSON. Anyone who needs to serve XML, PDF, CSV, or any other
+format/file builds a plain `http.Handler` via `Router.GET`/`POST`/etc,
+exactly like any other route; no framework middleware (`Compress`,
+`ETag`, `SecureHeaders`, ...) is coupled to JSON. Don't create a second
+"format-generic" typed endpoint abstraction to cover this case — the
+pattern is already to use a plain `http.Handler`.
+
+### Pointers in Schemas
+
+Properties use pointers.
+
+Example:
+
+```go
+Properties map[string]*Schema
+```
+
+Reason:
+
+Avoid unnecessary copies and allow recursive structures.
+
+---
+
+### AdditionalProperties
+
+Uses:
+
+```go
+AdditionalProperties *Schema
+```
+
+---
+
+### Receivers
+
+Preference for pointer receivers.
+
+Reasons:
+
+* avoid copies
+* consistency
+* compatibility with the recvcheck linter
+
+Deliberate exception: small, immutable value-types with no identity of
+their own (e.g. `openapi.Tag`, which is fluent and returns new values
+on every `With*`; `problem.ValidationErrorCode`, an enum) use a
+**value** receiver on purpose — this is not an inconsistency to fix.
+The heuristic: a type with identity/mutation/builder → pointer; a
+small, immutable type that behaves like a value → value.
+
+---
+
+### Stoplight
+
+Stoplight Elements was chosen over Swagger UI — it fits better with the
+"lightly opinionated foundation" premise (more neutral visuals,
+presented as a doc/portal rather than a test console).
+
+Point revisited on 2026-07-16: Swagger UI (starting with
+`swagger-ui-dist@5.32.0`, Feb/2026) gained support for OpenAPI 3.2.0;
+Stoplight Elements, as of the same date, documents official support
+only up to 3.1. Since `arnon` generates documents with
+`"openapi": "3.2.0"` (`openapi.OpenAPIVersion3_2`), this may mean
+Stoplight Elements doesn't recognize new 3.2 features (most of the 3.2
+changes over 3.1 are additive, so overall rendering should keep
+working). Not yet verified empirically in a real browser — before
+switching the default or exposing the UI as configurable, this
+validation is worth doing.
+
+---
+
+### Hybrid OpenAPI, Revisited
+
+Automatic generation remains the primary strategy.
+
+Customizations should complement automatic generation, never require
+repeating configuration.
+
+---
+
+## Planned Features
+
+### Observability (Highest Priority)
+
+#### OpenTelemetry
+
+Tracing:
+
+* HTTP Server Tracing
+* Trace Propagation
+* Route Attribution
+* Error Attribution
+
+Metrics:
+
+* Request Count
+* Request Duration
+* Active Requests
+
+Context:
+
+* Trace ID
+* Span ID
+* Request ID
+
+**Note**: despite the section title, everything above is already
+implemented (`observability`/`observability/otel`), it's no longer
+"planned" — `routing.WithInstrumentation(otel.NewHandler)` gives
+automatic HTTP tracing (via `otelhttp`, with route attribution and
+context propagation), `otel.Initialize` with `MetricsEnabled: true`
+enables automatic HTTP metrics plus Go runtime metrics, and
+`observability.TraceID`/`SpanID` correlate trace_id/span_id in
+structured logs (`httpx/middleware/logging.go`). Demonstrated and
+validated end to end (exported trace matching the application log,
+custom metrics with exemplars pointing to the exact trace) in
+`examples/cmd/observability`, including a local OTel Collector via
+Docker Compose, and covered by unit tests (see "Tests" below) on top
+of that manual validation.
+
+---
+
+### Health Endpoints
+
+* /health
+* /ready
+* /live
+
+Kubernetes-compatible.
+
+---
+
+### Security
+
+Authentication:
+
+* Bearer Token
+* Basic Auth
+
+Authorization:
+
+* policy abstraction
+
+---
+
+### Configuration
+
+* env var reading
+* defaults
+* configuration validation
+
+---
+
+### Tests
+
+Implemented:
+
+#### Unit
+
+* coverage of every package: `validation`, `openapi`, `problem`,
+  `sanitize`, `httpx`, `httpx/binding`, `httpx/middleware`,
+  `httpx/routing`, `observability`, `observability/otel`.
+* `httpx`: end-to-end tests via `httptest`, covering binding,
+  sanitization, validation, error mapping (default and custom), and
+  the success path.
+* `observability`/`observability/otel`: almost everything worth
+  testing in `observability/otel` is unexported (`newResource`,
+  `newTracerProvider`, `newMeterProvider`, `newMetricExporter`,
+  `newTraceExporter`, `startRuntimeMetrics`, `Config.withDefaults` are
+  all lowercase), and `testpackage` forces an external `_test`
+  package - so instead of granular per-function unit tests, coverage
+  comes from a handful of broader tests against `Initialize` (the one
+  real entry point) that exercise all of that machinery indirectly,
+  asserting on what's externally observable: no error/panic, the real
+  SDK provider got installed (`otel.GetTracerProvider()`/
+  `GetMeterProvider()` type-asserted, not the no-op default), and
+  shutdown respects its context deadline instead of hanging.
+  Constructing the real OTLP/gRPC exporter against an unreachable
+  endpoint is safe to do in a test - confirmed empirically, it doesn't
+  dial synchronously (a `New(ctx, ...)` call returns in ~100µs
+  regardless of whether anything is listening) - but the provider's
+  `Shutdown(ctx)` does attempt a real flush and blocks until the
+  context deadline before returning an error, so those tests use a
+  short-lived context and don't fail on the (expected) export error,
+  only on hanging past it. `otel.SetTracerProvider`/
+  `otel.SetMeterProvider` are process-wide global state, so none of
+  these tests can run with `t.Parallel()` (a justified
+  `//nolint:paralleltest` on each). Writing these tests caught a real
+  bug: `Initialize(Config{TracesEnabled: false})` followed by calling
+  the returned shutdown function paniced with a nil pointer
+  dereference - `shutdown()` nil-checked `meterProvider` before
+  calling `.Shutdown()` but not `traceProvider`, even though both are
+  left nil the same way when their respective `*Enabled` flag is
+  false. Fixed; a regression test covers it.
+
+Planned:
+
+#### OpenAPI (Golden Tests)
+
+* Golden tests: generate the OpenAPI document for a fixed set of
+  endpoints and compare it against a checked-in reference file, so any
+  unintended drift in the generator's output (a field disappearing, a
+  format change, ...) fails the test instead of only being caught by a
+  human reading a diff. Not implemented yet — `openapi`'s current
+  tests assert on individual fields of the generated document, not on
+  a full document snapshot.
+
+#### Mutation
+
+* `gremlins` is already wired up (`make test-mutation`, see
+  `AGENTS.md`); a full pass across the codebase to find and address
+  surviving mutants hasn't been done yet.
+
+---
+
+### Quality and Tooling
+
+Implemented:
+
+* `.golangci.yml`: every linter on (`default: all`), with a short
+  `disable` list rather than an `enable` one — an explicit `enable`
+  enumerating the same set would be inert and would silently drift out
+  of sync every time upstream adds a linter. Four are disabled, each
+  with its reason in the file (`depguard`/`gomodguard` because
+  `.go-arch-lint.yml` expresses the dependency graph directly). The
+  rest is tuned to the project's style (e.g. `funlen`/`cyclop` with
+  limits compatible with the adopted vertical format; `ireturn`
+  allowing the interface returns that are a design decision, like
+  `validation.Validator`). Consequence worth knowing: upgrading
+  golangci-lint can surface new failures, since new upstream linters
+  are picked up automatically.
+* `.go-arch-lint.yml`: models arnon's actual dependency graph between
+  packages and fails the build if a disallowed dependency is
+  introduced.
+* `examples/`: executable examples organized as `cmd`+`internal`.
+  `examples/cmd/basic` (`go run ./examples/cmd/basic`) is the bare
+  minimum — typed endpoint, validation, OpenAPI, zero middleware.
+  `examples/cmd/middleware` (`go run ./examples/cmd/middleware`) is
+  the same endpoint with the full middleware stack (CORS, rate limit,
+  compression, security headers, etc).
+  `examples/cmd/observability` (`go run ./examples/cmd/observability`)
+  is the same endpoint with `routing.WithInstrumentation(otel.NewHandler)`,
+  custom metrics (`observability.Counter`/`Histogram`) and logs
+  correlated by trace_id/span_id, genuinely exporting via OTLP/gRPC to
+  a local OTel Collector brought up by
+  `docker compose -f examples/cmd/observability/docker-compose.yml up`
+  (config in `otel-collector-config.yaml`, `debug` exporter — prints
+  every trace/metric received right in the collector's own log,
+  without needing Jaeger/Prometheus to validate the integration). It
+  also explicitly handles graceful shutdown (`SIGINT`/`SIGTERM`),
+  unlike the other two examples: that's what guarantees the flush of
+  pending spans/metrics in the SDK before the process exits. Code
+  shared across all three examples (logger, custom validator
+  registration, the example handler) lives in `examples/internal/*`,
+  which cannot be imported from outside `examples/` per Go's rule. All
+  are built and exercised via `hurl --test` as part of the project's
+  validation; `examples/cmd/observability` was also validated with a
+  real collector running (exported trace matching bit-for-bit the
+  trace_id/span_id logged by the application, custom metrics with
+  exemplars pointing to the exact trace).
+* [docs/architecture/rfc-compliance.md](rfc-compliance.md): compliance
+  reference against the RFCs relevant to an HTTP foundation (RFC 9457,
+  RFC 9110, RFC 9111, RFC 7239, RFC 6585, RFC 8288/8631/8615,
+  RFC 8259), separating what's already compliant, what's a deliberate
+  scope decision, and what's a real gap — including why `Recover()`
+  never lets a recovered panic's detail reach the response and why
+  `Timeout()` responds with Problem Details rather than plain text
+  (both paths that could otherwise silently break the "RFC 9457 is the
+  only error format" guarantee), and why `Forwarded`/
+  `X-Forwarded-For` parsing only takes the first hop.

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg viewBox="0 0 112 112" width="112" height="112" version="1.1" xmlns="http://www.w3.org/2000/svg" xml:space="preserve">
+  <!--
+    Mark-only variant for favicon/avatar use, dark background - see
+    arnon-icon-light.svg for where the geometry comes from, and
+    arnon-dark.svg for why the left bank is #7fb3bd.
+  -->
+  <g transform="translate(6 6)">
+    <path fill="#7fb3bd" d="M 8 0 H 53 C 53 20, 31 30, 31 50 C 31 70, 57 78, 57 100 H 8 A 8 8 0 0 1 0 92 V 8 A 8 8 0 0 1 8 0 Z"/>
+    <path fill="#e08a54" d="M 65 0 H 92 A 8 8 0 0 1 100 8 V 92 A 8 8 0 0 1 92 100 H 69 C 69 78, 43 70, 43 50 C 43 30, 65 20, 65 0 Z"/>
+  </g>
+</svg>

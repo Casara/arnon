@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(make help)",
+      "Bash(make build*)",
+      "Bash(make run*)",
+      "Bash(make fmt*)",
+      "Bash(make lint*)",
+      "Bash(make arch-lint*)",
+      "Bash(make test*)",
+      "Bash(make coverage*)",
+      "Bash(make check*)",
+      "Bash(make clean*)",
+      "Bash(go build *)",
+      "Bash(go vet *)",
+      "Bash(go test *)",
+      "Bash(go run *)",
+      "Bash(go doc *)",
+      "Bash(go list *)",
+      "Bash(go mod *)",
+      "Bash(go work *)",
+      "Bash(go tool *)",
+      "Bash(go env*)",
+      "Bash(go version)",
+      "Bash(gofmt -l *)",
+      "Bash(hurl --test *)",
+      "Bash(npx --yes markdownlint-cli2@0.23.2 *)",
+      "Bash(pkill -f examples/cmd/*)",
+      "Bash(set -e)",
+      "Bash(disown)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(git grep*)",
+      "Bash(git blame*)",
+      "Bash(git branch)",
+      "Bash(git branch --list*)",
+      "Bash(git tag)",
+      "Bash(git tag --list*)",
+      "Bash(git describe*)",
+      "Bash(git rev-parse*)",
+      "Bash(git shortlog*)",
+      "Bash(git stash list)",
+      "Bash(git remote -v)",
+      "Bash(git ls-remote*)",
+      "Bash(gh pr view*)",
+      "Bash(gh pr list*)",
+      "Bash(gh pr diff*)",
+      "Bash(gh pr checks*)",
+      "Bash(gh issue view*)",
+      "Bash(gh issue list*)",
+      "Bash(gh run list*)",
+      "Bash(gh run view*)",
+      "Bash(gh repo view*)",
+      "Bash(gh workflow list*)",
+      "Bash(gh workflow view*)",
+      "WebSearch",
+      "WebFetch(domain:pkg.go.dev)",
+      "WebFetch(domain:go.dev)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:huma.rocks)",
+      "WebFetch(domain:go-fuego.dev)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/doc-sync-check.sh 2>/dev/null | python3 -c \"import sys,json; t=sys.stdin.read().strip(); print(json.dumps({'systemMessage': t}) if t else '', end='')\"",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}

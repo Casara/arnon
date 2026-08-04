@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg viewBox="0 0 340 110" width="340" height="105" version="1.1" xmlns="http://www.w3.org/2000/svg" xml:space="preserve">
+  <!--
+    Light-mode variant. Kept as a separate file (rather than a
+    prefers-color-scheme media query inside a single SVG) because an
+    SVG loaded via an <img> tag doesn't reliably respond to that media
+    query on Safari with dark mode enabled - README.md instead
+    switches between this and arnon-dark.svg via <picture>.
+
+    The wordmark is drawn as paths, not <text>: an SVG rendered by
+    GitHub, pkg.go.dev or a social-preview scraper resolves fonts from
+    whatever the viewer has installed, so a font-dependent wordmark
+    changes width - or falls back to something unrecognizable - on
+    machines the author never sees. Paths always render identically.
+  -->
+  <g transform="translate(8 11) scale(0.7857)">
+    <g transform="translate(6 6)">
+      <path fill="#123a41" d="M 8 0 H 53 C 53 20, 31 30, 31 50 C 31 70, 57 78, 57 100 H 8 A 8 8 0 0 1 0 92 V 8 A 8 8 0 0 1 8 0 Z"/>
+      <path fill="#c1622d" d="M 65 0 H 92 A 8 8 0 0 1 100 8 V 92 A 8 8 0 0 1 92 100 H 69 C 69 78, 43 70, 43 50 C 43 30, 65 20, 65 0 Z"/>
+    </g>
+  </g>
+  <g fill="none" stroke="#123a41" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 124.5 78 L 137.5 32 L 150.5 78"/>
+    <path d="M 130.5 62 H 144.5"/>
+    <path d="M 168.5 78 V 32 H 183.5 A 10 10 0 0 1 183.5 52 H 168.5"/>
+    <path d="M 181.5 52 L 194.5 78"/>
+    <path d="M 212.5 78 V 32 L 238.5 78 V 32"/>
+    <path d="M 269.5 32 A 13 23 0 1 1 269.49 32 Z"/>
+    <path d="M 300.5 78 V 32 L 326.5 78 V 32"/>
+  </g>
+</svg>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg viewBox="0 0 112 112" width="112" height="112" version="1.1" xmlns="http://www.w3.org/2000/svg" xml:space="preserve">
+  <!--
+    Mark-only variant of static/arnon.svg, for favicon/avatar use.
+
+    A favicon is one of the few places prefers-color-scheme inside an
+    SVG actually works: browsers do evaluate it for <link rel="icon">.
+    Anywhere it doesn't - an <img> tag, a README, a social-preview
+    scraper - use arnon-icon-light.svg / arnon-icon-dark.svg explicitly
+    instead, the same reason arnon-light.svg and arnon-dark.svg exist.
+
+    The geometry is identical to the mark in arnon.svg, only without
+    the wordmark - one shape across every file. It is a simplification
+    of the original artwork rather than a trace of it: that had a
+    channel pinching to about 5 units wide and diverging at the bottom,
+    which closes shut at 16x16 and merges the two banks into one blob.
+    A single wider channel keeps the crossing readable from a favicon
+    up to a README header. Verified by rasterizing at 16 and 32 pixels.
+  -->
+  <defs>
+    <style>
+      .bank-left { fill: #123a41; }
+      .bank-right { fill: #c1622d; }
+      @media (prefers-color-scheme: dark) {
+        .bank-left { fill: #7fb3bd; }
+        .bank-right { fill: #e08a54; }
+      }
+    </style>
+  </defs>
+  <g transform="translate(6 6)">
+    <path class="bank-left" d="M 8 0 H 53 C 53 20, 31 30, 31 50 C 31 70, 57 78, 57 100 H 8 A 8 8 0 0 1 0 92 V 8 A 8 8 0 0 1 8 0 Z"/>
+    <path class="bank-right" d="M 65 0 H 92 A 8 8 0 0 1 100 8 V 92 A 8 8 0 0 1 92 100 H 69 C 69 78, 43 70, 43 50 C 43 30, 65 20, 65 0 Z"/>
+  </g>
+</svg>

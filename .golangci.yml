@@ -1,0 +1,313 @@
+version: "2"
+
+linters:
+  # Default set of linters.
+  # The value can be:
+  # - `standard`: the "Default" linters https://golangci-lint.run/docs/linters/#all-linters
+  # - `all`: enables all linters by default.
+  # - `none`: disables all linters by default.
+  # - `fast`: enables only linters considered as "fast" (`golangci-lint help linters --json | jq '[ .[] | select(.fast==true) ] | map(.name)'`).
+  # Default: standard
+  #
+  # No `enable:` list here on purpose: with `default: all`, every
+  # linter is already on except what's listed in `disable` below -
+  # an explicit `enable:` enumerating the same set would be inert
+  # (confirmed empirically: removing it doesn't change golangci-lint's
+  # effective linter set at all) and would silently drift out of sync
+  # every time upstream adds a new linter, since `default: all` picks
+  # those up automatically and a frozen `enable:` list wouldn't.
+  default: all
+  # Disable specific linters.
+  disable:
+    - canonicalheader
+    # Package dependency boundaries are enforced by .go-arch-lint.yml
+    # instead, which expresses the allowed package graph directly rather
+    # than through a per-import allow-list.
+    - depguard
+    - gomodguard
+    - wsl
+  # All available settings of specific linters.
+  settings:
+    cyclop:
+      # The maximal code complexity to report.
+      # Default: 10
+      max-complexity: 16
+    exhaustive:
+      # Presence of "default" case in switch statements satisfies exhaustiveness,
+      # even if all enum members are not listed.
+      # Default: false
+      default-signifies-exhaustive: true
+    gomoddirectives:
+      # Allow local `replace` directives.
+      # Default: false
+      #
+      # This repository is three modules (see go.work and
+      # docs/architecture/adr-0001-module-layout.md), and the two submodules
+      # resolve github.com/casara/arnon from the working tree:
+      #
+      #   observability/otel - only until the root module's first tag exists;
+      #     the release checklist in the ADR swaps the replace for a real
+      #     version at tag time.
+      #   examples - permanently, since that module is never published.
+      #
+      # Without this, every lint run on a submodule fails on a directive that
+      # is deliberate. Re-check this setting once both modules are tagged: at
+      # that point only examples/ should still carry a local replace.
+      replace-local: true
+    exhaustruct:
+      exclude:
+        # std
+        - '.*/http\.(Client|Server)$'
+        - '.*/slog\.HandlerOptions$'
+        # pkg
+        - '.*/httpx\.EndpointConfig$'
+        - '.*/middleware\.CORSConfig$'
+        - '.*/middleware\.SecureHeadersConfig$'
+        - '.*/middleware\.RateLimitConfig$'
+        - '.*/middleware\.ChainConfig$'
+        - '.*/middleware\.ThrottleConfig$'
+        - '.*/middleware\.ExtraMiddleware$'
+        - '.*/problem\.Problem$'
+        - '.*/openapi\.DocsConfig$'
+        - '.*/openapi\.Document$'
+        - '.*/openapi\.Info$'
+        - '.*/openapi\.License$'
+        - '.*/openapi\.MediaType$'
+        - '.*/openapi\.Operation$'
+        - '.*/openapi\.Parameter$'
+        - '.*/openapi\.RequestBody$'
+        - '.*/openapi\.Response$'
+        - '.*/openapi\.Schema$'
+        - '.*/openapi\.Server$'
+        - '.*/openapi\.ServerVariable$'
+        - '.*/openapi\.Tag$'
+        - '.*/otel\.Config$'
+        - '.*/routing\.(Group|Router)$'
+        - '.*/validation\.CustomRule$'
+        - '.*/validation\.SchemaEffect$'
+        - '.*/middleware\.compressResponseWriter$'
+        - '.*/middleware\.localLimitCounter$'
+        - '.*/middleware\.timeoutResponseWriter$'
+        - '.*/middleware\.etagResponseWriter$'
+        - '.*/patch\.bufferedResponseWriter$'
+        - '.*/patch\.Config$'
+        - '.*/patch\.documentedHandler$'
+        # A caller states the preconditions the client actually sent and the
+        # state it actually tracks; requiring every field would mean writing
+        # LastModified: time.Time{} to say "not tracked", which is noise.
+        - '.*/precondition\.(Headers|State)$'
+    funlen:
+      # Checks the number of lines in a function.
+      # If lower than 0, disable the check.
+      # Default: 60
+      lines: 160
+    goconst:
+      # Minimum occurrences of constant string count to trigger issue.
+      # Default: 3
+      min-occurrences: 5
+      # Exclude strings matching the given regular expression.
+      # Default: ""
+      ignore-string-values:
+        - "^actual$"
+        - "^array$"
+        - "^body$"
+        - "^code$"
+        - "^detail$"
+        - "^email$"
+        - "^errors$"
+        - "^expected$"
+        - "^field$"
+        - "^object$"
+        - "^path$"
+        - "^required$"
+        - "^source$"
+        - "^status$"
+        - "^string$"
+        - "^title$"
+        - "^true$"
+        - "^uri$"
+        - "^uuid$"
+        - "^value$"
+    ireturn:
+      allow:
+        - anon
+        - error
+        - empty
+        - stdlib
+        - generic
+        - trace\.SpanExporter$
+        - metric\.(Exporter|Meter)$
+        - validation\.Validator$
+        - middleware\.LimitCounter$
+    mnd:
+      # List of function patterns to exclude from analysis.
+      # Following functions are always ignored: `time.Date`,
+      # `strconv.FormatInt`, `strconv.FormatUint`, `strconv.FormatFloat`,
+      # `strconv.ParseInt`, `strconv.ParseUint`, `strconv.ParseFloat`.
+      # Default: []
+      ignored-functions:
+        - "^len$"
+        - "^make$"
+    tagalign:
+      # Explicit key order, matching openapi/doc.go's own documented
+      # tag list (with "sanitize" inserted right after "validate",
+      # since a sanitizer runs immediately before validation) - without
+      # this, tagalign's default alphabetical order disagrees with
+      # what the golines formatter (run via `make fmt`) produces for
+      # any tag combination it hasn't seen before, and the two fight
+      # over "sanitize" vs "validate" forever.
+      order:
+        - json
+        - path
+        - query
+        - header
+        - validate
+        - sanitize
+        - description
+        - format
+        - example
+        - default
+        - deprecated
+        - readonly
+        - writeonly
+    tagliatelle:
+      # Checks the struct tag name case.
+      case:
+        # Defines the association between tag name and case.
+        # Important: the `extended-rules` overrides `rules`.
+        # Default: empty
+        extended-rules:
+          header:
+            case: header
+            extra-initialisms: true
+            initialism-overrides:
+              ID: true
+    varnamelen:
+      # The minimum length of a variable's name that is considered "long".
+      # Variable names that are at least this long will be ignored.
+      # Default: 3
+      min-name-length: 2
+      # Optional list of variable declarations that should be ignored completely.
+      # Entries must be in one of the following forms (see below for examples):
+      # - for variables, parameters, named return values, method receivers, or type parameters:
+      #   <name> <type>  (<type> can also be a pointer/slice/map/chan/...)
+      # - for constants: const <name>
+      #
+      # Default: []
+      ignore-decls:
+        - t testing.T
+        - i int
+        - T any
+        - r *http.Request
+        - w http.ResponseWriter
+  # Defines a set of rules to ignore issues.
+  # It does not skip the analysis, and so does not ignore "typecheck" errors.
+  exclusions:
+    rules:
+      # Exclude some linters from running on tests files.
+      - path: _(stub|test)\.go
+        linters:
+          - err113
+          - exhaustruct
+          - funlen
+          - goconst
+          - revive
+          # httptest.NewRequest is the standard, idiomatic way to build
+          # a request in tests; forcing NewRequestWithContext everywhere
+          # adds noise without a real context to propagate.
+          - noctx
+          # Test structs deliberately mix single-purpose tags (path-only,
+          # query-only, header-only, json-only fields) to exercise one
+          # binding source per field; forcing column alignment across
+          # them produces wide gaps that hurt readability rather than
+          # help it.
+          - tagalign
+      # example_test.go files are documentation first: they are rendered
+      # verbatim on pkg.go.dev, so every line of error-handling boilerplate
+      # is a line the reader has to skip past to reach the point. The Go
+      # stdlib's own examples write `fmt.Fprint(w, ...)` unchecked for the
+      # same reason. Narrowed to example_test.go rather than all tests -
+      # a real test that ignores an error is still a bug.
+      - path: example_test\.go
+        linters:
+          - errcheck
+
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - gofumpt
+    - goimports
+    - golines
+    - swaggo
+  settings:
+    gci:
+      # Section configuration to compare against.
+      # Section names are case-insensitive and may contain parameters in ().
+      # The default order of sections is `standard > default > custom > blank > dot > alias > localmodule`.
+      # If `custom-order` is `true`, it follows the order of `sections` option.
+      # Default: ["standard", "default"]
+      sections:
+        - standard # Standard section: captures all standard packages.
+        - default # Default section: contains all imports that could not be matched to another section type.
+        - prefix(github.com/casara/arnon) # Custom section: groups all imports with the specified Prefix.
+        - blank # Blank section: contains all blank imports. This section is not present unless explicitly enabled.
+        - dot # Dot section: contains all dot imports. This section is not present unless explicitly enabled.
+        - alias # Alias section: contains all alias imports. This section is not present unless explicitly enabled.
+        - localmodule # Local module section: contains all local packages. This section is not present unless explicitly enabled.
+      # Checks that no inline comments are present.
+      no-inline-comments: false
+      # Checks that no prefix comments (comment lines above an import) are present.
+      no-prefix-comments: false
+      # Enable custom order of sections.
+      # If `true`, make the section order the same as the order of `sections`.
+      custom-order: false
+      # Drops lexical ordering for custom sections.
+      no-lex-order: false
+    gofmt:
+      # Simplify code: gofmt with `-s` option.
+      simplify: true
+      # Apply the rewrite rules to the source before reformatting.
+      # https://pkg.go.dev/cmd/gofmt
+      rewrite-rules:
+        - pattern: "interface{}"
+          replacement: "any"
+        - pattern: "a[b:len(a)]"
+          replacement: "a[b:]"
+    gofumpt:
+      # Module path which contains the source code being formatted.
+      module-path: github.com/casara/arnon
+      # Choose whether to use the extra rules.
+      extra-rules: true
+      # A list of prefixes, which, if set, checks import paths
+      # with the given prefixes are grouped after 3rd-party packages.
+    goimports:
+      local-prefixes:
+        - github.com/casara/arnon
+    golines:
+      # Target maximum line length.
+      max-len: 100
+      # Length of a tabulation.
+      tab-len: 4
+      # Shorten single-line comments.
+      shorten-comments: false
+      reformat-tags: true
+      # Split chained methods on the dots as opposed to the arguments.
+      chain-split-dots: true
+
+issues:
+  # Maximum issues count per one linter.
+  # Set to 0 to disable.
+  # Default: 50
+  max-issues-per-linter: 0
+  # Maximum count of issues with the same text.
+  # Set to 0 to disable.
+  # Default: 3
+  max-same-issues: 0
+
+# Options for analysis running.
+run:
+  # Timeout for total work, e.g. 30s, 5m, 5m30s.
+  # If the value is lower or equal to 0, the timeout is disabled.
+  # Default: 0 (disabled)
+  timeout: 5m

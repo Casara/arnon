@@ -1,0 +1,18 @@
+// This workspace ties arnon's three modules together for local development:
+// one editor/`go build` session across all three from the repo root, without
+// `cd`-ing into each. CI doesn't rely on it - Makefile targets `cd` into each
+// module explicitly.
+//
+// Consumers never see this file - `go.work` is ignored outside the workspace
+// root, so it has no effect on anyone who runs `go get github.com/casara/arnon`.
+//
+// See docs/architecture/adr-0001-module-layout.md, section "go.work is
+// committed", for why this file's role shifts once observability/otel is
+// first released, and for the release ordering itself.
+go 1.26
+
+use (
+	.
+	./examples
+	./observability/otel
+)

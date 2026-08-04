@@ -1,0 +1,153 @@
+version: 3
+workdir: .
+
+excludeFiles:
+  - "^.*_test\\.go$"
+
+vendors:
+  go-uuid: { in: github.com/google/uuid }
+  validator: { in: github.com/go-playground/validator/v10(/**)? }
+  otel: { in: go.opentelemetry.io/otel(/**)? }
+  otel-contrib: { in: go.opentelemetry.io/contrib(/**)? }
+  json-patch: { in: github.com/evanphx/json-patch/v5(/**)? }
+  ozzo-validation: { in: github.com/go-ozzo/ozzo-validation/v4(/**)? }
+
+components:
+  problem: { in: problem }
+  sanitize: { in: sanitize }
+  validation: { in: validation }
+  openapi: { in: openapi }
+  httpx: { in: httpx }
+  httpx-binding: { in: httpx/binding }
+  httpx-routing: { in: httpx/routing }
+  httpx-middleware: { in: httpx/middleware }
+  httpx-patch: { in: httpx/patch }
+  httpx-precondition: { in: httpx/precondition }
+  observability: { in: observability }
+  observability-otel: { in: observability/otel }
+  # Runnable examples are consumers of the library, not part of its
+  # internal architecture, so they may freely use any component.
+  examples: { in: "examples/**" }
+
+commonComponents: []
+
+deps:
+  # Leaf package: RFC 9457 Problem Details types. Everything else may
+  # depend on it, it depends on nothing internal or external (no entry
+  # below means no allowed dependencies at all).
+
+  # Leaf package, same shape as problem above: struct-tag-driven data
+  # transforms (trim, lower, custom funcs) applied before validation
+  # runs. Depends on nothing internal - a sanitizer is a pure
+  # func(string) string, so it never needs to report a validation
+  # failure.
+
+  # Wraps go-playground/validator/v10 behind the Validator interface
+  # and the custom rule registry.
+  validation:
+    mayDependOn:
+      - problem
+    canUse:
+      - validator
+
+  # Reads validation's custom rule registry so OpenAPI schema
+  # generation and runtime validation agree on what a tag means.
+  openapi:
+    mayDependOn:
+      - validation
+
+  # Request binding (path/query/header/JSON) only needs Problem Details
+  # to report binding failures.
+  httpx-binding:
+    mayDependOn:
+      - problem
+
+  # The typed Endpoint helper: binds, validates, calls the handler, and
+  # maps errors to Problem Details/OpenAPI operations.
+  httpx:
+    mayDependOn:
+      - httpx-binding
+      - openapi
+      - problem
+      - sanitize
+      - validation
+
+  # The router registers OpenAPI operations contributed by handlers that
+  # implement routing.OpenAPIProvider. That interface is declared here, in the
+  # consuming package, so the router needs nothing from httpx: a handler
+  # satisfies it structurally, without importing routing. The graph is
+  # strictly layered as a result - there is no bottom-up edge.
+  httpx-routing:
+    mayDependOn:
+      - openapi
+
+  # Standard middleware (CORS, recovery, request ID, logging, ...).
+  httpx-middleware:
+    mayDependOn:
+      - httpx
+      - httpx-routing
+      - observability
+      - problem
+    canUse:
+      - go-uuid
+
+  # Derives a PATCH http.Handler from an existing GET+PUT pair (RFC 6902
+  # JSON Patch / RFC 7386 JSON Merge Patch), by request replay - never
+  # goes through httpx-routing, it only ever calls the two given
+  # http.Handlers directly.
+  # openapi is here so Config.OpenAPI can name an Operation: a derived PATCH
+  # has to be describable, or it could never appear in the generated document.
+  # Downward edge, same direction httpx already depends in.
+  httpx-patch:
+    mayDependOn:
+      - httpx
+      - httpx-precondition
+      - openapi
+      - problem
+    canUse:
+      - json-patch
+
+  # Pure RFC 9110 write-precondition (If-Match/If-Unmodified-Since)
+  # check: only reports 412/428, never touches *http.Request beyond
+  # reading its own two headers in CheckRequest - the caller supplies
+  # the resource's current etag/lastModified, since only it knows that.
+  httpx-precondition:
+    mayDependOn:
+      - problem
+
+  # Thin OpenTelemetry API wrappers (counters, histograms, attributes).
+  observability:
+    canUse:
+      - otel
+
+  # OpenTelemetry SDK wiring (exporters, providers, HTTP instrumentation).
+  observability-otel:
+    mayDependOn:
+      - observability
+    canUse:
+      - otel
+      - otel-contrib
+
+  examples:
+    mayDependOn:
+      # examples/cmd/* import shared scaffolding from examples/internal/*
+      # (logger, custom validator registration, the sample domain
+      # handler) - both live under the same "examples" component, but
+      # go-arch-lint still requires a component to list itself to allow
+      # cross-package imports within it.
+      - examples
+      - httpx
+      - httpx-binding
+      - httpx-routing
+      - httpx-middleware
+      - httpx-patch
+      - httpx-precondition
+      - openapi
+      - problem
+      - sanitize
+      - validation
+      - observability
+      - observability-otel
+    canUse:
+      - validator
+      - ozzo-validation

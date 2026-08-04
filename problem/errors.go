@@ -1,0 +1,192 @@
+package problem
+
+import (
+	"errors"
+	"net/http"
+)
+
+// Errors reported by Problem.With when an extension key is invalid.
+//
+// Like the route pattern errors in httpx/routing, these are delivered by
+// panic rather than by a return value: an extension key is written in the
+// source, not received from a client, so an invalid one is a programming
+// error that no caller is positioned to handle. They stay exported so that
+// code recovering from the panic can identify the cause with errors.Is.
+var (
+	// ErrEmptyExtensionKey indicates that With was called with a blank
+	// or whitespace-only key.
+	ErrEmptyExtensionKey = errors.New(
+		"problem: extension key cannot be empty",
+	)
+
+	// ErrReservedExtensionKey indicates that With was called with a key
+	// that collides with one of the standard RFC 9457 fields (type,
+	// title, status, detail, instance, errors).
+	ErrReservedExtensionKey = errors.New(
+		"problem: extension key is reserved",
+	)
+)
+
+const (
+	defaultUnexpectedDetail = "An unexpected error occurred"
+)
+
+// NewBadRequest creates a 400 problem.
+func NewBadRequest(
+	detail string,
+) *Problem {
+	return New(
+		http.StatusBadRequest,
+		http.StatusText(
+			http.StatusBadRequest,
+		),
+		detail,
+	)
+}
+
+// NewUnauthorized creates a 401 problem.
+func NewUnauthorized(
+	detail string,
+) *Problem {
+	return New(
+		http.StatusUnauthorized,
+		http.StatusText(
+			http.StatusUnauthorized,
+		),
+		detail,
+	)
+}
+
+// NewForbidden creates a 403 problem.
+func NewForbidden(
+	detail string,
+) *Problem {
+	return New(
+		http.StatusForbidden,
+		http.StatusText(
+			http.StatusForbidden,
+		),
+		detail,
+	)
+}
+
+// NewNotFound creates a 404 problem.
+func NewNotFound(
+	detail string,
+) *Problem {
+	return New(
+		http.StatusNotFound,
+		http.StatusText(
+			http.StatusNotFound,
+		),
+		detail,
+	)
+}
+
+// NewNotAcceptable creates a 406 problem.
+func NewNotAcceptable(
+	detail string,
+) *Problem {
+	return New(
+		http.StatusNotAcceptable,
+		http.StatusText(
+			http.StatusNotAcceptable,
+		),
+		detail,
+	)
+}
+
+// NewConflict creates a 409 problem.
+func NewConflict(
+	detail string,
+) *Problem {
+	return New(
+		http.StatusConflict,
+		http.StatusText(
+			http.StatusConflict,
+		),
+		detail,
+	)
+}
+
+// NewUnprocessableEntity creates a 422 problem.
+func NewUnprocessableEntity(
+	detail string,
+) *Problem {
+	return New(
+		http.StatusUnprocessableEntity,
+		http.StatusText(
+			http.StatusUnprocessableEntity,
+		),
+		detail,
+	)
+}
+
+// NewPreconditionFailed creates a 412 problem.
+func NewPreconditionFailed(
+	detail string,
+) *Problem {
+	return New(
+		http.StatusPreconditionFailed,
+		http.StatusText(
+			http.StatusPreconditionFailed,
+		),
+		detail,
+	)
+}
+
+// NewPreconditionRequired creates a 428 problem.
+func NewPreconditionRequired(
+	detail string,
+) *Problem {
+	return New(
+		http.StatusPreconditionRequired,
+		http.StatusText(
+			http.StatusPreconditionRequired,
+		),
+		detail,
+	)
+}
+
+// NewTooManyRequests creates a 429 problem.
+func NewTooManyRequests(
+	detail string,
+) *Problem {
+	return New(
+		http.StatusTooManyRequests,
+		http.StatusText(
+			http.StatusTooManyRequests,
+		),
+		detail,
+	)
+}
+
+// NewInternal creates a 500 problem.
+func NewInternal(
+	detail string,
+) *Problem {
+	if detail == "" {
+		detail = defaultUnexpectedDetail
+	}
+
+	return New(
+		http.StatusInternalServerError,
+		http.StatusText(
+			http.StatusInternalServerError,
+		),
+		detail,
+	)
+}
+
+// NewServiceUnavailable creates a 503 problem.
+func NewServiceUnavailable(
+	detail string,
+) *Problem {
+	return New(
+		http.StatusServiceUnavailable,
+		http.StatusText(
+			http.StatusServiceUnavailable,
+		),
+		detail,
+	)
+}
