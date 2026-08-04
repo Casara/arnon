@@ -89,7 +89,13 @@ isn't "opinionated or not," it's **where each opinion comes from** and
   second, parallel path to register a custom rule. Rate limit: the
   algorithm (sliding window) is separated from storage via the
   `LimitCounter` interface, swappable for a shared backend (Redis
-  etc.) without touching the algorithm.
+  etc.) without touching the algorithm. The validator itself and the
+  RFC 9457 error format are swappable too, each a runnable example
+  rather than a claim:
+  [examples/cmd/custom-validator](examples/cmd/custom-validator/main.go)
+  swaps in ozzo-validation, and
+  [examples/cmd/custom-errors](examples/cmd/custom-errors/main.go)
+  answers errors in a shape that isn't Problem Details at all.
 
 ### Compared to huma and fuego, specifically
 
@@ -255,6 +261,14 @@ Complete, runnable examples live in `examples/cmd`:
   from an existing `GET`+`PUT` pair via `httpx/patch.From` (RFC 7386
   JSON Merge Patch and RFC 6902 JSON Patch, selected by
   `Content-Type`), with neither handler changed to support it.
+* [examples/cmd/custom-validator](examples/cmd/custom-validator/main.go) —
+  the built-in validator swapped for ozzo-validation via
+  `EndpointConfig.Validator`, proof the default is a plug, not a
+  requirement.
+* [examples/cmd/custom-errors](examples/cmd/custom-errors/main.go) —
+  errors answered as a flat `{"errors": [...]}` body instead of RFC
+  9457 Problem Details, by reusing `binding`/`sanitize`/`validation`
+  directly instead of `httpx.Endpoint`.
 
 ```sh
 go run ./examples/cmd/basic
@@ -268,6 +282,10 @@ go run ./examples/cmd/files
 go run ./examples/cmd/staticfiles
 # or
 go run ./examples/cmd/patch
+# or
+go run ./examples/cmd/custom-validator
+# or
+go run ./examples/cmd/custom-errors
 ```
 
 ## Overview

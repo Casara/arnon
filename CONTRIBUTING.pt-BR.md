@@ -105,7 +105,8 @@ significa para quem usa. Mesmo assim ela precisa ser deliberada e visível:
   depreciado em vez de apagar de uma vez.
 * Prefira mudança aditiva quando existir uma: campo novo numa struct de
   config, opção variádica, construtor novo ao lado do antigo.
-* Tudo na lista de sincronização de docs do [AGENTS.md](AGENTS.md) se aplica.
+* Tudo na lista de sincronização de docs do
+  [AGENTS.md](AGENTS.md#documentation-synchronization) se aplica.
   Uma função `Example` é a forma mais barata de provar que o formato novo
   funciona — o `make check` roda elas.
 
@@ -125,7 +126,7 @@ Dois hábitos importam mais que o ciclo em si:
 * **Entregue a funcionalidade, seu exemplo e sua documentação juntos.** O
   histórico mostra isso em trios: a mudança no pacote, depois `examples/cmd/*`,
   depois as docs. O PR que deixa o terceiro pra depois é o que fica obsoleto.
-* **Prefira um `Example` a prosa.** O `make check` compila e roda todo
+* **Prefira um `Example` à teoria.** O `make check` compila e roda todo
   `Example`, comparando o bloco `// Output:`, então é a única documentação que
   a toolchain consegue manter honesta. Escrever os deste repositório revelou
   três erros que estavam nas docs, compilando normalmente.
@@ -142,7 +143,8 @@ pessoa abre — é o que as checagens e o diff precisam deixar óbvio sozinhos.
   mudança. É por isso que commit intermediário de branch de trabalho não
   precisa seguir a convenção à risca, enquanto a mensagem do squash precisa.
 * **Mudança em símbolo exportado é lida contra a lista de sincronização de
-  docs** do [AGENTS.md](AGENTS.md), não só contra os testes. O `make doc-sync`
+  docs** do [AGENTS.md](AGENTS.md#documentation-synchronization), não só
+  contra os testes. O `make doc-sync`
   imprime o que um diff que mexeu na superfície pública deixou pra trás.
 
 ## Contribuindo com assistente de IA

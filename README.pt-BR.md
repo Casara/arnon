@@ -91,7 +91,13 @@ não é "opinativo ou não", é **de onde vem cada opinião** e **quão caro
   registrar regra customizada. Rate limit: o algoritmo (janela
   deslizante) é separado do storage via a interface `LimitCounter`,
   trocável por um backend compartilhado (Redis etc.) sem tocar no
-  algoritmo.
+  algoritmo. O próprio validador e o formato de erro RFC 9457 também
+  são trocáveis, cada um com um exemplo executável em vez de só uma
+  afirmação:
+  [examples/cmd/custom-validator](examples/cmd/custom-validator/main.go)
+  troca pelo ozzo-validation, e
+  [examples/cmd/custom-errors](examples/cmd/custom-errors/main.go)
+  responde erros num formato que não é Problem Details.
 
 ### Comparado a huma e fuego, especificamente
 
@@ -257,6 +263,14 @@ Exemplos completos e executáveis estão em `examples/cmd`:
   de um par `GET`+`PUT` já existente via `httpx/patch.From` (RFC 7386
   JSON Merge Patch e RFC 6902 JSON Patch, escolhido pelo
   `Content-Type`), sem mudar nenhum dos dois handlers.
+* [examples/cmd/custom-validator](examples/cmd/custom-validator/main.go) —
+  o validador embutido trocado pelo ozzo-validation via
+  `EndpointConfig.Validator`, prova de que o padrão é um encaixe, não
+  uma exigência.
+* [examples/cmd/custom-errors](examples/cmd/custom-errors/main.go) —
+  erros respondidos como um corpo `{"errors": [...]}` simples em vez
+  de RFC 9457 Problem Details, reaproveitando
+  `binding`/`sanitize`/`validation` direto em vez de `httpx.Endpoint`.
 
 ```sh
 go run ./examples/cmd/basic
@@ -270,6 +284,10 @@ go run ./examples/cmd/files
 go run ./examples/cmd/staticfiles
 # ou
 go run ./examples/cmd/patch
+# ou
+go run ./examples/cmd/custom-validator
+# ou
+go run ./examples/cmd/custom-errors
 ```
 
 ## Visão geral

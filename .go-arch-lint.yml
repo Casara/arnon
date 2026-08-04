@@ -10,6 +10,7 @@ vendors:
   otel: { in: go.opentelemetry.io/otel(/**)? }
   otel-contrib: { in: go.opentelemetry.io/contrib(/**)? }
   json-patch: { in: github.com/evanphx/json-patch/v5(/**)? }
+  ozzo-validation: { in: github.com/go-ozzo/ozzo-validation/v4(/**)? }
 
 components:
   problem: { in: problem }
@@ -149,3 +150,4 @@ deps:
       - observability-otel
     canUse:
       - validator
+      - ozzo-validation

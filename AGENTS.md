@@ -196,6 +196,9 @@ alone, and a check that cried wolf would be ignored. A `Stop` hook in
 For a closer look, the `api-surface-reviewer` subagent
 (`.claude/agents/`) reads the diff in a clean context and reports what changed
 in the exported API with `file:line`, and which documentation contradicts it.
+`bilingual-doc-reviewer` (same directory) does the equivalent check between an
+English doc and its `.pt-BR.md` twin — broken cross-links, a bullet added to
+one side and not the other.
 
 Treat updating these as part of the same change, not a follow-up — a stale code
 example is a bug in the documentation.

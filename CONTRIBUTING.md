@@ -105,7 +105,8 @@ still has to be deliberate and visible:
   deprecated alias rather than deleting it outright.
 * Prefer an additive change when one exists: a new field on a config struct,
   a variadic option, a new constructor alongside the old one.
-* Everything in the doc-sync list of [AGENTS.md](AGENTS.md) applies. An
+* Everything in the doc-sync list of
+  [AGENTS.md](AGENTS.md#documentation-synchronization) applies. An
   `Example` function is the cheapest way to prove the new shape works —
   `make check` runs them.
 
@@ -125,7 +126,7 @@ Two habits matter more than the loop itself:
 * **Land a feature, its example and its documentation together.** The history
   shows this as triples: the package change, then `examples/cmd/*`, then the
   docs. A PR that leaves the third for later is the one that goes stale.
-* **Prefer an `Example` over prose.** `make check` compiles and runs every
+* **Prefer an `Example` over theory.** `make check` compiles and runs every
   `Example`, comparing its `// Output:` block, so it is the only documentation
   the toolchain can keep honest. Writing the ones in this repository caught
   three errors that had been sitting in the docs, compiling fine.
@@ -142,7 +143,8 @@ their own.
   per change. That is why an intermediate commit on a work branch does not
   have to follow the convention strictly, while the squashed message does.
 * **A change to an exported symbol gets read against the doc-sync list**
-  in [AGENTS.md](AGENTS.md), not just against the tests. `make doc-sync`
+  in [AGENTS.md](AGENTS.md#documentation-synchronization), not just against
+  the tests. `make doc-sync`
   prints what a diff touching the public surface has left behind.
 
 ## Contributing with an AI assistant

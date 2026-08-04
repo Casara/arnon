@@ -158,6 +158,16 @@ One registration feeds runtime validation, the RFC 9457 error mapping
 (`code`/`detail`), and the generated OpenAPI schema at the same time -
 there's no separate step for any of the three.
 
+`go-playground/validator` is the default, not a requirement:
+`EndpointConfig.Validator` accepts any `Validate(value any)
+[]problem.ValidationError` implementation. Reach for this only when a
+project must standardize on a different validation library already in
+use elsewhere - swapping it drops OpenAPI schema generation for the
+affected fields, since that reads the `validate` struct tag directly,
+independently of which validator runs at request time. See
+[`examples/cmd/custom-validator`](https://github.com/casara/arnon/blob/main/examples/cmd/custom-validator/main.go)
+for a worked swap (ozzo-validation) and that consequence made concrete.
+
 ## Errors and Problem Details
 
 Handlers return a plain `error`. arnon maps it to a `problem.Problem`
@@ -166,6 +176,16 @@ Handlers return a plain `error`. arnon maps it to a `problem.Problem`
 wrapped by `httpx.Endpoint`. To control the mapping for a specific
 error type, pass a custom `ProblemMapper` in `EndpointConfig`; anything
 unmapped falls back to a generic `500`.
+
+`ProblemMapper` only controls which `problem.Problem` gets built - the
+wire format is always RFC 9457, since `httpx.Endpoint` always calls
+`httpx.WriteProblem`. Answering errors in a different shape entirely
+means not using `httpx.Endpoint` for that route: `binding.Decode`,
+`sanitize.Apply` and `validation.Validator` are independent packages,
+reusable in a hand-rolled `http.Handler` that writes whatever envelope
+the project needs. See
+[`examples/cmd/custom-errors`](https://github.com/casara/arnon/blob/main/examples/cmd/custom-errors/main.go)
+for the ~20-line version of this.
 
 ## Router and middleware
 
