@@ -31,7 +31,7 @@ Evitar over-engineering.
 
 ---
 
-### Convenção sobre configuração
+### Inferência sobre configuração
 
 O framework deve inferir o máximo possível através de:
 
@@ -703,7 +703,7 @@ request. Pra
 (`NewPathError`/`NewQueryError`/`NewHeaderError` em `problem/validation.go`),
 `field` é sempre o nome cru do campo (`id`, `page`, `Authorization`), sem
 prefixo `/` (não é JSON Pointer, não tem por quê escapar). Detalhe da
-RFC em [docs/architecture/rfc-compliance.md](rfc-compliance.pt-BR.md).
+RFC em [docs/architecture/rfc-compliance.pt-BR.md](rfc-compliance.pt-BR.md).
 
 ---
 
@@ -1391,7 +1391,7 @@ Implementado:
   verdade rodando (trace exportado batendo bit a bit com o trace_id/
   span_id logado pela aplicação, métricas customizadas com exemplars
   apontando pro trace exato).
-* [docs/architecture/rfc-compliance.md](rfc-compliance.pt-BR.md): referência
+* [docs/architecture/rfc-compliance.pt-BR.md](rfc-compliance.pt-BR.md): referência
   de conformidade com as RFCs relevantes pra uma fundação HTTP
   (RFC 9457, RFC 9110, RFC 9111, RFC 7239, RFC 6585,
   RFC 8288/8631/8615, RFC 8259), separando o que já é conforme, o que

@@ -73,7 +73,7 @@ isn't "opinionated or not," it's **where each opinion comes from** and
 * **Where no RFC exists, still the language's own standard — not
   something reinvented.** `arnon` runs directly on top of
   `net/http.Server`: `Router` implements `http.Handler`, so it's just
-  `&http.Server{Handler: router}` (see "Quick start" above) — no
+  `&http.Server{Handler: router}` (see "Quick start" below) — no
   custom HTTP engine replacing the stdlib's. That inherits, for free,
   maintenance/security patches from the Go team itself, compatibility
   with any existing `http.Handler` middleware, `httptest`,
@@ -82,9 +82,9 @@ isn't "opinionated or not," it's **where each opinion comes from** and
   Middleware order: `middleware.BuildChain` guarantees the recommended
   order by code, but `ChainConfig.Extra`/`ChainAnchor` lets you insert
   custom middleware at a specific position without editing the
-  built-in chain (detail in
-  [docs/architecture/project-context.md](docs/architecture/project-context.md),
-  "Middleware order" section). Validation:
+  built-in chain (detail in the
+  ["Middleware order"](docs/architecture/project-context.md#middleware-order)
+  section). Validation:
   `validation.RegisterCustomRule` is the only mechanism — there's no
   second, parallel path to register a custom rule. Rate limit: the
   algorithm (sliding window) is separated from storage via the
@@ -221,6 +221,7 @@ func main() {
 With no extra code, this handler automatically gets:
 
 * path, query, header, and JSON body binding;
+* field sanitization (`sanitize:"trim"`) before validation runs;
 * request validation (`validate:"required,email"`) with a
   `400 application/problem+json` response in RFC 9457 format;
 * handler error mapping to Problem Details;

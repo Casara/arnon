@@ -91,7 +91,7 @@ Two things were considered and rejected:
 * **Moving `PlaygroundValidator` out to drop `validator/v10` from the core.**
   This is the dependency a consumer actually pays for, so the saving is real —
   but it requires validation to become opt-in in `httpx.EndpointConfig`, which
-  contradicts both "convention over configuration" and the framework's own
+  contradicts both "inference over configuration" and the framework's own
   headline (typed endpoints *with* validation). Not worth 8 indirect requires.
 * **Splitting `httpx/patch`.** Removes exactly one module
   (`evanphx/json-patch/v5`). Does not pay for a fourth `go.mod`.
@@ -127,11 +127,25 @@ whole package graph. This was verified by planting a deliberate
 
 ### `go.work` is committed
 
-Until the root module carries its first tag there is no version of
-`github.com/casara/arnon` to require, so the submodules resolve it from the
-working tree via `replace`. `go.work` ties the three together so that
-cross-module edits are immediately visible. Consumers never see it — `go.work`
-has no effect outside the workspace root.
+`go.work` is not what makes the repository build — verified by removing it and
+running `go build ./...` from `observability/otel` and `examples` standalone,
+both succeed. For `examples/`, that stays true forever: it is never published,
+so its `replace` directives are permanent. For `observability/otel`, it is only
+true *before* the release checklist below runs — its own `replace` currently
+points at the working tree, same as `examples/`'s. Once that `replace` is
+deleted at release time, a standalone build of `observability/otel` resolves
+`github.com/casara/arnon` from the last **published** tag, not from local
+edits. That is the point at which `go.work` stops being a convenience and
+starts being load-bearing for that module: it is what keeps local edits to the
+root visible while developing `observability/otel` between releases, without
+having to tag and republish just to see them.
+
+Either way, it is not load-bearing for CI: `Makefile` targets `cd` into each
+`$(MODULES)` entry explicitly rather than relying on the workspace (see
+"Tooling" above). What it buys day to day is editor/tooling convenience — one
+`go build`/`gopls` session across all three modules from the repo root, no
+`cd`-ing into each one. Consumers never see it — `go.work` has no effect
+outside the workspace root.
 
 `gomoddirectives`' `replace-local` had to be enabled in `.golangci.yml` for the
 same reason; the comment there records when it can be tightened again.
@@ -141,16 +155,25 @@ same reason; the comment there records when it can be tightened again.
 The submodule's dependency on the root cannot be satisfied until the root is
 published, so releases are **ordered, not simultaneous**:
 
-1. Tag the root module (`vX.Y.Z`).
+1. Tag the root module (`vX.Y.Z`) and **push the tag** — `go get` resolves
+   against the remote, not the local repository, so an unpushed tag is
+   invisible to the module proxy and to step 2.
 2. In `observability/otel/go.mod`, replace
    `github.com/casara/arnon v0.0.0-00010101000000-000000000000` with the tag
-   from step 1, and **delete the `replace` directive**.
-3. Commit, then tag `observability/otel/vX.Y.Z`.
+   from step 1, and **delete the `replace` directive**. Then run `go mod tidy`
+   in `observability/otel`: the local `replace` bypassed checksum verification
+   entirely, so `observability/otel/go.sum` has **no entry at all** for
+   `github.com/casara/arnon` yet (verified: `grep casara/arnon go.sum` is
+   empty today) — without `tidy` regenerating it, the tagged module fails to
+   build for anyone who fetches it.
+3. Commit, then tag `observability/otel/vX.Y.Z` and push that tag too.
 
 `examples/` is never published, so its `replace` directives are permanent.
 
-Skipping step 2 publishes a module that cannot be fetched, and there is no
-check for it.
+Skipping step 2 (either half — the `replace` deletion or the `go mod tidy`) or
+step 1's push publishes a module that cannot be fetched, and there is no
+automated check for any of it. Worth a manual double-check before the first
+tag, since this ordering has never been exercised end-to-end yet.
 
 ### When to revisit
 

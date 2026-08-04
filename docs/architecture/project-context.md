@@ -31,7 +31,7 @@ Avoid over-engineering.
 
 ---
 
-### Convention over configuration
+### Inference over configuration
 
 The framework should infer as much as possible through:
 
