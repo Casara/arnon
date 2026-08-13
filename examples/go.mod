@@ -20,13 +20,13 @@ replace github.com/casara/arnon => ..
 replace github.com/casara/arnon/observability/otel => ../observability/otel
 
 require (
-	github.com/casara/arnon v0.0.0-00010101000000-000000000000
+	github.com/casara/arnon v0.1.0
 	github.com/casara/arnon/observability/otel v0.0.0-00010101000000-000000000000
-	github.com/go-ozzo/ozzo-validation/v4 v4.3.0
+	github.com/go-ozzo/ozzo-validation/v4 v4.4.1
 )
 
 require (
-	github.com/asaskevich/govalidator v0.0.0-20200108200545-475eaeb16496 // indirect
+	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
